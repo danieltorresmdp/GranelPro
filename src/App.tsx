@@ -461,9 +461,9 @@ function NewSale({prods,clients,notify,session,stock,onSaved}:any) {
         }
       }
       if(client) await sb.from("gp_clients").update({pts:client.pts-ptsUs+ptsE}).eq("id",client.id);
+      await onSaved();
       setReceipt({sale:{id:saleId,date,pay,total,disc,items:cart},clientName:client?.name,ptsE,ptsUs,local:session.local});
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
-      await onSaved();
     } catch(e){ notify("Error al guardar venta","err"); }
     setSaving(false);
   };
