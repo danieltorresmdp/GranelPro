@@ -9,13 +9,14 @@ const POINT_VALUE  = 0.50;
 const POINTS_DENOM = 1000;
 const MAX_DISC_PCT = 0.30;
 const PAY_OPTS     = ["efectivo","tarjeta","QR"];
-const CATEGORIES   = ["Perro","Gato","Accesorios"];
+const CATEGORIES   = ["Perro","Gato","Accesorios","Granja"];
 const todayStr     = () => new Date().toISOString().split("T")[0];
 
 const CAT_STYLE: Record<string,string[]> = {
   "Perro":      ["#060f1a","#4488ff22","#5599ff","🐶"],
   "Gato":       ["#0a080f","#cc44ff22","#dd66ff","🐱"],
   "Accesorios": ["#080f0a","#44dd8822","#55ee99","🛍️"],
+  "Granja":     ["#0a0900","#aacc0022","#ccee44","🌾"],
 };
 const PAY_STYLE: Record<string,string[]> = {
   "efectivo":["#031508","#00994422","#00bb55"],
@@ -63,6 +64,7 @@ const IP:Record<string,string> = {
   stk:"M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z",
   loc:"M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
   rpt:"M18 20V10M12 20V4M6 20v-6",
+  chev:"M6 9l6 6 6-6",
 };
 
 const Ic = ({n,s=16,c="currentColor"}:{n:string,s?:number,c?:string}) => (
@@ -417,10 +419,15 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   const[receipt,setReceipt]=useState<any>(null);
   const[showCliList,setShowCliList]=useState(false);
   const[saving,setSaving]=useState(false);
+  const[expandedId,setExpandedId]=useState<number|null>(null);
 
   const client=clients.find((c:any)=>c.id===parseInt(cid));
   const filteredClients=clients.filter((c:any)=>c.active&&(c.name.toLowerCase().includes(cliQ.toLowerCase())||(c.dni&&c.dni.replace(/\D/g,"").includes(cliQ.replace(/\D/g,"")))));
-  const visible=prods.filter((p:any)=>p.name.toLowerCase().includes(q.toLowerCase())&&(catF==="Todas"||p.cat===catF));
+  const visible=prods.filter((p:any)=>{
+    const matchQ=q===""||p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
+    const matchCat=catF==="Todas"||p.cat===catF;
+    return matchQ&&matchCat;
+  });
   const sub=cart.reduce((a:number,b:any)=>a+b.sub,0);
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
@@ -530,13 +537,45 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
           <div><Lbl t="Pago"/><Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel></div>
           <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e:any)=>setDate(e.target.value)}/></div>
         </div>
-        <div style={{display:"flex",gap:9,marginBottom:14}}>
-          <div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar producto..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
+        <div style={{display:"flex",gap:9,marginBottom:10}}>
+          <div style={{flex:1,position:"relative"}}>
+            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
+            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
+          </div>
           <div style={{display:"flex",gap:6}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(215px,1fr))",gap:10}}>
-          {visible.map((p:any)=><ProdCard key={p.id} p={p} onAdd={addToCart}/>)}
-        </div>
+        {/* Lista de productos */}
+        <Card sx={{overflow:"hidden"}}>
+          {visible.length===0&&<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>No hay productos</div>}
+          {visible.map((p:any)=>{
+            const[,,,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
+            const expanded=expandedId===p.id;
+            return(
+              <div key={p.id} style={{borderBottom:"1px solid #192a3820"}}>
+                {/* Fila clickeable */}
+                <div onClick={()=>setExpandedId(expanded?null:p.id)} style={{display:"flex",alignItems:"center",padding:"10px 14px",cursor:"pointer",background:expanded?"#051626":"transparent",transition:"background .15s"}}
+                  onMouseEnter={(e:any)=>{if(!expanded)e.currentTarget.style.background="#06111e"}}
+                  onMouseLeave={(e:any)=>{if(!expanded)e.currentTarget.style.background="transparent"}}>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{fontSize:18,lineHeight:1}}>{catEm}</div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#a0bcd0"}}>{p.name}{p.code&&<span style={{marginLeft:8,fontFamily:"monospace",fontSize:10,color:"#00d4ff",fontWeight:400}}>#{p.code}</span>}</div>
+                      <div style={{fontSize:9,color:"#2a3d50",marginTop:1}}>{p.cat} · {p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:11,fontWeight:700,color:p.stk<0?"#ff4444":p.stk<=p.min?"#ff9900":"#2a3d50"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}</span>
+                    <div style={{transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s",color:"#2a3d50"}}><Ic n="chev" s={14}/></div>
+                  </div>
+                </div>
+                {/* Panel expandido */}
+                {expanded&&<div style={{padding:"10px 14px 14px",background:"#040c16",borderTop:"1px solid #192a3820"}}>
+                  <ProdCardInline p={p} onAdd={(prod:any,type:string,val:any)=>{addToCart(prod,type,val);}}/>
+                </div>}
+              </div>
+            );
+          })}
+        </Card>
       </div>
       <Card sx={{display:"flex",flexDirection:"column",overflow:"hidden",position:"sticky",top:0,maxHeight:"calc(100vh - 44px)"}}>
         <div style={{padding:"13px 15px",borderBottom:"1px solid #192a38",flexShrink:0}}>
@@ -571,9 +610,8 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   );
 }
 
-function ProdCard({p,onAdd}:any) {
+function ProdCardInline({p,onAdd}:any) {
   const isKg=p.unit==="kg";
-  const[,,,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
   const[granelMonto,setGranelMonto]=useState(100);
   const[granelKg,setGranelKg]=useState(0.5);
   const[modoGranel,setModoGranel]=useState<"pesos"|"kg">("pesos");
@@ -586,14 +624,9 @@ function ProdCard({p,onAdd}:any) {
     else onAdd(p,"granel_kg",granelKg);
   };
   return(
-    <div style={{background:"#06111e",border:`1px solid ${p.stk<0?"#330000":"#192a38"}`,borderRadius:10,padding:12,display:"flex",flexDirection:"column",gap:8,position:"relative"}}>
-      {p.stk<0&&<div style={{position:"absolute",top:6,right:6,background:"#330000",border:"1px solid #ff333344",borderRadius:4,fontSize:8,color:"#ff4444",padding:"1px 5px",fontWeight:700}}>NEG ⚠</div>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}</div><div style={{fontSize:9,color:"#2a3d50",marginTop:1}}>{p.cat}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",color:"#00d4ff"}}>#{p.code}</span>}</div></div>
-        <div style={{fontSize:11,fontWeight:700,color:p.stk<0?"#ff4444":p.stk<=p.min?"#ff9900":"#2a3d50"}}>{isKg?fmtW(p.stk):`${p.stk} u`}</div>
-      </div>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
       {isKg&&<>
-        <div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:7,padding:"8px 10px"}}>
+        <div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:7,padding:"8px 10px",minWidth:200,flex:1}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,alignItems:"center"}}>
             <Chip t="granel"/><span style={{color:"#00cc55",fontWeight:700,fontSize:10}}>${p.pricePerKg.toFixed(2)}/kg</span>
           </div>
@@ -618,12 +651,12 @@ function ProdCard({p,onAdd}:any) {
             </div>
           </>}
         </div>
-        {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px"}}>
+        {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px",minWidth:180,flex:1}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="bulto"/><span style={{color:"#3388ff",fontWeight:700,fontSize:10}}>${p.bulkPrice} · {fmtW(p.bulkWeight)}</span></div>
           <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={bultoQty} onChange={(e:any)=>setBultoQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>bultos</span><Btn v="b" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"bulto",parseInt(String(bultoQty))||1)}>+ Ag.</Btn></div>
         </div>}
       </>}
-      {!isKg&&<div style={{background:"#080310",border:"1px solid #aa44ff20",borderRadius:7,padding:"8px 10px"}}>
+      {!isKg&&<div style={{background:"#080310",border:"1px solid #aa44ff20",borderRadius:7,padding:"8px 10px",minWidth:180,flex:1}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="unidad"/><span style={{color:"#cc44ff",fontWeight:700,fontSize:10}}>${(p.unitPrice||0).toFixed(2)}/u</span></div>
         <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={unitQty} onChange={(e:any)=>setUnitQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>u</span><Btn v="pu" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"unidad",parseInt(String(unitQty))||1)}>+ Ag.</Btn></div>
       </div>}
