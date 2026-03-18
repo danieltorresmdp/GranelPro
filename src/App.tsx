@@ -758,16 +758,12 @@ const saveStk=async(prod:any)=>{
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      const existing=getRow(prod.id);
-      let error;
-      if(existing){
-        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",existing.id);
-        error=res.error;
-      } else {
-        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk,min_stk:0}]);
-        error=res.error;
-      }
-      if(error){notify("Error: "+error.message,"err");setSaving(null);return;}
+      const res=await sb.from("gp_stock")
+        .upsert(
+          {product_id:prod.id, local_name:localF, stk:newStk, min_stk:0},
+          {onConflict:"product_id,local_name"}
+        );
+      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       notify("Stock actualizado");
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
