@@ -9,7 +9,7 @@ const POINT_VALUE  = 0.50;
 const POINTS_DENOM = 1000;
 const MAX_DISC_PCT = 0.30;
 const PAY_OPTS     = ["efectivo","tarjeta","QR"];
-const CATEGORIES   = ["Perro","Gato","Accesorios","Granja"];
+const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
 const todayStr     = () => new Date().toISOString().split("T")[0];
 
 const CAT_STYLE: Record<string,string[]> = {
@@ -17,6 +17,7 @@ const CAT_STYLE: Record<string,string[]> = {
   "Gato":       ["#0a080f","#cc44ff22","#dd66ff","🐱"],
   "Accesorios": ["#080f0a","#44dd8822","#55ee99","🛍️"],
   "Granja":     ["#0a0900","#aacc0022","#ccee44","🌾"],
+  "Golosinas":  ["#0a0508","#ff44aa22","#ff88cc","🍬"],
 };
 const PAY_STYLE: Record<string,string[]> = {
   "efectivo":["#031508","#00994422","#00bb55"],
@@ -121,7 +122,7 @@ const Stat = ({label,value,sub,color="#00d4ff",icon}:any) => (
 
 const mapUser   = (r:any) => r?({id:r.id,name:r.name,username:r.username,password:r.password,role:r.role,local:r.local||"",active:r.active}):null;
 const mapProd   = (r:any) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
-const mapStock  = (r:any) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0}):null;
+const mapStock  = (r:any) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
 const mapClient = (r:any) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
 const mapSale   = (r:any) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
 const mapCaja   = (r:any) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
@@ -330,7 +331,7 @@ export default function App() {
               <span style={{fontSize:12}}>Conectando...</span>
             </div>
           ):<>
-            {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView}/>}
+            {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView} stock={stock} localeNames={localeNames}/>}
             {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
@@ -348,13 +349,35 @@ export default function App() {
   );
 }
 
-function Dashboard({prods,clients,sales,users,session,isAdmin,setView}:any) {
+function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,localeNames}:any) {
   const td=todayStr();
   const st=sales.filter((s:any)=>s.date===td);
   const hoy=st.reduce((a:number,b:any)=>a+b.total,0);
   const mes=sales.reduce((a:number,b:any)=>a+b.total,0);
-  const bajo=prods.filter((p:any)=>p.stk<=p.min&&p.stk>=0);
-  const neg=prods.filter((p:any)=>p.stk<0);
+  // Stock crítico usando mínimo por local
+  const getCritical=()=>{
+    if(isAdmin){
+      const all:any[]=[];
+      prods.forEach((p:any)=>{
+        localeNames.forEach((loc:string)=>{
+          const s=stock.find((s:any)=>s.productId===p.id&&s.localName===loc);
+          const stk=s?s.stk:0;
+          const min=s?s.min:p.min;
+          if(stk<0) all.push({...p,stk,localName:loc,minLocal:min,isNeg:true});
+          else if(stk<=min&&min>0) all.push({...p,stk,localName:loc,minLocal:min,isNeg:false});
+        });
+      });
+      return all;
+    } else {
+      return prods.map((p:any)=>{
+        const s=stock.find((s:any)=>s.productId===p.id&&s.localName===session?.local);
+        const stk=s?s.stk:p.stk;
+        const min=s?s.min:p.min;
+        return{...p,stk,localName:session?.local,minLocal:min,isNeg:stk<0};
+      }).filter((p:any)=>p.stk<0||(p.stk<=p.minLocal&&p.minLocal>0));
+    }
+  };
+  const critical=getCritical();
   return(
     <div className="fade">
       <div style={{marginBottom:20}}>
@@ -364,8 +387,8 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView}:any) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
         <Stat label="Ventas Hoy" value={`$${hoy.toFixed(0)}`} sub={`${st.length} operaciones`} color="#00cc55" icon="trend"/>
         {isAdmin&&<Stat label="Total Mes" value={`$${mes.toFixed(0)}`} sub={`${sales.length} ventas`} color="#00d4ff" icon="hist"/>}
-        <Stat label="Stock Bajo" value={bajo.length} sub={isAdmin?"todos los locales":"tu local"} color="#ff9900" icon="warn"/>
-        <Stat label="Stock Negativo" value={neg.length} sub="por debajo de 0" color={neg.length>0?"#ff4444":"#00cc55"} icon="warn"/>
+        <Stat label="Stock Bajo" value={critical.filter((p:any)=>!p.isNeg).length} sub={isAdmin?"todos los locales":"tu local"} color="#ff9900" icon="warn"/>
+        <Stat label="Stock Negativo" value={critical.filter((p:any)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p:any)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.8fr 1fr",gap:14,marginBottom:14}}>
         <Card sx={{overflow:"hidden"}}>
@@ -378,13 +401,13 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView}:any) {
           </table>
         </Card>
         <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>⚠ Stock Crítico{!isAdmin&&session?.local?` · ${session.local}`:""}</span></div>
-          {[...neg,...bajo].length===0
+          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
+          {critical.length===0
             ?<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
-            :[...neg,...bajo].map((p:any)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
-              <div key={p.id} style={{padding:"8px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:12,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:13,color:p.stk<0?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.stk<0?" ⚠":""}</div><div style={{fontSize:8,color:"#2a3d50"}}>mín:{p.min}</div></div>
+            :critical.slice(0,8).map((p:any,i:number)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
+              <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{isAdmin&&p.localName?` · ${p.localName}`:""}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div><div style={{fontSize:8,color:"#2a3d50"}}>mín:{p.unit==="kg"?fmtW(p.minLocal):`${p.minLocal}`}</div></div>
               </div>
             );})}
         </Card>
@@ -542,9 +565,8 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
             <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
           </div>
-          <div style={{display:"flex",gap:6}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
         </div>
-        {/* Lista de productos */}
         <Card sx={{overflow:"hidden"}}>
           {visible.length===0&&<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>No hay productos</div>}
           {visible.map((p:any)=>{
@@ -552,7 +574,6 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
             const expanded=expandedId===p.id;
             return(
               <div key={p.id} style={{borderBottom:"1px solid #192a3820"}}>
-                {/* Fila clickeable */}
                 <div onClick={()=>setExpandedId(expanded?null:p.id)} style={{display:"flex",alignItems:"center",padding:"10px 14px",cursor:"pointer",background:expanded?"#051626":"transparent",transition:"background .15s"}}
                   onMouseEnter={(e:any)=>{if(!expanded)e.currentTarget.style.background="#06111e"}}
                   onMouseLeave={(e:any)=>{if(!expanded)e.currentTarget.style.background="transparent"}}>
@@ -568,7 +589,6 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
                     <div style={{transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s",color:"#2a3d50"}}><Ic n="chev" s={14}/></div>
                   </div>
                 </div>
-                {/* Panel expandido */}
                 {expanded&&<div style={{padding:"10px 14px 14px",background:"#040c16",borderTop:"1px solid #192a3820"}}>
                   <ProdCardInline p={p} onAdd={(prod:any,type:string,val:any)=>{addToCart(prod,type,val);}}/>
                 </div>}
@@ -723,40 +743,101 @@ function Reportes({sales,users,localeNames}:any) {
 }
 
 function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
-  const[localF,setLocalF]=useState(localeNames[0]||"");const[saving,setSaving]=useState<number|null>(null);const[vals,setVals]=useState<Record<number,string>>({});const[q,setQ]=useState("");
-  const getStk=(pid:number)=>{const s=stock.find((s:any)=>s.productId===pid&&s.localName===localF);return s?s.stk:0;};
+  const[localF,setLocalF]=useState(localeNames[0]||"");
+  const[saving,setSaving]=useState<number|null>(null);
+  const[vals,setVals]=useState<Record<number,string>>({});
+  const[mins,setMins]=useState<Record<number,string>>({});
+  const[q,setQ]=useState("");
+  const[catF,setCatF]=useState("Todas");
+
+  const getRow=(pid:number)=>stock.find((s:any)=>s.productId===pid&&s.localName===localF);
+  const getStk=(pid:number)=>{const r=getRow(pid);return r?r.stk:0;};
+  const getMin=(pid:number)=>{const r=getRow(pid);return r?r.min:0;};
+
   const saveStk=async(prod:any)=>{
-    const newVal=parseFloat(vals[prod.id]??String(getStk(prod.id)));
-    if(isNaN(newVal)){notify("Valor inválido","err");return;}
+    const newStk=parseFloat(vals[prod.id]??String(getStk(prod.id)));
+    const newMin=parseFloat(mins[prod.id]??String(getMin(prod.id)));
+    if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      const existing=stock.find((s:any)=>s.productId===prod.id&&s.localName===localF);
-      if(existing) await sb.from("gp_stock").update({stk:newVal,updated_at:new Date().toISOString()}).eq("id",existing.id);
-      else await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newVal}]);
-      notify("Stock actualizado");setVals(v=>({...v,[prod.id]:undefined as any}));loadAll();
+      const existing=getRow(prod.id);
+      if(existing){
+        await sb.from("gp_stock").update({stk:newStk,min_stk:isNaN(newMin)?existing.min:newMin,updated_at:new Date().toISOString()}).eq("id",existing.id);
+      } else {
+        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk,min_stk:isNaN(newMin)?0:newMin}]);
+      }
+      notify("Stock actualizado");
+      setVals(v=>({...v,[prod.id]:undefined as any}));
+      setMins(v=>({...v,[prod.id]:undefined as any}));
+      loadAll();
     }catch(e){notify("Error","err");}
     setSaving(null);
   };
-  const filtered=prods.filter((p:any)=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
+
+  const filtered=prods.filter((p:any)=>{
+    const matchQ=p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
+    const matchCat=catF==="Todas"||p.cat===catF;
+    return matchQ&&matchCat;
+  });
+
   return(
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>{localeNames.map((l:string)=>(<button key={l} onClick={()=>setLocalF(l)} style={{background:localF===l?"#051626":"transparent",border:`1px solid ${localF===l?"#00d4ff":"#192a38"}`,color:localF===l?"#00d4ff":"#2a3d50",borderRadius:7,padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>))}</div>
-      <div style={{position:"relative",marginBottom:12}}><Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
+
+      {/* Selector de local */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        {localeNames.map((l:string)=>(
+          <button key={l} onClick={()=>setLocalF(l)} style={{background:localF===l?"#051626":"transparent",border:`1px solid ${localF===l?"#00d4ff":"#192a38"}`,color:localF===l?"#00d4ff":"#2a3d50",borderRadius:7,padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>
+        ))}
+      </div>
+
+      {/* Buscador + filtro categoría */}
+      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{position:"relative",flex:1,minWidth:180}}>
+          <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
+          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {["Todas",...CATEGORIES].map(c=>{
+            const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
+            const active=catF===c;
+            return(
+              <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
+                {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <Card sx={{overflow:"hidden"}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span><span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span></div>
-        <table><thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
-          <tbody>{filtered.map((p:any)=>{const stk=getStk(p.id);const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];const edited=vals[p.id]!==undefined;return(
-            <tr key={p.id}>
-              <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
-              <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
-              <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
-              <td><span style={{fontWeight:800,color:stk<0?"#ff4444":stk<=p.min?"#ff9900":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}</span></td>
-              <td><Inp type="number" step={p.unit==="kg"?".5":"1"} placeholder={String(stk)} value={vals[p.id]??String(stk)} onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))} sx={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",borderColor:edited?"#00cc55":"#192a38"}}/></td>
-              <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>{saving===p.id?<Ic n="spin" s={11}/>:<Ic n="ok" s={11}/>}{saving===p.id?"...":"Guardar"}</Btn></td>
-            </tr>
-          );})}
-        </tbody></table>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span>
+          <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+        </div>
+        <table>
+          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th>Mínimo Local</th><th></th></tr></thead>
+          <tbody>{filtered.map((p:any)=>{
+            const stk=getStk(p.id);
+            const minLocal=getMin(p.id);
+            const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
+            const editedStk=vals[p.id]!==undefined;
+            const editedMin=mins[p.id]!==undefined;
+            const isLow=stk>=0&&stk<=minLocal&&minLocal>0;
+            return(
+              <tr key={p.id}>
+                <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
+                <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
+                <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
+                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":isLow?"#ff9900":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":isLow?" ↓":""}</span></td>
+                <td><Inp type="number" step={p.unit==="kg"?".5":"1"} placeholder={String(stk)} value={vals[p.id]??String(stk)} onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))} sx={{width:90,fontSize:12,background:editedStk?"#021408":"#060f1a",borderColor:editedStk?"#00cc55":"#192a38"}}/></td>
+                <td><Inp type="number" step={p.unit==="kg"?".5":"1"} placeholder={String(minLocal)} value={mins[p.id]??String(minLocal)} onChange={(e:any)=>setMins(v=>({...v,[p.id]:e.target.value}))} sx={{width:90,fontSize:12,background:editedMin?"#140a00":"#060f1a",borderColor:editedMin?"#ff9900":"#192a38"}}/></td>
+                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>{saving===p.id?<Ic n="spin" s={11}/>:<Ic n="ok" s={11}/>}{saving===p.id?"...":"Guardar"}</Btn></td>
+              </tr>
+            );
+          })}
+          </tbody>
+        </table>
       </Card>
     </div>
   );
@@ -877,7 +958,7 @@ function Products({prods,notify,loadAll}:any) {
         if(newProd){
           const locs=await sb.from("gp_locales").select("name");
           const locNames=locs.data?.map((l:any)=>l.name)||["Centro","Norte","Sur"];
-          for(const loc of locNames) await sb.from("gp_stock").insert([{product_id:newProd.id,local_name:loc,stk:0}]);
+          for(const loc of locNames) await sb.from("gp_stock").insert([{product_id:newProd.id,local_name:loc,stk:0,min_stk:0}]);
         }
       }
       notify(form.id?"Actualizado":"Creado");loadAll();setModal(false);
@@ -890,12 +971,12 @@ function Products({prods,notify,loadAll}:any) {
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div>
-      <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
+      <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>Código</th><th>Nombre</th><th>Cat.</th><th>P./Kg</th><th>Bulto</th><th>P.Unit.</th><th>Mín.</th><th></th></tr></thead>
         <tbody>{vis.map((p:any)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`$${p.pricePerKg.toFixed(2)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`$${(p.unitPrice||0).toFixed(2)}`:"—"}</td><td style={{color:"#2a3d50"}}>{p.unit==="kg"?fmtW(p.min):`${p.min} u`}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
       </table></Card>
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:20}}><strong style={{color:"#a0bcd0"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
-      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e:any)=>setForm((f:any)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e:any)=>setForm((f:any)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e:any)=>setForm((f:any)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e:any)=>setForm((f:any)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e:any)=>setForm((f:any)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e:any)=>setForm((f:any)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e:any)=>setForm((f:any)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div><Lbl t="Stock Mínimo (alerta)"/><Inp type="number" step={isKg?".5":"1"} value={form.min} onChange={(e:any)=>setForm((f:any)=>({...f,min:parseFloat(e.target.value)||0}))}/></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e:any)=>setForm((f:any)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e:any)=>setForm((f:any)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e:any)=>setForm((f:any)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e:any)=>setForm((f:any)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e:any)=>setForm((f:any)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e:any)=>setForm((f:any)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e:any)=>setForm((f:any)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div><Lbl t="Stock Mínimo Global (referencia)"/><Inp type="number" step={isKg?".5":"1"} value={form.min} onChange={(e:any)=>setForm((f:any)=>({...f,min:parseFloat(e.target.value)||0}))}/></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
