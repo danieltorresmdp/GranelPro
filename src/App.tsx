@@ -354,7 +354,6 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
   const st=sales.filter((s:any)=>s.date===td);
   const hoy=st.reduce((a:number,b:any)=>a+b.total,0);
   const mes=sales.reduce((a:number,b:any)=>a+b.total,0);
-  // Stock crítico usando mínimo por local
   const getCritical=()=>{
     if(isAdmin){
       const all:any[]=[];
@@ -362,9 +361,9 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         localeNames.forEach((loc:string)=>{
           const s=stock.find((s:any)=>s.productId===p.id&&s.localName===loc);
           const stk=s?s.stk:0;
-          const min=s?s.min:p.min;
+          const min=s?s.min:0;
           if(stk<0) all.push({...p,stk,localName:loc,minLocal:min,isNeg:true});
-          else if(stk<=min&&min>0) all.push({...p,stk,localName:loc,minLocal:min,isNeg:false});
+          else if(min>0&&stk<=min) all.push({...p,stk,localName:loc,minLocal:min,isNeg:false});
         });
       });
       return all;
@@ -372,9 +371,9 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       return prods.map((p:any)=>{
         const s=stock.find((s:any)=>s.productId===p.id&&s.localName===session?.local);
         const stk=s?s.stk:p.stk;
-        const min=s?s.min:p.min;
+        const min=s?s.min:0;
         return{...p,stk,localName:session?.local,minLocal:min,isNeg:stk<0};
-      }).filter((p:any)=>p.stk<0||(p.stk<=p.minLocal&&p.minLocal>0));
+      }).filter((p:any)=>p.stk<0||(p.minLocal>0&&p.stk<=p.minLocal));
     }
   };
   const critical=getCritical();
@@ -407,7 +406,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
             :critical.slice(0,8).map((p:any,i:number)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
               <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{isAdmin&&p.localName?` · ${p.localName}`:""}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div><div style={{fontSize:8,color:"#2a3d50"}}>mín:{p.unit==="kg"?fmtW(p.minLocal):`${p.minLocal}`}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
               </div>
             );})}
         </Card>
@@ -455,7 +454,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
   const total=Math.max(0,sub-disc);
-  const ptsE=Math.floor(total/POINTS_DENOM);
+  // Puntos dobles si paga en efectivo
+  const ptsMultiplier=pay==="efectivo"?2:1;
+  const ptsE=Math.floor(total/POINTS_DENOM)*ptsMultiplier;
 
   const selectClient=(c:any)=>{setCid(String(c.id));setCliQ(c.name);setShowCliList(false);setUsePts(false);setPtsIn(0);};
 
@@ -490,7 +491,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
         const stkRow=stock.find((s:any)=>s.productId===it.pid&&s.localName===localName);
-        if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta,updated_at:new Date().toISOString()}).eq("id",stkRow.id);
+        if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
         else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
       }
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
@@ -530,7 +531,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
           {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,color:"#ff9900"}}><span>Desc. puntos</span><span>−${receipt.sale.disc.toFixed(2)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:15,borderTop:"1px solid #192a38"}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${receipt.sale.total.toFixed(2)}</span></div>
         </div>
-        {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados</div>}
+        {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados{receipt.sale.pay==="efectivo"&&<span style={{background:"#140800",border:"1px solid #ff990033",borderRadius:4,padding:"1px 6px",fontSize:9,color:"#ff9900"}}>x2 EFECTIVO</span>}</div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
           <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>setReceipt(null)}><Ic n="plus" s={14}/>Nueva Venta</Btn>
@@ -557,7 +558,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
             )}
             {cid&&client&&<div style={{fontSize:10,color:"#00cc55",marginTop:3}}>✓ {client.name} · {client.pts} pts</div>}
           </div>
-          <div><Lbl t="Pago"/><Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel></div>
+          <div><Lbl t="Pago"/><Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+            {pay==="efectivo"&&<div style={{fontSize:9,color:"#ff9900",marginTop:3,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
+          </div>
           <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e:any)=>setDate(e.target.value)}/></div>
         </div>
         <div style={{display:"flex",gap:9,marginBottom:10}}>
@@ -616,7 +619,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
             {usePts&&<div style={{display:"flex",gap:7,alignItems:"center"}}><Inp type="number" min={0} max={client.pts} value={ptsIn} onChange={(e:any)=>setPtsIn(Math.min(parseInt(e.target.value)||0,client.pts))} sx={{width:72}}/><span style={{fontSize:9,color:"#2a3d50"}}>= ${(Math.min(parseInt(String(ptsIn))||0,client.pts)*POINT_VALUE).toFixed(2)}</span></div>}
           </div>
         )}
-        {client&&<div style={{padding:"5px 13px",background:"#02090e",flexShrink:0,fontSize:9,color:"#2a3d50",display:"flex",justifyContent:"space-between"}}><span>Genera:</span><span style={{color:"#ff9900",fontWeight:700}}>+{ptsE} pts</span></div>}
+        {client&&<div style={{padding:"5px 13px",background:"#02090e",flexShrink:0,fontSize:9,color:"#2a3d50",display:"flex",justifyContent:"space-between"}}><span>Genera:</span><span style={{color:"#ff9900",fontWeight:700}}>+{ptsE} pts{pay==="efectivo"&&<span style={{color:"#ffbb00"}}> ★x2</span>}</span></div>}
         <div style={{padding:"11px 13px",borderTop:"1px solid #192a38",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}><span style={{color:"#2a3d50"}}>Subtotal</span><span>${sub.toFixed(2)}</span></div>
           {disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,color:"#ff9900"}}><span>Desc.</span><span>−${disc.toFixed(2)}</span></div>}
@@ -749,24 +752,29 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
 
-  const getRow=(pid:number)=>stock.find((s:any)=>s.productId===pid&&s.localName===localF);
-  const getStk=(pid:number)=>{const r=getRow(pid);return r?r.stk:0;};
-  const getMin=(pid:number)=>{const r=getRow(pid);return r?r.min:0;};
+  const getStk=(pid:number)=>{const r=stock.find((s:any)=>s.productId===pid&&s.localName===localF);return r?r.stk:0;};
 
-const saveStk=async(prod:any)=>{
+  const saveStk=async(prod:any)=>{
     const newStk=parseFloat(vals[prod.id]??String(getStk(prod.id)));
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      const existing=stock.find((s:any)=>s.productId===prod.id&&s.localName===localF);
+      // Consulta directa a Supabase para evitar problemas de cache local
+      const{data:existing,error:findErr}=await sb
+        .from("gp_stock")
+        .select("id")
+        .eq("product_id",prod.id)
+        .eq("local_name",localF)
+        .maybeSingle();
+      if(findErr){notify("Error buscando registro","err");setSaving(null);return;}
       let res;
-      if(existing){
+      if(existing?.id){
         res=await sb.from("gp_stock").update({stk:newStk}).eq("id",existing.id);
       } else {
         res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
       }
       if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-      notify("Stock actualizado");
+      notify("Stock actualizado ✓");
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
     }catch(e:any){notify("Error: "+e.message,"err");}
@@ -813,18 +821,16 @@ const saveStk=async(prod:any)=>{
           <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
           <tbody>{filtered.map((p:any)=>{
             const stk=getStk(p.id);
-            const minLocal=getMin(p.id);
             const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
             const editedStk=vals[p.id]!==undefined;
-            const isLow=stk>=0&&stk<=minLocal&&minLocal>0;
             return(
               <tr key={p.id}>
                 <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
                 <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
                 <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
-                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":isLow?"#ff9900":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":isLow?" ↓":""}</span></td>
+                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
                 <td><Inp type="number" step={p.unit==="kg"?".5":"1"} placeholder={String(stk)} value={vals[p.id]??String(stk)} onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))} sx={{width:100,fontSize:12,background:editedStk?"#021408":"#060f1a",borderColor:editedStk?"#00cc55":"#192a38"}}/></td>
-                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>{saving===p.id?<Ic n="spin" s={11}/>:<Ic n="ok" s={11}/>}{saving===p.id?"...":"Guardar"}</Btn></td>
+                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>{saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}</Btn></td>
               </tr>
             );
           })}
@@ -950,7 +956,7 @@ function Products({prods,notify,loadAll}:any) {
         if(newProd){
           const locs=await sb.from("gp_locales").select("name");
           const locNames=locs.data?.map((l:any)=>l.name)||["Centro","Norte","Sur"];
-          for(const loc of locNames) await sb.from("gp_stock").insert([{product_id:newProd.id,local_name:loc,stk:0,min_stk:0}]);
+          for(const loc of locNames) await sb.from("gp_stock").insert([{product_id:newProd.id,local_name:loc,stk:0}]);
         }
       }
       notify(form.id?"Actualizado":"Creado");loadAll();setModal(false);
@@ -972,6 +978,7 @@ function Products({prods,notify,loadAll}:any) {
     </div>
   );
 }
+
 function UserMgmt({users,notify,session,loadAll,localeNames}:any) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[saving,setSaving]=useState(false);
   const openNew=()=>{setForm({name:"",username:"",password:"",role:"vendedor",local:"",active:true});setModal(true);};
