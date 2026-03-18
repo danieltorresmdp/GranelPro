@@ -753,21 +753,25 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   const getStk=(pid:number)=>{const r=getRow(pid);return r?r.stk:0;};
   const getMin=(pid:number)=>{const r=getRow(pid);return r?r.min:0;};
 
-  const saveStk=async(prod:any)=>{
+const saveStk=async(prod:any)=>{
     const newStk=parseFloat(vals[prod.id]??String(getStk(prod.id)));
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
       const existing=getRow(prod.id);
+      let error;
       if(existing){
-        await sb.from("gp_stock").update({stk:newStk,updated_at:new Date().toISOString()}).eq("id",existing.id);
+        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",existing.id);
+        error=res.error;
       } else {
-        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk,min_stk:getMin(prod.id)}]);
+        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk,min_stk:0}]);
+        error=res.error;
       }
+      if(error){notify("Error: "+error.message,"err");setSaving(null);return;}
       notify("Stock actualizado");
       setVals(v=>({...v,[prod.id]:undefined as any}));
-      loadAll();
-    }catch(e){notify("Error","err");}
+      await loadAll();
+    }catch(e:any){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
 
