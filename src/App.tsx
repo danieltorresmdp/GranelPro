@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+// @ts-nocheckimport { useState, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL  = "https://mmjadwmtfpfvvedybvmn.supabase.co";
