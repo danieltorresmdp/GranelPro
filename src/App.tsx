@@ -756,7 +756,7 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
     return r?r.stk:0;
   };
 
-  const saveStk=async(prod:any)=>{
+ const saveStk=async(prod:any)=>{
     const inputVal=vals[prod.id];
     if(inputVal===undefined||inputVal===""){notify("Ingresá un valor primero","err");return;}
     const newStk=parseFloat(inputVal);
@@ -765,18 +765,19 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
     try{
       const{data:rows,error:findErr}=await sb
         .from("gp_stock")
-        .select("id")
+        .select("id,stk,local_name")
         .eq("product_id",prod.id)
-        .eq("local_name",localF);
-      if(findErr){notify("Error buscando: "+findErr.message,"err");setSaving(null);return;}
+        .eq("local_name",localF)
+        .limit(1);
+      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
-        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error guardando: "+res.error.message,"err");setSaving(null);return;}
+        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id).eq("local_name",localF);
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       } else {
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        if(res.error){notify("Error creando: "+res.error.message,"err");setSaving(null);return;}
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
-      notify("✓ Stock actualizado: "+prod.name);
+      notify("✓ "+prod.name);
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
     }catch(e:any){notify("Error: "+e.message,"err");}
