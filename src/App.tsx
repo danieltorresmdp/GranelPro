@@ -748,7 +748,6 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
 
-  // Resetear vals cuando cambia el local
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid:number)=>{
@@ -756,28 +755,28 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
     return r?r.stk:0;
   };
 
- const saveStk=async(prod:any)=>{
-    const inputVal=vals[prod.id];
-    if(inputVal===undefined||inputVal===""){notify("Ingresá un valor primero","err");return;}
+  const saveStk=async(prod:any)=>{
+    const stk=getStk(prod.id);
+    const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
       const{data:rows,error:findErr}=await sb
         .from("gp_stock")
-        .select("id,stk,local_name")
+        .select("id")
         .eq("product_id",prod.id)
         .eq("local_name",localF)
         .limit(1);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
-        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id).eq("local_name",localF);
+        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       } else {
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
-      notify("✓ "+prod.name);
+      notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
     }catch(e:any){notify("Error: "+e.message,"err");}
@@ -825,24 +824,28 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
           <tbody>{filtered.map((p:any)=>{
             const stk=getStk(p.id);
             const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-            const hasVal=vals[p.id]!==undefined&&vals[p.id]!=="";
+            const edited=vals[p.id]!==undefined;
             return(
               <tr key={p.id}>
                 <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
                 <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
                 <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
                 <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
-                <td><Inp
-                  type="number"
-                  step={p.unit==="kg"?".5":"1"}
-                  placeholder={String(stk)}
-                  value={vals[p.id]??""}
-                  onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))}
-                  sx={{width:100,fontSize:12,background:hasVal?"#021408":"#060f1a",borderColor:hasVal?"#00cc55":"#192a38"}}
-                /></td>
-                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id||!hasVal}>
-                  {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
-                </Btn></td>
+                <td>
+                  <input
+                    type="number"
+                    step={p.unit==="kg"?".5":"1"}
+                    value={edited?vals[p.id]:stk}
+                    onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))}
+                    onFocus={(e:any)=>e.target.select()}
+                    style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
+                  />
+                </td>
+                <td>
+                  <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
+                    {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
+                  </Btn>
+                </td>
               </tr>
             );
           })}
