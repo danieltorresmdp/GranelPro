@@ -454,7 +454,6 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
   const total=Math.max(0,sub-disc);
-  // Puntos dobles si paga en efectivo
   const ptsMultiplier=pay==="efectivo"?2:1;
   const ptsE=Math.floor(total/POINTS_DENOM)*ptsMultiplier;
 
@@ -497,9 +496,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
       const receiptData={sale:{id:saleId,date,pay,total,disc,items:cartSnapshot},clientName:clientSnapshot?.name,ptsE,ptsUs,local:session.local};
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
-      setSaving(false);
-      setReceipt(receiptData);
-      loadAll();
+      setSaving(false);setReceipt(receiptData);loadAll();
     }catch(e){notify("Error al guardar venta","err");setSaving(false);}
   };
 
@@ -531,7 +528,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
           {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,color:"#ff9900"}}><span>Desc. puntos</span><span>−${receipt.sale.disc.toFixed(2)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:15,borderTop:"1px solid #192a38"}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${receipt.sale.total.toFixed(2)}</span></div>
         </div>
-        {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados{receipt.sale.pay==="efectivo"&&<span style={{background:"#140800",border:"1px solid #ff990033",borderRadius:4,padding:"1px 6px",fontSize:9,color:"#ff9900"}}>x2 EFECTIVO</span>}</div>}
+        {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados{receipt.sale.pay==="efectivo"&&<span style={{background:"#140800",border:"1px solid #ff990033",borderRadius:4,padding:"1px 6px",fontSize:9,color:"#ff9900"}}>★x2 EFECTIVO</span>}</div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
           <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>setReceipt(null)}><Ic n="plus" s={14}/>Nueva Venta</Btn>
@@ -558,7 +555,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
             )}
             {cid&&client&&<div style={{fontSize:10,color:"#00cc55",marginTop:3}}>✓ {client.name} · {client.pts} pts</div>}
           </div>
-          <div><Lbl t="Pago"/><Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+          <div>
+            <Lbl t="Pago"/>
+            <Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
             {pay==="efectivo"&&<div style={{fontSize:9,color:"#ff9900",marginTop:3,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
           </div>
           <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e:any)=>setDate(e.target.value)}/></div>
@@ -752,28 +751,34 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
 
-  const getStk=(pid:number)=>{const r=stock.find((s:any)=>s.productId===pid&&s.localName===localF);return r?r.stk:0;};
+  const getStk=(pid:number)=>{
+    const r=stock.find((s:any)=>s.productId===pid&&s.localName===localF);
+    return r?r.stk:0;
+  };
 
   const saveStk=async(prod:any)=>{
     const newStk=parseFloat(vals[prod.id]??String(getStk(prod.id)));
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      // Consulta directa a Supabase para evitar problemas de cache local
-      const{data:existing,error:findErr}=await sb
+      const{data:rows,error:findErr}=await sb
         .from("gp_stock")
-        .select("id")
+        .select("id,stk")
         .eq("product_id",prod.id)
-        .eq("local_name",localF)
-        .maybeSingle();
-      if(findErr){notify("Error buscando registro","err");setSaving(null);return;}
-      let res;
-      if(existing?.id){
-        res=await sb.from("gp_stock").update({stk:newStk}).eq("id",existing.id);
+        .eq("local_name",localF);
+
+      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
+
+      if(rows&&rows.length>0){
+        // Actualizar la primera fila encontrada
+        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       } else {
-        res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
+        // Insertar nueva fila
+        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
-      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+
       notify("Stock actualizado ✓");
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
