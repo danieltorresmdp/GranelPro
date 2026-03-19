@@ -360,18 +360,16 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       prods.forEach((p:any)=>{
         localeNames.forEach((loc:string)=>{
           const s=stock.find((s:any)=>s.productId===p.id&&s.localName===loc);
-          const stk=s?s.stk:0;
-          const min=s?s.min:0;
-          if(stk<0) all.push({...p,stk,localName:loc,minLocal:min,isNeg:true});
-          else if(min>0&&stk<=min) all.push({...p,stk,localName:loc,minLocal:min,isNeg:false});
+          const stk=s?s.stk:0;const min=s?s.min:0;
+          if(stk<0) all.push({...p,stk,localName:loc,isNeg:true});
+          else if(min>0&&stk<=min) all.push({...p,stk,localName:loc,isNeg:false});
         });
       });
       return all;
     } else {
       return prods.map((p:any)=>{
         const s=stock.find((s:any)=>s.productId===p.id&&s.localName===session?.local);
-        const stk=s?s.stk:p.stk;
-        const min=s?s.min:0;
+        const stk=s?s.stk:p.stk;const min=s?s.min:0;
         return{...p,stk,localName:session?.local,minLocal:min,isNeg:stk<0};
       }).filter((p:any)=>p.stk<0||(p.minLocal>0&&p.stk<=p.minLocal));
     }
@@ -401,8 +399,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         </Card>
         <Card sx={{overflow:"hidden"}}>
           <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
-          {critical.length===0
-            ?<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
+          {critical.length===0?<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
             :critical.slice(0,8).map((p:any,i:number)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
               <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{isAdmin&&p.localName?` · ${p.localName}`:""}</div></div>
@@ -751,35 +748,35 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
 
+  // Resetear vals cuando cambia el local
+  useEffect(()=>{setVals({});},[localF]);
+
   const getStk=(pid:number)=>{
     const r=stock.find((s:any)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
   };
 
   const saveStk=async(prod:any)=>{
-    const newStk=parseFloat(vals[prod.id]??String(getStk(prod.id)));
+    const inputVal=vals[prod.id];
+    if(inputVal===undefined||inputVal===""){notify("Ingresá un valor primero","err");return;}
+    const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
       const{data:rows,error:findErr}=await sb
         .from("gp_stock")
-        .select("id,stk")
+        .select("id")
         .eq("product_id",prod.id)
         .eq("local_name",localF);
-
-      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
-
+      if(findErr){notify("Error buscando: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
-        // Actualizar la primera fila encontrada
         const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        if(res.error){notify("Error guardando: "+res.error.message,"err");setSaving(null);return;}
       } else {
-        // Insertar nueva fila
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        if(res.error){notify("Error creando: "+res.error.message,"err");setSaving(null);return;}
       }
-
-      notify("Stock actualizado ✓");
+      notify("✓ Stock actualizado: "+prod.name);
       setVals(v=>({...v,[prod.id]:undefined as any}));
       await loadAll();
     }catch(e:any){notify("Error: "+e.message,"err");}
@@ -827,15 +824,24 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
           <tbody>{filtered.map((p:any)=>{
             const stk=getStk(p.id);
             const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-            const editedStk=vals[p.id]!==undefined;
+            const hasVal=vals[p.id]!==undefined&&vals[p.id]!=="";
             return(
               <tr key={p.id}>
                 <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
                 <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
                 <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
                 <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
-                <td><Inp type="number" step={p.unit==="kg"?".5":"1"} placeholder={String(stk)} value={vals[p.id]??String(stk)} onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))} sx={{width:100,fontSize:12,background:editedStk?"#021408":"#060f1a",borderColor:editedStk?"#00cc55":"#192a38"}}/></td>
-                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>{saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}</Btn></td>
+                <td><Inp
+                  type="number"
+                  step={p.unit==="kg"?".5":"1"}
+                  placeholder={String(stk)}
+                  value={vals[p.id]??""}
+                  onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))}
+                  sx={{width:100,fontSize:12,background:hasVal?"#021408":"#060f1a",borderColor:hasVal?"#00cc55":"#192a38"}}
+                /></td>
+                <td><Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id||!hasVal}>
+                  {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
+                </Btn></td>
               </tr>
             );
           })}
