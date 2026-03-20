@@ -755,37 +755,35 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
     return r?r.stk:0;
   };
 
-  const saveStk=async(prod:any)=>{
-  const stk=getStk(prod.id);
-  const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
-  const newStk=parseFloat(inputVal);
-  if(isNaN(newStk)){notify("Valor inválido","err");return;}
-  setSaving(prod.id);
-  try{
-    const{data:rows,error:findErr}=await sb
-      .from("gp_stock")
-      .select("id")
-      .eq("product_id",prod.id)
-      .eq("local_name",localF);
-    console.log("FIND rows:",JSON.stringify(rows),"error:",findErr,"localF:",localF,"prod.id:",prod.id);
-    if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
-    if(rows&&rows.length>0){
-      console.log("UPDATE id:",rows[0].id,"newStk:",newStk);
-      const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-      console.log("UPDATE result:",JSON.stringify(res));
-      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-    } else {
-      console.log("INSERT product_id:",prod.id,"local_name:",localF,"stk:",newStk);
-      const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-      console.log("INSERT result:",JSON.stringify(res));
-      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-    }
-    notify("✓ "+prod.name+" → "+newStk);
-    setVals(v=>({...v,[prod.id]:undefined as any}));
-    await loadAll();
-  }catch(e:any){notify("Error: "+e.message,"err");}
-  setSaving(null);
-};
+ const saveStk=async(prod:any)=>{
+    const stk=getStk(prod.id);
+    const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
+    const newStk=parseFloat(inputVal);
+    if(isNaN(newStk)){notify("Valor inválido","err");return;}
+    setSaving(prod.id);
+    try{
+      const{data:rows,error:findErr}=await sb
+        .from("gp_stock")
+        .select("id")
+        .eq("product_id",prod.id)
+        .eq("local_name",localF);
+      console.log("FIND:",JSON.stringify(rows),"err:",findErr,"local:",localF,"pid:",prod.id);
+      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
+      if(rows&&rows.length>0){
+        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
+        console.log("UPDATE:",JSON.stringify(res));
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+      } else {
+        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
+        console.log("INSERT:",JSON.stringify(res));
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+      }
+      notify("✓ "+prod.name+" → "+newStk);
+      setVals(v=>({...v,[prod.id]:undefined as any}));
+      await loadAll();
+    }catch(e:any){notify("Error: "+e.message,"err");}
+    setSaving(null);
+  };
 
 function LocalMgt({locales,notify,loadAll}:any) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState<any>(null);
