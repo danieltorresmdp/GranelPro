@@ -750,7 +750,9 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[catF,setCatF]=useState("Todas");
   const[localStock,setLocalStock]=useState(stock);
 
- useEffect(()=>{loadAll();},[]);
+useEffect(()=>{loadAll();},[]);
+
+useEffect(()=>{
   setLocalStock(prev=>{
     return stock.map(s=>{
       const local=prev.find(p=>p.id===s.id);
@@ -758,8 +760,8 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
     });
   });
 },[stock]);
-  useEffect(()=>{setVals({});},[localF]);
 
+useEffect(()=>{setVals({});},[localF]);
   const getStk=(pid)=>{
     const r=localStock.find((s)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
