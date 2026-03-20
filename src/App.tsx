@@ -750,7 +750,7 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[catF,setCatF]=useState("Todas");
   const[localStock,setLocalStock]=useState(stock);
 
-useEffect(()=>{loadAll();},[]);
+
 
 useEffect(()=>{
   setLocalStock(prev=>{
