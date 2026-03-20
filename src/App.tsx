@@ -756,105 +756,36 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
   };
 
   const saveStk=async(prod:any)=>{
-    const stk=getStk(prod.id);
-    const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
-    const newStk=parseFloat(inputVal);
-    if(isNaN(newStk)){notify("Valor inválido","err");return;}
-    setSaving(prod.id);
-    try{
-      const{data:rows,error:findErr}=await sb
-        .from("gp_stock")
-        .select("id")
-        .eq("product_id",prod.id)
-        .eq("local_name",localF)
-        .limit(1);
-      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
-      if(rows&&rows.length>0){
-        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-      } else {
-        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-      }
-      notify("✓ "+prod.name+" → "+newStk);
-      setVals(v=>({...v,[prod.id]:undefined as any}));
-      await loadAll();
-    }catch(e:any){notify("Error: "+e.message,"err");}
-    setSaving(null);
-  };
-
-  const filtered=prods.filter((p:any)=>{
-    const matchQ=p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
-    const matchCat=catF==="Todas"||p.cat===catF;
-    return matchQ&&matchCat;
-  });
-
-  return(
-    <div className="fade">
-      <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        {localeNames.map((l:string)=>(
-          <button key={l} onClick={()=>setLocalF(l)} style={{background:localF===l?"#051626":"transparent",border:`1px solid ${localF===l?"#00d4ff":"#192a38"}`,color:localF===l?"#00d4ff":"#2a3d50",borderRadius:7,padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
-        <div style={{position:"relative",flex:1,minWidth:180}}>
-          <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
-          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
-        </div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["Todas",...CATEGORIES].map(c=>{
-            const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
-            const active=catF===c;
-            return(
-              <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
-                {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <Card sx={{overflow:"hidden"}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span>
-          <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
-        </div>
-        <table>
-          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
-          <tbody>{filtered.map((p:any)=>{
-            const stk=getStk(p.id);
-            const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-            const edited=vals[p.id]!==undefined;
-            return(
-              <tr key={p.id}>
-                <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
-                <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
-                <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
-                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
-                <td>
-                  <input
-                    type="number"
-                    step={p.unit==="kg"?".5":"1"}
-                    value={edited?vals[p.id]:stk}
-                    onChange={(e:any)=>setVals(v=>({...v,[p.id]:e.target.value}))}
-                    onFocus={(e:any)=>e.target.select()}
-                    style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
-                  />
-                </td>
-                <td>
-                  <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
-                    {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
-                  </Btn>
-                </td>
-              </tr>
-            );
-          })}
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  );
-}
+  const stk=getStk(prod.id);
+  const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
+  const newStk=parseFloat(inputVal);
+  if(isNaN(newStk)){notify("Valor inválido","err");return;}
+  setSaving(prod.id);
+  try{
+    const{data:rows,error:findErr}=await sb
+      .from("gp_stock")
+      .select("id")
+      .eq("product_id",prod.id)
+      .eq("local_name",localF);
+    console.log("FIND rows:",JSON.stringify(rows),"error:",findErr,"localF:",localF,"prod.id:",prod.id);
+    if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
+    if(rows&&rows.length>0){
+      console.log("UPDATE id:",rows[0].id,"newStk:",newStk);
+      const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
+      console.log("UPDATE result:",JSON.stringify(res));
+      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+    } else {
+      console.log("INSERT product_id:",prod.id,"local_name:",localF,"stk:",newStk);
+      const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
+      console.log("INSERT result:",JSON.stringify(res));
+      if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+    }
+    notify("✓ "+prod.name+" → "+newStk);
+    setVals(v=>({...v,[prod.id]:undefined as any}));
+    await loadAll();
+  }catch(e:any){notify("Error: "+e.message,"err");}
+  setSaving(null);
+};
 
 function LocalMgt({locales,notify,loadAll}:any) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState<any>(null);
