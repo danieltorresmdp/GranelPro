@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL  = "https://mmjadwmtfpfvvedybvmn.supabase.co";
-const SUPABASE_KEY  = "sb_publishable_xw0NlfE9BOT9kM4bZ_dhjA_p9Rw5-42";
+const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tamFkd210ZnBmdnZlZHlidm1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MTc4MzMsImV4cCI6MjA4ODI5MzgzM30.uvZtH9YxQDXlyz_eb8TZVitiYE55Q0nFOPX5Iul0teo";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const POINT_VALUE  = 0.50;
