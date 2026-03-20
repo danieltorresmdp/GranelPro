@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+
 const SUPABASE_URL  = "https://mmjadwmtfpfvvedybvmn.supabase.co";
 const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tamFkd210ZnBmdnZlZHlidm1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MTc4MzMsImV4cCI6MjA4ODI5MzgzM30.uvZtH9YxQDXlyz_eb8TZVitiYE55Q0nFOPX5Iul0teo";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12,14 +13,14 @@ const PAY_OPTS     = ["efectivo","tarjeta","QR"];
 const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
 const todayStr     = () => new Date().toISOString().split("T")[0];
 
-const CAT_STYLE: Record<string,string[]> = {
+const CAT_STYLE = {
   "Perro":      ["#060f1a","#4488ff22","#5599ff","🐶"],
   "Gato":       ["#0a080f","#cc44ff22","#dd66ff","🐱"],
   "Accesorios": ["#080f0a","#44dd8822","#55ee99","🛍️"],
   "Granja":     ["#0a0900","#aacc0022","#ccee44","🌾"],
   "Golosinas":  ["#0a0508","#ff44aa22","#ff88cc","🍬"],
 };
-const PAY_STYLE: Record<string,string[]> = {
+const PAY_STYLE = {
   "efectivo":["#031508","#00994422","#00bb55"],
   "tarjeta": ["#030d1a","#2266ee22","#3388ff"],
   "QR":      ["#0a0a03","#aacc0022","#ccee00"],
@@ -30,14 +31,14 @@ const PAY_STYLE: Record<string,string[]> = {
   "unidad":  ["#0a0808","#ff882222","#ff9944"],
 };
 
-const fmtW = (kg:number) => {
+const fmtW = (kg) => {
   if(kg===0) return "0 g";
   if(Math.abs(kg)<1) return `${Math.round(kg*1000)} g`;
   if(Math.abs(kg)<10) return `${parseFloat(kg.toFixed(3))} kg`;
   return `${parseFloat(kg.toFixed(2))} kg`;
 };
 
-const IP:Record<string,string> = {
+const IP = {
   db:"M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z",
   cart:"M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0",
   hist:"M12 8v4l3 3M12 2a10 10 0 100 20A10 10 0 0012 2z",
@@ -68,37 +69,37 @@ const IP:Record<string,string> = {
   chev:"M6 9l6 6 6-6",
 };
 
-const Ic = ({n,s=16,c="currentColor"}:{n:string,s?:number,c?:string}) => (
+const Ic = ({n,s=16,c="currentColor"}) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     {(IP[n]||"").split("M").slice(1).map((d,i)=><path key={i} d={"M"+d}/>)}
   </svg>
 );
 
-const Lbl = ({t}:{t:string}) => <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:5}}>{t}</div>;
-const Inp = ({sx,...p}:any) => (
+const Lbl = ({t}) => <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:5}}>{t}</div>;
+const Inp = ({sx,...p}) => (
   <input {...p} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",transition:"border .15s",...sx}}
-    onFocus={(e:any)=>e.target.style.borderColor="#00d4ff"} onBlur={(e:any)=>e.target.style.borderColor="#192a38"}/>
+    onFocus={(e)=>e.target.style.borderColor="#00d4ff"} onBlur={(e)=>e.target.style.borderColor="#192a38"}/>
 );
-const Sel = ({sx,children,...p}:any) => (
+const Sel = ({sx,children,...p}) => (
   <select {...p} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",...sx}}>
     {children}
   </select>
 );
-const Chip = ({t}:{t:string}) => {
+const Chip = ({t}) => {
   const s=PAY_STYLE[t]||CAT_STYLE[t]||["#111","#44444422","#777"];
   const[bg,bd,tx]=s;
   return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 9px",borderRadius:20,fontSize:9,fontWeight:700,letterSpacing:.8,background:bg,border:`1px solid ${bd}`,color:tx,textTransform:"uppercase",whiteSpace:"nowrap"}}>{t}</span>;
 };
-const Modal = ({close,children,w=520}:any) => (
-  <div onClick={(e:any)=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",backdropFilter:"blur(10px)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+const Modal = ({close,children,w=520}) => (
+  <div onClick={(e)=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",backdropFilter:"blur(10px)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:14,width:"100%",maxWidth:w,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 50px 120px rgba(0,0,0,.9)"}}>
       {children}
     </div>
   </div>
 );
-const Card = ({children,sx}:any) => <div style={{background:"#0b1825",border:"1px solid #192a38",borderRadius:10,...sx}}>{children}</div>;
-const Btn = ({v="g",children,sx,...p}:any) => {
-  const vs:any={
+const Card = ({children,sx}) => <div style={{background:"#0b1825",border:"1px solid #192a38",borderRadius:10,...sx}}>{children}</div>;
+const Btn = ({v="g",children,sx,...p}) => {
+  const vs={
     g:{bg:"#008833",fg:"#011208",hv:"#00aa44"},
     b:{bg:"#082244",fg:"#3388ff",hv:"#0c2a54",bd:"1px solid #143a7a"},
     gh:{bg:"transparent",fg:"#3d5060",hv:"#0b1825",bd:"1px solid #192a38"},
@@ -108,10 +109,10 @@ const Btn = ({v="g",children,sx,...p}:any) => {
     pu:{bg:"#0e040f",fg:"#cc44ff",hv:"#14061a",bd:"1px solid #2a0a30"},
   }[v]||{};
   return <button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 16px",borderRadius:7,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",border:vs.bd||"none",background:vs.bg,color:vs.fg,transition:"all .15s",...sx}}
-    onMouseEnter={(e:any)=>{e.currentTarget.style.background=vs.hv;e.currentTarget.style.transform="translateY(-1px)"}}
-    onMouseLeave={(e:any)=>{e.currentTarget.style.background=vs.bg;e.currentTarget.style.transform=""}}>{children}</button>;
+    onMouseEnter={(e)=>{e.currentTarget.style.background=vs.hv;e.currentTarget.style.transform="translateY(-1px)"}}
+    onMouseLeave={(e)=>{e.currentTarget.style.background=vs.bg;e.currentTarget.style.transform=""}}>{children}</button>;
 };
-const Stat = ({label,value,sub,color="#00d4ff",icon}:any) => (
+const Stat = ({label,value,sub,color="#00d4ff",icon}) => (
   <Card sx={{padding:"17px 20px",position:"relative",overflow:"hidden"}}>
     <div style={{position:"absolute",right:12,top:12,opacity:.07}}><Ic n={icon} s={48} c={color}/></div>
     <div style={{fontSize:8,fontWeight:700,letterSpacing:3,color:"#2a3d50",textTransform:"uppercase",marginBottom:8}}>{label}</div>
@@ -120,15 +121,15 @@ const Stat = ({label,value,sub,color="#00d4ff",icon}:any) => (
   </Card>
 );
 
-const mapUser   = (r:any) => r?({id:r.id,name:r.name,username:r.username,password:r.password,role:r.role,local:r.local||"",active:r.active}):null;
-const mapProd   = (r:any) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
-const mapStock  = (r:any) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
-const mapClient = (r:any) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
-const mapSale   = (r:any) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
-const mapCaja   = (r:any) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
-const mapLocale = (r:any) => r?({id:r.id,name:r.name}):null;
+const mapUser   = (r) => r?({id:r.id,name:r.name,username:r.username,password:r.password,role:r.role,local:r.local||"",active:r.active}):null;
+const mapProd   = (r) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
+const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
+const mapClient = (r) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
+const mapSale   = (r) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
+const mapCaja   = (r) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
+const mapLocale = (r) => r?({id:r.id,name:r.name}):null;
 
-const Login = ({onLogin}:any) => {
+const Login = ({onLogin}) => {
   const[un,setUn]=useState("");const[pw,setPw]=useState("");const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
   const go=async()=>{
     setLoading(true);setErr("");
@@ -147,8 +148,8 @@ const Login = ({onLogin}:any) => {
           <div style={{fontSize:24,fontWeight:800,color:"#bdd0e0",letterSpacing:-1}}>GranelPro</div>
           <div style={{fontSize:9,color:"#2a3d50",letterSpacing:3,marginTop:3}}>SISTEMA PET SHOP · ONLINE</div>
         </div>
-        <div style={{marginBottom:12}}><Lbl t="Usuario"/><Inp placeholder="usuario" value={un} onChange={(e:any)=>setUn(e.target.value)} onKeyDown={(e:any)=>e.key==="Enter"&&go()}/></div>
-        <div style={{marginBottom:18}}><Lbl t="Contraseña"/><Inp type="password" placeholder="••••••••" value={pw} onChange={(e:any)=>setPw(e.target.value)} onKeyDown={(e:any)=>e.key==="Enter"&&go()}/></div>
+        <div style={{marginBottom:12}}><Lbl t="Usuario"/><Inp placeholder="usuario" value={un} onChange={(e)=>setUn(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&go()}/></div>
+        <div style={{marginBottom:18}}><Lbl t="Contraseña"/><Inp type="password" placeholder="••••••••" value={pw} onChange={(e)=>setPw(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&go()}/></div>
         {err&&<div style={{background:"#110305",border:"1px solid #2a0808",borderRadius:7,padding:"8px 12px",fontSize:12,color:"#ff8888",marginBottom:12,display:"flex",gap:7,alignItems:"center"}}><Ic n="warn" s={13}/>{err}</div>}
         <Btn v="g" sx={{width:"100%",justifyContent:"center",fontSize:13,padding:"12px"}} onClick={go} disabled={loading}>
           {loading?<><Ic n="spin" s={14}/>Ingresando...</>:<><Ic n="key" s={14}/>Ingresar</>}
@@ -160,21 +161,21 @@ const Login = ({onLogin}:any) => {
 };
 
 export default function App() {
-  const[session,setSession]=useState<any>(()=>{try{const s=sessionStorage.getItem("gp_sess");return s?JSON.parse(s):null;}catch{return null;}});
-  const[users,setUsers]=useState<any[]>([]);
-  const[prods,setProds]=useState<any[]>([]);
-  const[stock,setStock]=useState<any[]>([]);
-  const[clients,setClients]=useState<any[]>([]);
-  const[sales,setSales]=useState<any[]>([]);
-  const[caja,setCaja]=useState<any[]>([]);
-  const[locales,setLocales]=useState<any[]>([]);
+  const[session,setSession]=useState(()=>{try{const s=sessionStorage.getItem("gp_sess");return s?JSON.parse(s):null;}catch{return null;}});
+  const[users,setUsers]=useState([]);
+  const[prods,setProds]=useState([]);
+  const[stock,setStock]=useState([]);
+  const[clients,setClients]=useState([]);
+  const[sales,setSales]=useState([]);
+  const[caja,setCaja]=useState([]);
+  const[locales,setLocales]=useState([]);
   const[loading,setLoading]=useState(true);
   const[view,setView]=useState("dash");
-  const[toast,setToast]=useState<any>(null);
+  const[toast,setToast]=useState(null);
   const[online,setOnline]=useState(navigator.onLine);
   const isAdmin=session?.role==="admin";
 
-  const notify=(msg:string,t="ok")=>{setToast({msg,t});setTimeout(()=>setToast(null),3400);};
+  const notify=(msg,t="ok")=>{setToast({msg,t});setTimeout(()=>setToast(null),3400);};
 
   useEffect(()=>{
     const on=()=>setOnline(true);const off=()=>setOnline(false);
@@ -222,11 +223,11 @@ export default function App() {
     return()=>{sb.removeChannel(ch);};
   },[session,loadFirst,loadAll]);
 
-  const handleLogin=(u:any)=>{setSession(u);try{sessionStorage.setItem("gp_sess",JSON.stringify(u));}catch{}};
+  const handleLogin=(u)=>{setSession(u);try{sessionStorage.setItem("gp_sess",JSON.stringify(u));}catch{}};
   const handleLogout=()=>{setSession(null);try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
 
-  const localeNames=locales.length>0?locales.map((l:any)=>l.name):["Centro","Norte","Sur"];
-  const getStk=(pid:number,loc:string)=>{const s=stock.find(s=>s.productId===pid&&s.localName===loc);return s?s.stk:0;};
+  const localeNames=locales.length>0?locales.map((l)=>l.name):["Centro","Norte","Sur"];
+  const getStk=(pid,loc)=>{const s=stock.find(s=>s.productId===pid&&s.localName===loc);return s?s.stk:0;};
   const prodsWithStk=prods.map(p=>({...p,stk:isAdmin?p.stk:getStk(p.id,session?.local||"")}));
 
   if(!session) return(
@@ -319,7 +320,7 @@ export default function App() {
             ))}
           </nav>
           <div style={{padding:"10px 13px",borderTop:"1px solid #192a38"}}>
-            <button onClick={handleLogout} style={{display:"flex",alignItems:"center",gap:7,background:"none",border:"none",color:"#2a3d50",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600,letterSpacing:1,padding:0,width:"100%"}} onMouseEnter={(e:any)=>e.currentTarget.style.color="#bdd0e0"} onMouseLeave={(e:any)=>e.currentTarget.style.color="#2a3d50"}>
+            <button onClick={handleLogout} style={{display:"flex",alignItems:"center",gap:7,background:"none",border:"none",color:"#2a3d50",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600,letterSpacing:1,padding:0,width:"100%"}} onMouseEnter={(e)=>e.currentTarget.style.color="#bdd0e0"} onMouseLeave={(e)=>e.currentTarget.style.color="#2a3d50"}>
               <Ic n="out" s={12}/>Salir
             </button>
           </div>
@@ -349,17 +350,17 @@ export default function App() {
   );
 }
 
-function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,localeNames}:any) {
+function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,localeNames}) {
   const td=todayStr();
-  const st=sales.filter((s:any)=>s.date===td);
-  const hoy=st.reduce((a:number,b:any)=>a+b.total,0);
-  const mes=sales.reduce((a:number,b:any)=>a+b.total,0);
+  const st=sales.filter((s)=>s.date===td);
+  const hoy=st.reduce((a,b)=>a+b.total,0);
+  const mes=sales.reduce((a,b)=>a+b.total,0);
   const getCritical=()=>{
     if(isAdmin){
-      const all:any[]=[];
-      prods.forEach((p:any)=>{
-        localeNames.forEach((loc:string)=>{
-          const s=stock.find((s:any)=>s.productId===p.id&&s.localName===loc);
+      const all=[];
+      prods.forEach((p)=>{
+        localeNames.forEach((loc)=>{
+          const s=stock.find((s)=>s.productId===p.id&&s.localName===loc);
           const stk=s?s.stk:0;const min=s?s.min:0;
           if(stk<0) all.push({...p,stk,localName:loc,isNeg:true});
           else if(min>0&&stk<=min) all.push({...p,stk,localName:loc,isNeg:false});
@@ -367,11 +368,11 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       });
       return all;
     } else {
-      return prods.map((p:any)=>{
-        const s=stock.find((s:any)=>s.productId===p.id&&s.localName===session?.local);
+      return prods.map((p)=>{
+        const s=stock.find((s)=>s.productId===p.id&&s.localName===session?.local);
         const stk=s?s.stk:p.stk;const min=s?s.min:0;
         return{...p,stk,localName:session?.local,minLocal:min,isNeg:stk<0};
-      }).filter((p:any)=>p.stk<0||(p.minLocal>0&&p.stk<=p.minLocal));
+      }).filter((p)=>p.stk<0||(p.minLocal>0&&p.stk<=p.minLocal));
     }
   };
   const critical=getCritical();
@@ -384,8 +385,8 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
         <Stat label="Ventas Hoy" value={`$${hoy.toFixed(0)}`} sub={`${st.length} operaciones`} color="#00cc55" icon="trend"/>
         {isAdmin&&<Stat label="Total Mes" value={`$${mes.toFixed(0)}`} sub={`${sales.length} ventas`} color="#00d4ff" icon="hist"/>}
-        <Stat label="Stock Bajo" value={critical.filter((p:any)=>!p.isNeg).length} sub={isAdmin?"todos los locales":"tu local"} color="#ff9900" icon="warn"/>
-        <Stat label="Stock Negativo" value={critical.filter((p:any)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p:any)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
+        <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub={isAdmin?"todos los locales":"tu local"} color="#ff9900" icon="warn"/>
+        <Stat label="Stock Negativo" value={critical.filter((p)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.8fr 1fr",gap:14,marginBottom:14}}>
         <Card sx={{overflow:"hidden"}}>
@@ -394,13 +395,13 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
             <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>setView("history")}>Ver todas →</Btn>
           </div>
           <table><thead><tr><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th></tr></thead>
-            <tbody>{sales.slice(0,8).map((s:any)=>{const cl=clients.find((c:any)=>c.id===s.cid);const us=users.find((u:any)=>u.id===s.uid);return(<tr key={s.id}><td style={{fontWeight:700,color:"#a0bcd0"}}>{cl?.name||"—"}</td><td style={{color:"#00cc55",fontWeight:800}}>${s.total.toFixed(2)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900"}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#2a3d50",fontSize:11}}>{us?.name||"—"}</td></tr>);})}</tbody>
+            <tbody>{sales.slice(0,8).map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);return(<tr key={s.id}><td style={{fontWeight:700,color:"#a0bcd0"}}>{cl?.name||"—"}</td><td style={{color:"#00cc55",fontWeight:800}}>${s.total.toFixed(2)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900"}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#2a3d50",fontSize:11}}>{us?.name||"—"}</td></tr>);})}</tbody>
           </table>
         </Card>
         <Card sx={{overflow:"hidden"}}>
           <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
           {critical.length===0?<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
-            :critical.slice(0,8).map((p:any,i:number)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
+            :critical.slice(0,8).map((p,i)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
               <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{isAdmin&&p.localName?` · ${p.localName}`:""}</div></div>
                 <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
@@ -411,7 +412,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       <Card sx={{overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>🏆 Ranking por Puntos</span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"}}>
-          {[...clients].sort((a:any,b:any)=>b.pts-a.pts).slice(0,4).map((c:any,i:number)=>(
+          {[...clients].sort((a,b)=>b.pts-a.pts).slice(0,4).map((c,i)=>(
             <div key={c.id} style={{padding:"13px 15px",borderRight:"1px solid #192a3810"}}>
               <div style={{fontSize:8,color:"#2a3d50",marginBottom:3}}>#{i+1}</div>
               <div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",marginBottom:4}}>{c.name}</div>
@@ -425,8 +426,8 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
   );
 }
 
-function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
-  const[cart,setCart]=useState<any[]>([]);
+function NewSale({prods,clients,notify,session,stock,loadAll}) {
+  const[cart,setCart]=useState([]);
   const[cid,setCid]=useState("");
   const[pay,setPay]=useState("efectivo");
   const[date,setDate]=useState(todayStr());
@@ -435,37 +436,37 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   const[q,setQ]=useState("");
   const[cliQ,setCliQ]=useState("");
   const[catF,setCatF]=useState("Todas");
-  const[receipt,setReceipt]=useState<any>(null);
+  const[receipt,setReceipt]=useState(null);
   const[showCliList,setShowCliList]=useState(false);
   const[saving,setSaving]=useState(false);
-  const[expandedId,setExpandedId]=useState<number|null>(null);
+  const[expandedId,setExpandedId]=useState(null);
 
-  const client=clients.find((c:any)=>c.id===parseInt(cid));
-  const filteredClients=clients.filter((c:any)=>c.active&&(c.name.toLowerCase().includes(cliQ.toLowerCase())||(c.dni&&c.dni.replace(/\D/g,"").includes(cliQ.replace(/\D/g,"")))));
-  const visible=prods.filter((p:any)=>{
+  const client=clients.find((c)=>c.id===parseInt(cid));
+  const filteredClients=clients.filter((c)=>c.active&&(c.name.toLowerCase().includes(cliQ.toLowerCase())||(c.dni&&c.dni.replace(/\D/g,"").includes(cliQ.replace(/\D/g,"")))));
+  const visible=prods.filter((p)=>{
     const matchQ=q===""||p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
     const matchCat=catF==="Todas"||p.cat===catF;
     return matchQ&&matchCat;
   });
-  const sub=cart.reduce((a:number,b:any)=>a+b.sub,0);
+  const sub=cart.reduce((a,b)=>a+b.sub,0);
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
   const total=Math.max(0,sub-disc);
   const ptsMultiplier=pay==="efectivo"?2:1;
   const ptsE=Math.floor(total/POINTS_DENOM)*ptsMultiplier;
 
-  const selectClient=(c:any)=>{setCid(String(c.id));setCliQ(c.name);setShowCliList(false);setUsePts(false);setPtsIn(0);};
+  const selectClient=(c)=>{setCid(String(c.id));setCliQ(c.name);setShowCliList(false);setUsePts(false);setPtsIn(0);};
 
-  const addToCart=(prod:any,type:string,inputValue:any)=>{
+  const addToCart=(prod,type,inputValue)=>{
     const val=parseFloat(inputValue);
     if(!val||val<=0){notify("Ingresá un valor válido","err");return;}
-    let qty:number,unitDisplay:string,sub_val:number;
+    let qty,unitDisplay,sub_val;
     if(type==="granel"&&prod.unit==="kg"){qty=val/prod.pricePerKg;sub_val=val;unitDisplay=fmtW(qty);}
     else if(type==="granel_kg"&&prod.unit==="kg"){qty=val;sub_val=val*prod.pricePerKg;unitDisplay=fmtW(qty);type="granel";}
     else if(type==="bulto"&&prod.unit==="kg"){qty=Math.round(val)*prod.bulkWeight;sub_val=Math.round(val)*prod.bulkPrice;unitDisplay=`${Math.round(val)} bulto${Math.round(val)>1?"s":""} (${fmtW(qty)})`;}
     else{qty=Math.round(val);sub_val=qty*(prod.unitPrice||0);unitDisplay=`${qty} u`;}
     const key=`${prod.id}-${type}`;
-    setCart((prev:any[])=>{
+    setCart((prev)=>{
       const ex=prev.find(i=>i.key===key);
       if(ex) return prev.map(i=>i.key===key?{...i,qty:i.qty+qty,sub:i.sub+sub_val,unitDisplay:type==="granel"&&prod.unit==="kg"?fmtW(i.qty+qty):unitDisplay}:i);
       return[...prev,{key,pid:prod.id,name:prod.name,unit:prod.unit,type,qty,sub:sub_val,unitDisplay}];
@@ -482,11 +483,11 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
       const clientSnapshot={...client};
       await sb.from("gp_sales").insert([{id:saleId,date,cid:parseInt(cid),items:cartSnapshot,sub,disc,total,pay,pts_e:ptsE,pts_s:ptsUs,uid:session.id,local_name:session.local||""}]);
       for(const it of cartSnapshot){
-        const prod=prods.find((p:any)=>p.id===it.pid);
+        const prod=prods.find((p)=>p.id===it.pid);
         if(!prod) continue;
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
-        const stkRow=stock.find((s:any)=>s.productId===it.pid&&s.localName===localName);
+        const stkRow=stock.find((s)=>s.productId===it.pid&&s.localName===localName);
         if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
         else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
       }
@@ -498,7 +499,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   };
 
   const printReceipt=()=>{
-    const el=document.getElementById("receipt-print") as any;
+    const el=document.getElementById("receipt-print");
     if(el){el.style.display="block";window.print();setTimeout(()=>{el.style.display="none";},800);}
   };
 
@@ -511,7 +512,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
           <div style={{fontSize:10}}>{receipt.sale.date}{receipt.local&&` · ${receipt.local}`}</div>
         </div>
         <div style={{fontSize:11,marginBottom:4}}>Cliente: {receipt.clientName}</div>
-        {receipt.sale.items.map((it:any,i:number)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span>{it.name} ({it.unitDisplay})</span><span>${it.sub.toFixed(2)}</span></div>))}
+        {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span>{it.name} ({it.unitDisplay})</span><span>${it.sub.toFixed(2)}</span></div>))}
         {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span>Desc.</span><span>-${receipt.sale.disc.toFixed(2)}</span></div>}
         <div style={{borderTop:"1px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:13}}><span>TOTAL</span><span>${receipt.sale.total.toFixed(2)}</span></div>
         <div style={{textAlign:"center",marginTop:8,fontSize:10}}>¡Gracias por su compra!</div>
@@ -521,7 +522,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
         <div style={{fontSize:18,fontWeight:800,color:"#bdd0e0",marginBottom:4}}>¡Venta Cobrada!</div>
         <div style={{fontSize:12,color:"#2a3d50",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{receipt.clientName} <Chip t={receipt.sale.pay}/></div>
         <div style={{background:"#040c16",borderRadius:9,padding:"14px 16px",marginBottom:14,textAlign:"left"}}>
-          {receipt.sale.items.map((it:any,i:number)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",fontSize:12}}><div><span style={{color:"#6a8090"}}>{it.name}</span><div style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>${it.sub.toFixed(2)}</span></div>))}
+          {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",fontSize:12}}><div><span style={{color:"#6a8090"}}>{it.name}</span><div style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>${it.sub.toFixed(2)}</span></div>))}
           {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,color:"#ff9900"}}><span>Desc. puntos</span><span>−${receipt.sale.disc.toFixed(2)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:15,borderTop:"1px solid #192a38"}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${receipt.sale.total.toFixed(2)}</span></div>
         </div>
@@ -542,40 +543,40 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
           <div style={{position:"relative"}}>
             <Lbl t="Cliente"/>
             <div style={{position:"relative"}}>
-              <Inp placeholder="Buscar..." value={cliQ} onChange={(e:any)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34}}/>
+              <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34}}/>
               <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.35}}><Ic n="srch" s={13}/></span>
             </div>
             {showCliList&&cliQ&&filteredClients.length>0&&(
               <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#060f1a",border:"1px solid #192a38",borderRadius:7,zIndex:100,maxHeight:200,overflowY:"auto",boxShadow:"0 12px 32px rgba(0,0,0,.7)"}}>
-                {filteredClients.map((c:any)=>(<div key={c.id} onClick={()=>selectClient(c)} style={{padding:"9px 13px",cursor:"pointer",borderBottom:"1px solid #192a3820",fontSize:12}} onMouseEnter={(e:any)=>e.currentTarget.style.background="#0b1825"} onMouseLeave={(e:any)=>e.currentTarget.style.background="transparent"}><div style={{fontWeight:700,color:"#a0bcd0"}}>{c.name}</div><div style={{fontSize:10,color:"#2a3d50"}}>DNI:{c.dni} · {c.pts}pts</div></div>))}
+                {filteredClients.map((c)=>(<div key={c.id} onClick={()=>selectClient(c)} style={{padding:"9px 13px",cursor:"pointer",borderBottom:"1px solid #192a3820",fontSize:12}} onMouseEnter={(e)=>e.currentTarget.style.background="#0b1825"} onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}><div style={{fontWeight:700,color:"#a0bcd0"}}>{c.name}</div><div style={{fontSize:10,color:"#2a3d50"}}>DNI:{c.dni} · {c.pts}pts</div></div>))}
               </div>
             )}
             {cid&&client&&<div style={{fontSize:10,color:"#00cc55",marginTop:3}}>✓ {client.name} · {client.pts} pts</div>}
           </div>
           <div>
             <Lbl t="Pago"/>
-            <Sel value={pay} onChange={(e:any)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+            <Sel value={pay} onChange={(e)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
             {pay==="efectivo"&&<div style={{fontSize:9,color:"#ff9900",marginTop:3,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
           </div>
-          <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e:any)=>setDate(e.target.value)}/></div>
+          <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e)=>setDate(e.target.value)}/></div>
         </div>
         <div style={{display:"flex",gap:9,marginBottom:10}}>
           <div style={{flex:1,position:"relative"}}>
-            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
+            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
         </div>
         <Card sx={{overflow:"hidden"}}>
           {visible.length===0&&<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>No hay productos</div>}
-          {visible.map((p:any)=>{
+          {visible.map((p)=>{
             const[,,,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
             const expanded=expandedId===p.id;
             return(
               <div key={p.id} style={{borderBottom:"1px solid #192a3820"}}>
                 <div onClick={()=>setExpandedId(expanded?null:p.id)} style={{display:"flex",alignItems:"center",padding:"10px 14px",cursor:"pointer",background:expanded?"#051626":"transparent",transition:"background .15s"}}
-                  onMouseEnter={(e:any)=>{if(!expanded)e.currentTarget.style.background="#06111e"}}
-                  onMouseLeave={(e:any)=>{if(!expanded)e.currentTarget.style.background="transparent"}}>
+                  onMouseEnter={(e)=>{if(!expanded)e.currentTarget.style.background="#06111e"}}
+                  onMouseLeave={(e)=>{if(!expanded)e.currentTarget.style.background="transparent"}}>
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
                     <div style={{fontSize:18,lineHeight:1}}>{catEm}</div>
                     <div>
@@ -589,7 +590,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
                   </div>
                 </div>
                 {expanded&&<div style={{padding:"10px 14px 14px",background:"#040c16",borderTop:"1px solid #192a3820"}}>
-                  <ProdCardInline p={p} onAdd={(prod:any,type:string,val:any)=>{addToCart(prod,type,val);}}/>
+                  <ProdCardInline p={p} onAdd={(prod,type,val)=>{addToCart(prod,type,val);}}/>
                 </div>}
               </div>
             );
@@ -604,15 +605,15 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
         </div>
         <div style={{flex:1,overflow:"auto"}}>
           {!cart.length&&<div style={{padding:22,color:"#2a3d50",textAlign:"center",fontSize:11}}>Seleccioná productos</div>}
-          {cart.map((it:any)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p:any)=>p.filter((i:any)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
+          {cart.map((it)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p)=>p.filter((i)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
         </div>
         {client&&client.pts>0&&(
           <div style={{padding:"9px 13px",borderTop:"1px solid #192a38",background:"#030e06",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <div style={{display:"flex",alignItems:"center",gap:5}}><Ic n="star" s={12} c="#ff9900"/><span style={{fontSize:11,color:"#ff9900",fontWeight:700}}>{client.pts} pts</span></div>
-              <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={usePts} onChange={(e:any)=>{setUsePts(e.target.checked);if(!e.target.checked)setPtsIn(0);}} style={{accentColor:"#ff9900"}}/><span style={{fontSize:10,color:"#6a8090"}}>Canjear</span></label>
+              <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={usePts} onChange={(e)=>{setUsePts(e.target.checked);if(!e.target.checked)setPtsIn(0);}} style={{accentColor:"#ff9900"}}/><span style={{fontSize:10,color:"#6a8090"}}>Canjear</span></label>
             </div>
-            {usePts&&<div style={{display:"flex",gap:7,alignItems:"center"}}><Inp type="number" min={0} max={client.pts} value={ptsIn} onChange={(e:any)=>setPtsIn(Math.min(parseInt(e.target.value)||0,client.pts))} sx={{width:72}}/><span style={{fontSize:9,color:"#2a3d50"}}>= ${(Math.min(parseInt(String(ptsIn))||0,client.pts)*POINT_VALUE).toFixed(2)}</span></div>}
+            {usePts&&<div style={{display:"flex",gap:7,alignItems:"center"}}><Inp type="number" min={0} max={client.pts} value={ptsIn} onChange={(e)=>setPtsIn(Math.min(parseInt(e.target.value)||0,client.pts))} sx={{width:72}}/><span style={{fontSize:9,color:"#2a3d50"}}>= ${(Math.min(parseInt(String(ptsIn))||0,client.pts)*POINT_VALUE).toFixed(2)}</span></div>}
           </div>
         )}
         {client&&<div style={{padding:"5px 13px",background:"#02090e",flexShrink:0,fontSize:9,color:"#2a3d50",display:"flex",justifyContent:"space-between"}}><span>Genera:</span><span style={{color:"#ff9900",fontWeight:700}}>+{ptsE} pts{pay==="efectivo"&&<span style={{color:"#ffbb00"}}> ★x2</span>}</span></div>}
@@ -629,11 +630,11 @@ function NewSale({prods,clients,notify,session,stock,loadAll}:any) {
   );
 }
 
-function ProdCardInline({p,onAdd}:any) {
+function ProdCardInline({p,onAdd}) {
   const isKg=p.unit==="kg";
   const[granelMonto,setGranelMonto]=useState(100);
   const[granelKg,setGranelKg]=useState(0.5);
-  const[modoGranel,setModoGranel]=useState<"pesos"|"kg">("pesos");
+  const[modoGranel,setModoGranel]=useState("pesos");
   const[bultoQty,setBultoQty]=useState(1);
   const[unitQty,setUnitQty]=useState(1);
   const kgPorMonto=isKg&&p.pricePerKg>0?granelMonto/p.pricePerKg:0;
@@ -656,7 +657,7 @@ function ProdCardInline({p,onAdd}:any) {
           {modoGranel==="pesos"&&<>
             <div style={{background:"#060f1a",borderRadius:5,padding:"4px 8px",marginBottom:5,fontSize:10,color:"#00cc55",fontWeight:700}}>${granelMonto} = {fmtW(kgPorMonto)}</div>
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
-              <Inp type="number" min="1" step="10" value={granelMonto} onChange={(e:any)=>setGranelMonto(parseFloat(e.target.value)||0)} sx={{width:70,fontSize:12}}/>
+              <Inp type="number" min="1" step="10" value={granelMonto} onChange={(e)=>setGranelMonto(parseFloat(e.target.value)||0)} sx={{width:70,fontSize:12}}/>
               <span style={{fontSize:9,color:"#2a3d50"}}>$</span>
               <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={handleAddGranel}>+ Ag.</Btn>
             </div>
@@ -664,7 +665,7 @@ function ProdCardInline({p,onAdd}:any) {
           {modoGranel==="kg"&&<>
             <div style={{background:"#060f1a",borderRadius:5,padding:"4px 8px",marginBottom:5,fontSize:10,color:"#00d4ff",fontWeight:700}}>{fmtW(granelKg)} = ${montoPorKg.toFixed(2)}</div>
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
-              <Inp type="number" min="0.5" step="0.5" value={granelKg} onChange={(e:any)=>setGranelKg(parseFloat(e.target.value)||0.5)} sx={{width:70,fontSize:12}}/>
+              <Inp type="number" min="0.5" step="0.5" value={granelKg} onChange={(e)=>setGranelKg(parseFloat(e.target.value)||0.5)} sx={{width:70,fontSize:12}}/>
               <span style={{fontSize:9,color:"#2a3d50"}}>kg</span>
               <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={handleAddGranel}>+ Ag.</Btn>
             </div>
@@ -672,30 +673,30 @@ function ProdCardInline({p,onAdd}:any) {
         </div>
         {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px",minWidth:180,flex:1}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="bulto"/><span style={{color:"#3388ff",fontWeight:700,fontSize:10}}>${p.bulkPrice} · {fmtW(p.bulkWeight)}</span></div>
-          <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={bultoQty} onChange={(e:any)=>setBultoQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>bultos</span><Btn v="b" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"bulto",parseInt(String(bultoQty))||1)}>+ Ag.</Btn></div>
+          <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={bultoQty} onChange={(e)=>setBultoQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>bultos</span><Btn v="b" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"bulto",parseInt(String(bultoQty))||1)}>+ Ag.</Btn></div>
         </div>}
       </>}
       {!isKg&&<div style={{background:"#080310",border:"1px solid #aa44ff20",borderRadius:7,padding:"8px 10px",minWidth:180,flex:1}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="unidad"/><span style={{color:"#cc44ff",fontWeight:700,fontSize:10}}>${(p.unitPrice||0).toFixed(2)}/u</span></div>
-        <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={unitQty} onChange={(e:any)=>setUnitQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>u</span><Btn v="pu" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"unidad",parseInt(String(unitQty))||1)}>+ Ag.</Btn></div>
+        <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={unitQty} onChange={(e)=>setUnitQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>u</span><Btn v="pu" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"unidad",parseInt(String(unitQty))||1)}>+ Ag.</Btn></div>
       </div>}
     </div>
   );
 }
 
-function History({sales,clients,users,isAdmin,notify,loadAll}:any) {
-  const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[det,setDet]=useState<any>(null);const[confirmDel,setConfirmDel]=useState<any>(null);
-  const vis=sales.filter((s:any)=>{const cl=clients.find((c:any)=>c.id===s.cid);return(!q||cl?.name.toLowerCase().includes(q.toLowerCase()))&&(pf==="todos"||s.pay===pf);});
-  const delSale=async(id:any)=>{await sb.from("gp_sales").delete().eq("id",id);notify("Venta eliminada");setConfirmDel(null);loadAll();};
+function History({sales,clients,users,isAdmin,notify,loadAll}) {
+  const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
+  const vis=sales.filter((s)=>{const cl=clients.find((c)=>c.id===s.cid);return(!q||cl?.name.toLowerCase().includes(q.toLowerCase()))&&(pf==="todos"||s.pay===pf);});
+  const delSale=async(id)=>{await sb.from("gp_sales").delete().eq("id",id);notify("Venta eliminada");setConfirmDel(null);loadAll();};
   return(
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Ventas</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{sales.length} REGISTROS</p></div>
       <div style={{display:"flex",gap:9,marginBottom:12}}>
-        <div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar cliente..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
-        <Sel value={pf} onChange={(e:any)=>setPf(e.target.value)} sx={{width:160}}><option value="todos">Todos</option>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+        <div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar cliente..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
+        <Sel value={pf} onChange={(e)=>setPf(e.target.value)} sx={{width:160}}><option value="todos">Todos</option>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
       </div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th><th>Local</th><th></th></tr></thead>
-        <tbody>{vis.map((s:any)=>{const cl=clients.find((c:any)=>c.id===s.cid);const us=users.find((u:any)=>u.id===s.uid);return(<tr key={s.id}><td style={{color:"#2a3d50",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#2a3d50"}}>{s.date}</td><td style={{fontWeight:700,color:"#a0bcd0"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${s.total.toFixed(2)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#2a3d50",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
+        <tbody>{vis.map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);return(<tr key={s.id}><td style={{color:"#2a3d50",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#2a3d50"}}>{s.date}</td><td style={{fontWeight:700,color:"#a0bcd0"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${s.total.toFixed(2)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#2a3d50",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
           <td><div style={{display:"flex",gap:4}}>
             <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setDet(s)}><Ic n="eye" s={11}/></Btn>
             {isAdmin&&<Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(s)}><Ic n="del" s={11}/></Btn>}
@@ -704,7 +705,7 @@ function History({sales,clients,users,isAdmin,notify,loadAll}:any) {
       </table></Card>
       {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2><Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div>
         <div style={{fontSize:10,color:"#2a3d50",marginBottom:12}}>{det.date} · <Chip t={det.pay}/> {det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}</div>
-        {det.items?.map((it:any,i:number)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><div><div style={{fontSize:12,color:"#a0bcd0",fontWeight:600}}>{it.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>${it.sub?.toFixed(2)}</span></div>))}
+        {det.items?.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><div><div style={{fontSize:12,color:"#a0bcd0",fontWeight:600}}>{it.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>${it.sub?.toFixed(2)}</span></div>))}
         <div style={{background:"#040c16",borderRadius:8,padding:"11px 13px",marginTop:11}}>{det.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,color:"#ff9900"}}><span>Desc.</span><span>−${det.disc?.toFixed(2)}</span></div>}<div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:14}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${det.total.toFixed(2)}</span></div></div>
       </div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar venta?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:8}}>Venta <strong style={{color:"#a0bcd0"}}>#{String(confirmDel.id).slice(-6)}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ El stock no se repondrá automáticamente</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delSale(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
@@ -712,11 +713,11 @@ function History({sales,clients,users,isAdmin,notify,loadAll}:any) {
   );
 }
 
-function Reportes({sales,users,localeNames}:any) {
-  const[tab,setTab]=useState<"local"|"user">("local");
-  const byLocal=localeNames.map((l:string)=>{const ls=sales.filter((s:any)=>s.localName===l);return{name:l,count:ls.length,total:ls.reduce((a:number,b:any)=>a+b.total,0)};});
-  const byUser=users.map((u:any)=>{const us=sales.filter((s:any)=>s.uid===u.id);return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a:number,b:any)=>a+b.total,0)};}).filter((u:any)=>u.count>0).sort((a:any,b:any)=>b.total-a.total);
-  const totalGeneral=sales.reduce((a:number,b:any)=>a+b.total,0);
+function Reportes({sales,users,localeNames}) {
+  const[tab,setTab]=useState("local");
+  const byLocal=localeNames.map((l)=>{const ls=sales.filter((s)=>s.localName===l);return{name:l,count:ls.length,total:ls.reduce((a,b)=>a+b.total,0)};});
+  const byUser=users.map((u)=>{const us=sales.filter((s)=>s.uid===u.id);return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
+  const totalGeneral=sales.reduce((a,b)=>a+b.total,0);
   return(
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reportes</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>VENTAS TOTALES · {sales.length} OPERACIONES</p></div>
@@ -729,66 +730,135 @@ function Reportes({sales,users,localeNames}:any) {
       </Card>
       {tab==="local"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Ventas por Local</span></div>
         <table><thead><tr><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
-          <tbody>{byLocal.sort((a:any,b:any)=>b.total-a.total).map((l:any)=>(<tr key={l.name}><td style={{fontWeight:700,color:"#a0bcd0"}}>📍 {l.name}</td><td>{l.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${l.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#00cc55",width:`${totalGeneral>0?(l.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(l.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
+          <tbody>{byLocal.sort((a,b)=>b.total-a.total).map((l)=>(<tr key={l.name}><td style={{fontWeight:700,color:"#a0bcd0"}}>📍 {l.name}</td><td>{l.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${l.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#00cc55",width:`${totalGeneral>0?(l.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(l.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
         </table>
       </Card>)}
       {tab==="user"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Ventas por Usuario</span></div>
         <table><thead><tr><th>Usuario</th><th>Rol</th><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
-          <tbody>{byUser.map((u:any,i:number)=>(<tr key={i}><td style={{fontWeight:700,color:"#a0bcd0"}}>{u.name}</td><td><Chip t={u.role}/></td><td style={{color:"#00d4ff"}}>{u.local||"—"}</td><td>{u.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${u.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#3388ff",width:`${totalGeneral>0?(u.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(u.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
+          <tbody>{byUser.map((u,i)=>(<tr key={i}><td style={{fontWeight:700,color:"#a0bcd0"}}>{u.name}</td><td><Chip t={u.role}/></td><td style={{color:"#00d4ff"}}>{u.local||"—"}</td><td>{u.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${u.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#3388ff",width:`${totalGeneral>0?(u.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(u.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
         </table>
       </Card>)}
     </div>
   );
 }
 
-function StockMgt({prods,stock,notify,loadAll,localeNames}:any) {
+function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[localF,setLocalF]=useState(localeNames[0]||"");
-  const[saving,setSaving]=useState<number|null>(null);
-  const[vals,setVals]=useState<Record<number,string>>({});
+  const[saving,setSaving]=useState(null);
+  const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
 
   useEffect(()=>{setVals({});},[localF]);
 
-  const getStk=(pid:number)=>{
-    const r=stock.find((s:any)=>s.productId===pid&&s.localName===localF);
+  const getStk=(pid)=>{
+    const r=stock.find((s)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
   };
 
- const saveStk=async(prod:any)=>{
+  const saveStk=async(prod)=>{
     const stk=getStk(prod.id);
     const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      const{data:rows,error:findErr}=await sb
-        .from("gp_stock")
-        .select("id")
-        .eq("product_id",prod.id)
-        .eq("local_name",localF);
-      console.log("FIND:",JSON.stringify(rows),"err:",findErr,"local:",localF,"pid:",prod.id);
+      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
+      console.log("FIND:",JSON.stringify(rows),findErr,localF,prod.id);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
         const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
         console.log("UPDATE:",JSON.stringify(res));
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
-      } else {
+      }else{
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
         console.log("INSERT:",JSON.stringify(res));
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
       notify("✓ "+prod.name+" → "+newStk);
-      setVals(v=>({...v,[prod.id]:undefined as any}));
+      setVals(v=>({...v,[prod.id]:undefined}));
       await loadAll();
-    }catch(e:any){notify("Error: "+e.message,"err");}
+    }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
 
-function LocalMgt({locales,notify,loadAll}:any) {
-  const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState<any>(null);
+  const filtered=prods.filter((p)=>{
+    const matchQ=p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
+    const matchCat=catF==="Todas"||p.cat===catF;
+    return matchQ&&matchCat;
+  });
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        {localeNames.map((l)=>(
+          <button key={l} onClick={()=>setLocalF(l)} style={{background:localF===l?"#051626":"transparent",border:`1px solid ${localF===l?"#00d4ff":"#192a38"}`,color:localF===l?"#00d4ff":"#2a3d50",borderRadius:7,padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{position:"relative",flex:1,minWidth:180}}>
+          <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
+          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {["Todas",...CATEGORIES].map(c=>{
+            const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
+            const active=catF===c;
+            return(
+              <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
+                {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span>
+          <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+        </div>
+        <table>
+          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
+          <tbody>{filtered.map((p)=>{
+            const stk=getStk(p.id);
+            const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
+            const edited=vals[p.id]!==undefined;
+            return(
+              <tr key={p.id}>
+                <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
+                <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
+                <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
+                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
+                <td>
+                  <input
+                    type="number"
+                    step={p.unit==="kg"?".5":"1"}
+                    value={edited?vals[p.id]:stk}
+                    onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
+                    onFocus={(e)=>e.target.select()}
+                    style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
+                  />
+                </td>
+                <td>
+                  <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
+                    {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
+                  </Btn>
+                </td>
+              </tr>
+            );
+          })}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+function LocalMgt({locales,notify,loadAll}) {
+  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const openNew=()=>{setForm({name:""});setModal(true);};
-  const openEdit=(l:any)=>{setForm({...l});setModal(true);};
+  const openEdit=(l)=>{setForm({...l});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
@@ -799,24 +869,24 @@ function LocalMgt({locales,notify,loadAll}:any) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
-  const del=async(id:any)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
+  const del=async(id)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Locales</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>PUNTOS DE VENTA</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Local</Btn></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
-        {locales.map((l:any)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#bdd0e0"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
+        {locales.map((l)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#bdd0e0"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
         {locales.length===0&&<div style={{color:"#2a3d50",fontSize:12,padding:20}}>No hay locales. Creá el primero.</div>}
       </div>
-      {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar local?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:20}}><strong style={{color:"#a0bcd0"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
 }
 
-function Clients({clients,sales,notify,isAdmin,loadAll}:any) {
-  const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[det,setDet]=useState<any>(null);const[rdm,setRdm]=useState<any>(null);const[rpts,setRpts]=useState(0);const[q,setQ]=useState("");const[confirmDel,setConfirmDel]=useState<any>(null);const[saving,setSaving]=useState(false);
+function Clients({clients,sales,notify,isAdmin,loadAll}) {
+  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[det,setDet]=useState(null);const[rdm,setRdm]=useState(null);const[rpts,setRpts]=useState(0);const[q,setQ]=useState("");const[confirmDel,setConfirmDel]=useState(null);const[saving,setSaving]=useState(false);
   const openNew=()=>{setForm({name:"",dni:"",phone:"",email:"",addr:"",pay:"efectivo",pts:0,active:true});setModal(true);};
-  const openEdit=(c:any)=>{setForm({...c});setModal(true);};
+  const openEdit=(c)=>{setForm({...c});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
@@ -827,41 +897,41 @@ function Clients({clients,sales,notify,isAdmin,loadAll}:any) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
-  const del=async(id:any)=>{await sb.from("gp_clients").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);loadAll();};
+  const del=async(id)=>{await sb.from("gp_clients").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);loadAll();};
   const doRedeem=async()=>{
     const pts=parseInt(String(rpts))||0;
     if(pts<=0||pts>rdm.pts){notify("Puntos inválidos","err");return;}
     await sb.from("gp_clients").update({pts:rdm.pts-pts}).eq("id",rdm.id);
     notify(`${pts} pts canjeados`);setRdm(null);setRpts(0);loadAll();
   };
-  const vis=clients.filter((c:any)=>c.name.toLowerCase().includes(q.toLowerCase())||(c.dni&&c.dni.toLowerCase().includes(q.toLowerCase())));
+  const vis=clients.filter((c)=>c.name.toLowerCase().includes(q.toLowerCase())||(c.dni&&c.dni.toLowerCase().includes(q.toLowerCase())));
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Clientes</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{clients.length} REGISTROS</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div>
-      <div style={{position:"relative",marginBottom:12}}><Inp placeholder="Buscar..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
+      <div style={{position:"relative",marginBottom:12}}><Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>Nombre</th><th>DNI</th><th>Teléfono</th><th>Pago</th><th>Compras</th><th>Facturado</th><th>Puntos</th><th></th></tr></thead>
-        <tbody>{vis.map((c:any)=>{const cs=sales.filter((s:any)=>s.cid===c.id);const tf=cs.reduce((a:number,b:any)=>a+b.total,0);return(<tr key={c.id}><td style={{fontWeight:700,color:"#a0bcd0"}}>{c.name}</td><td style={{color:"#2a3d50",fontFamily:"monospace",fontSize:10}}>{c.dni||"—"}</td><td style={{color:"#2a3d50"}}>{c.phone||"—"}</td><td><Chip t={c.pay}/></td><td>{cs.length}</td><td style={{color:"#00cc55",fontWeight:700}}>${tf.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={11} c="#ff9900"/><span style={{fontWeight:800,color:"#ff9900"}}>{c.pts}</span></div></td><td><div style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setDet(c.id)}><Ic n="eye" s={11}/></Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(c)}><Ic n="edit" s={11}/></Btn><Btn v="or" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setRdm(c);setRpts(0);}}><Ic n="gift" s={11}/></Btn>{isAdmin&&<Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(c)}><Ic n="del" s={11}/></Btn>}</div></td></tr>);})}</tbody>
+        <tbody>{vis.map((c)=>{const cs=sales.filter((s)=>s.cid===c.id);const tf=cs.reduce((a,b)=>a+b.total,0);return(<tr key={c.id}><td style={{fontWeight:700,color:"#a0bcd0"}}>{c.name}</td><td style={{color:"#2a3d50",fontFamily:"monospace",fontSize:10}}>{c.dni||"—"}</td><td style={{color:"#2a3d50"}}>{c.phone||"—"}</td><td><Chip t={c.pay}/></td><td>{cs.length}</td><td style={{color:"#00cc55",fontWeight:700}}>${tf.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={11} c="#ff9900"/><span style={{fontWeight:800,color:"#ff9900"}}>{c.pts}</span></div></td><td><div style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setDet(c.id)}><Ic n="eye" s={11}/></Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(c)}><Ic n="edit" s={11}/></Btn><Btn v="or" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setRdm(c);setRpts(0);}}><Ic n="gift" s={11}/></Btn>{isAdmin&&<Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(c)}><Ic n="del" s={11}/></Btn>}</div></td></tr>);})}</tbody>
       </table></Card>
-      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Cliente</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))}/></div><div><Lbl t="DNI"/><Inp value={form.dni} onChange={(e:any)=>setForm((f:any)=>({...f,dni:e.target.value}))}/></div><div><Lbl t="Teléfono"/><Inp value={form.phone} onChange={(e:any)=>setForm((f:any)=>({...f,phone:e.target.value}))}/></div><div><Lbl t="Email"/><Inp value={form.email} onChange={(e:any)=>setForm((f:any)=>({...f,email:e.target.value}))}/></div><div><Lbl t="Dirección"/><Inp value={form.addr} onChange={(e:any)=>setForm((f:any)=>({...f,addr:e.target.value}))}/></div><div><Lbl t="Pago"/><Sel value={form.pay} onChange={(e:any)=>setForm((f:any)=>({...f,pay:e.target.value}))}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel></div>{form.id&&<div><Lbl t="Puntos"/><Inp type="number" value={form.pts} onChange={(e:any)=>setForm((f:any)=>({...f,pts:parseInt(e.target.value)||0}))}/></div>}<div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e:any)=>setForm((f:any)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#6a8090"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Cliente</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="DNI"/><Inp value={form.dni} onChange={(e)=>setForm((f)=>({...f,dni:e.target.value}))}/></div><div><Lbl t="Teléfono"/><Inp value={form.phone} onChange={(e)=>setForm((f)=>({...f,phone:e.target.value}))}/></div><div><Lbl t="Email"/><Inp value={form.email} onChange={(e)=>setForm((f)=>({...f,email:e.target.value}))}/></div><div><Lbl t="Dirección"/><Inp value={form.addr} onChange={(e)=>setForm((f)=>({...f,addr:e.target.value}))}/></div><div><Lbl t="Pago"/><Sel value={form.pay} onChange={(e)=>setForm((f)=>({...f,pay:e.target.value}))}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel></div>{form.id&&<div><Lbl t="Puntos"/><Inp type="number" value={form.pts} onChange={(e)=>setForm((f)=>({...f,pts:parseInt(e.target.value)||0}))}/></div>}<div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e)=>setForm((f)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#6a8090"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:20}}><strong style={{color:"#a0bcd0"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
-      {det&&(()=>{const c=clients.find((x:any)=>x.id===det);const cs=sales.filter((s:any)=>s.cid===det);const tf=cs.reduce((a:number,b:any)=>a+b.total,0);return(<Modal close={()=>setDet(null)} w={460}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:16,fontWeight:800}}>{c?.name}</h2><Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div><div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:9,padding:"12px 14px",marginBottom:13,display:"flex",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:8}}><Ic n="star" s={22} c="#ff9900"/><div><div style={{fontSize:22,fontWeight:800,color:"#ff9900"}}>{c?.pts}</div><div style={{fontSize:8,color:"#2a3d50"}}>PUNTOS</div></div></div><div style={{textAlign:"right"}}><div style={{fontSize:13,color:"#00cc55",fontWeight:700}}>${tf.toFixed(2)}</div><div style={{fontSize:8,color:"#2a3d50"}}>total</div></div></div><div style={{maxHeight:200,overflowY:"auto"}}>{cs.map((s:any)=>(<div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a3814"}}><div><div style={{fontSize:11,color:"#a0bcd0",fontWeight:600}}>{s.date}</div><Chip t={s.pay}/></div><div style={{textAlign:"right"}}><div style={{fontWeight:800,color:"#00cc55"}}>${s.total.toFixed(2)}</div></div></div>))}</div></div></Modal>);})()}
-      {rdm&&(<Modal close={()=>setRdm(null)} w={340}><div style={{padding:22}}><h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Canjear — {rdm.name}</h2><div style={{background:"#020e06",border:"1px solid #ff990022",borderRadius:9,padding:14,marginBottom:14,textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,color:"#ff9900"}}>{rdm.pts} pts</div><div style={{fontSize:9,color:"#2a3d50"}}>≡ ${(rdm.pts*POINT_VALUE).toFixed(2)}</div></div><div style={{marginBottom:13}}><Lbl t="Puntos a canjear"/><Inp type="number" min={0} max={rdm.pts} value={rpts} onChange={(e:any)=>setRpts(e.target.value)}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setRdm(null)}>Cancelar</Btn><Btn v="or" onClick={doRedeem}><Ic n="gift" s={13}/>Canjear</Btn></div></div></Modal>)}
+      {det&&(()=>{const c=clients.find((x)=>x.id===det);const cs=sales.filter((s)=>s.cid===det);const tf=cs.reduce((a,b)=>a+b.total,0);return(<Modal close={()=>setDet(null)} w={460}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:16,fontWeight:800}}>{c?.name}</h2><Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div><div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:9,padding:"12px 14px",marginBottom:13,display:"flex",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:8}}><Ic n="star" s={22} c="#ff9900"/><div><div style={{fontSize:22,fontWeight:800,color:"#ff9900"}}>{c?.pts}</div><div style={{fontSize:8,color:"#2a3d50"}}>PUNTOS</div></div></div><div style={{textAlign:"right"}}><div style={{fontSize:13,color:"#00cc55",fontWeight:700}}>${tf.toFixed(2)}</div><div style={{fontSize:8,color:"#2a3d50"}}>total</div></div></div><div style={{maxHeight:200,overflowY:"auto"}}>{cs.map((s)=>(<div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a3814"}}><div><div style={{fontSize:11,color:"#a0bcd0",fontWeight:600}}>{s.date}</div><Chip t={s.pay}/></div><div style={{textAlign:"right"}}><div style={{fontWeight:800,color:"#00cc55"}}>${s.total.toFixed(2)}</div></div></div>))}</div></div></Modal>);})()}
+      {rdm&&(<Modal close={()=>setRdm(null)} w={340}><div style={{padding:22}}><h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Canjear — {rdm.name}</h2><div style={{background:"#020e06",border:"1px solid #ff990022",borderRadius:9,padding:14,marginBottom:14,textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,color:"#ff9900"}}>{rdm.pts} pts</div><div style={{fontSize:9,color:"#2a3d50"}}>≡ ${(rdm.pts*POINT_VALUE).toFixed(2)}</div></div><div style={{marginBottom:13}}><Lbl t="Puntos a canjear"/><Inp type="number" min={0} max={rdm.pts} value={rpts} onChange={(e)=>setRpts(e.target.value)}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setRdm(null)}>Cancelar</Btn><Btn v="or" onClick={doRedeem}><Ic n="gift" s={13}/>Canjear</Btn></div></div></Modal>)}
     </div>
   );
 }
 
-function CashClose({sales,caja,notify,session,loadAll}:any) {
+function CashClose({sales,caja,notify,session,loadAll}) {
   const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);
-  const closedIds=caja.flatMap((d:any)=>d.saleIds||[]);
-  const unclosed=sales.filter((s:any)=>!closedIds.includes(s.id));
-  const byPay=PAY_OPTS.reduce((acc:any,m)=>{acc[m]=unclosed.filter((s:any)=>s.pay===m).reduce((a:number,b:any)=>a+b.total,0);return acc;},{});
-  const totalEf=byPay["efectivo"]||0;const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);const totalAll=unclosed.reduce((a:number,b:any)=>a+b.total,0);
+  const closedIds=caja.flatMap((d)=>d.saleIds||[]);
+  const unclosed=sales.filter((s)=>!closedIds.includes(s.id));
+  const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
+  const totalEf=byPay["efectivo"]||0;const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=caja[caja.length-1];
   const doClose=async()=>{
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     setSaving(true);
     try{
-      await sb.from("gp_caja").insert([{id:Date.now(),closed_by:session.id,closed_by_name:session.name,sale_ids:unclosed.map((s:any)=>s.id),by_pay:byPay,total_ef:totalEf,total_dig:totalDig,total_all:totalAll,opening_amount:parseFloat(openAmt)||0,notes,sales_count:unclosed.length,local_name:session.local||""}]);
+      await sb.from("gp_caja").insert([{id:Date.now(),closed_by:session.id,closed_by_name:session.name,sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,total_ef:totalEf,total_dig:totalDig,total_all:totalAll,opening_amount:parseFloat(openAmt)||0,notes,sales_count:unclosed.length,local_name:session.local||""}]);
       notify(`Caja cerrada. $${totalAll.toFixed(2)}`);setClosing(false);setOpenAmt("");setNotes("");loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
@@ -877,18 +947,18 @@ function CashClose({sales,caja,notify,session,loadAll}:any) {
       </div>
       {caja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial</span></div>
         <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th></tr></thead>
-          <tbody>{[...caja].reverse().map((d:any)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td></tr>))}</tbody>
+          <tbody>{[...caja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td></tr>))}</tbody>
         </table>
       </Card>}
-      {closing&&(<Modal close={()=>setClosing(false)} w={400}><div style={{padding:24}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2><div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>{PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>${(byPay[m]||0).toFixed(2)}</span></div>))}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div></div><div style={{marginBottom:11}}><Lbl t="Fondo apertura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e:any)=>setOpenAmt(e.target.value)}/></div><div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e:any)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none"}}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div></div></Modal>)}
+      {closing&&(<Modal close={()=>setClosing(false)} w={400}><div style={{padding:24}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2><div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>{PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>${(byPay[m]||0).toFixed(2)}</span></div>))}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div></div><div style={{marginBottom:11}}><Lbl t="Fondo apertura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/></div><div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none"}}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
 
-function Products({prods,notify,loadAll}:any) {
-  const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState<any>(null);
+function Products({prods,notify,loadAll}) {
+  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const openNew=()=>{setForm({name:"",code:"",cat:"Perro",unit:"kg",pricePerKg:0,bulkWeight:25,bulkPrice:0,unitPrice:0,stk:0});setModal(true);};
-  const openEdit=(p:any)=>{setForm({...p});setModal(true);};
+  const openEdit=(p)=>{setForm({...p});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
@@ -899,7 +969,7 @@ function Products({prods,notify,loadAll}:any) {
         const{data:newProd}=await sb.from("gp_products").insert([payload]).select().single();
         if(newProd){
           const locs=await sb.from("gp_locales").select("name");
-          const locNames=locs.data?.map((l:any)=>l.name)||["Centro","Norte","Sur"];
+          const locNames=locs.data?.map((l)=>l.name)||["Centro","Norte","Sur"];
           for(const loc of locNames) await sb.from("gp_stock").insert([{product_id:newProd.id,local_name:loc,stk:0}]);
         }
       }
@@ -907,33 +977,33 @@ function Products({prods,notify,loadAll}:any) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
-  const del=async(id:any)=>{await sb.from("gp_products").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);loadAll();};
+  const del=async(id)=>{await sb.from("gp_products").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);loadAll();};
   const isKg=form?.unit==="kg";
-  const vis=prods.filter((p:any)=>p.name.toLowerCase().includes(q.toLowerCase())&&(catF==="Todas"||p.cat===catF));
+  const vis=prods.filter((p)=>p.name.toLowerCase().includes(q.toLowerCase())&&(catF==="Todas"||p.cat===catF));
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div>
-      <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e:any)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
+      <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>Código</th><th>Nombre</th><th>Cat.</th><th>P./Kg</th><th>Bulto</th><th>P.Unit.</th><th></th></tr></thead>
-        <tbody>{vis.map((p:any)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`$${p.pricePerKg.toFixed(2)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`$${(p.unitPrice||0).toFixed(2)}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
+        <tbody>{vis.map((p)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`$${p.pricePerKg.toFixed(2)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`$${(p.unitPrice||0).toFixed(2)}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
       </table></Card>
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:20}}><strong style={{color:"#a0bcd0"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
-      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e:any)=>setForm((f:any)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e:any)=>setForm((f:any)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e:any)=>setForm((f:any)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e:any)=>setForm((f:any)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e:any)=>setForm((f:any)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e:any)=>setForm((f:any)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e:any)=>setForm((f:any)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}</div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e)=>setForm((f)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}</div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
 
-function UserMgmt({users,notify,session,loadAll,localeNames}:any) {
-  const[modal,setModal]=useState(false);const[form,setForm]=useState<any>(null);const[saving,setSaving]=useState(false);
+function UserMgmt({users,notify,session,loadAll,localeNames}) {
+  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);
   const openNew=()=>{setForm({name:"",username:"",password:"",role:"vendedor",local:"",active:true});setModal(true);};
-  const openEdit=(u:any)=>{setForm({...u});setModal(true);};
+  const openEdit=(u)=>{setForm({...u});setModal(true);};
   const save=async()=>{
     if(!form.name||!form.username||!form.password){notify("Completá todos los campos","err");return;}
     setSaving(true);
     try{
       if(form.id) await sb.from("gp_users").update({name:form.name,username:form.username,password:form.password,role:form.role,local:form.local||"",active:form.active}).eq("id",form.id);
       else{
-        const dup=users.find((u:any)=>u.username===form.username);
+        const dup=users.find((u)=>u.username===form.username);
         if(dup){notify("Username ya existe","err");setSaving(false);return;}
         await sb.from("gp_users").insert([{name:form.name,username:form.username,password:form.password,role:form.role,local:form.local||"",active:form.active!==false}]);
       }
@@ -941,21 +1011,21 @@ function UserMgmt({users,notify,session,loadAll,localeNames}:any) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
-  const toggle=async(u:any)=>{if(u.id===session.id){notify("No podés desactivarte","err");return;}await sb.from("gp_users").update({active:!u.active}).eq("id",u.id);loadAll();};
-  const del=async(id:any)=>{if(id===session.id){notify("No podés eliminarte","err");return;}await sb.from("gp_users").delete().eq("id",id);notify("Eliminado");loadAll();};
+  const toggle=async(u)=>{if(u.id===session.id){notify("No podés desactivarte","err");return;}await sb.from("gp_users").update({active:!u.active}).eq("id",u.id);loadAll();};
+  const del=async(id)=>{if(id===session.id){notify("No podés eliminarte","err");return;}await sb.from("gp_users").delete().eq("id",id);notify("Eliminado");loadAll();};
   const LOCALES_OPT=["", ...localeNames];
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Usuarios</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{users.length} USUARIOS</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(255px,1fr))",gap:12}}>
-        {users.map((u:any)=>(<Card key={u.id} sx={{padding:17}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:34,height:34,borderRadius:"50%",background:u.role==="admin"?"#110310":"#021210",border:`2px solid ${u.role==="admin"?"#cc44ff33":"#00883333"}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n={u.role==="admin"?"shld":"usr"} s={14} c={u.role==="admin"?"#cc44ff":"#00cc55"}/></div><div><div style={{fontSize:13,fontWeight:800,color:"#bdd0e0"}}>{u.name}</div><div style={{fontSize:9,color:"#2a3d50",fontFamily:"monospace"}}>@{u.username}{u.local&&<span style={{marginLeft:5,color:"#00d4ff"}}>· 📍{u.local}</span>}</div></div></div><Chip t={u.role}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:8,fontWeight:700,background:u.active?"#021408":"#130900",color:u.active?"#00cc55":"#ff9900",padding:"3px 9px",borderRadius:10,letterSpacing:1}}>{u.active?"ACTIVO":"INACTIVO"}</span>{u.id!==session.id&&(<div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(u)}><Ic n="edit" s={11}/></Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9,color:u.active?"#ff5555":"#00cc55"}} onClick={()=>toggle(u)}>{u.active?"Off":"On"}</Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>del(u.id)}><Ic n="del" s={11}/></Btn></div>)}{u.id===session.id&&<span style={{fontSize:9,color:"#2a3d50"}}>← vos</span>}</div></Card>))}
+        {users.map((u)=>(<Card key={u.id} sx={{padding:17}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:34,height:34,borderRadius:"50%",background:u.role==="admin"?"#110310":"#021210",border:`2px solid ${u.role==="admin"?"#cc44ff33":"#00883333"}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n={u.role==="admin"?"shld":"usr"} s={14} c={u.role==="admin"?"#cc44ff":"#00cc55"}/></div><div><div style={{fontSize:13,fontWeight:800,color:"#bdd0e0"}}>{u.name}</div><div style={{fontSize:9,color:"#2a3d50",fontFamily:"monospace"}}>@{u.username}{u.local&&<span style={{marginLeft:5,color:"#00d4ff"}}>· 📍{u.local}</span>}</div></div></div><Chip t={u.role}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:8,fontWeight:700,background:u.active?"#021408":"#130900",color:u.active?"#00cc55":"#ff9900",padding:"3px 9px",borderRadius:10,letterSpacing:1}}>{u.active?"ACTIVO":"INACTIVO"}</span>{u.id!==session.id&&(<div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(u)}><Ic n="edit" s={11}/></Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9,color:u.active?"#ff5555":"#00cc55"}} onClick={()=>toggle(u)}>{u.active?"Off":"On"}</Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>del(u.id)}><Ic n="del" s={11}/></Btn></div>)}{u.id===session.id&&<span style={{fontSize:9,color:"#2a3d50"}}>← vos</span>}</div></Card>))}
       </div>
-      {modal&&form&&(<Modal close={()=>setModal(false)} w={420}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Usuario</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e:any)=>setForm((f:any)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Username"/><Inp value={form.username} onChange={(e:any)=>setForm((f:any)=>({...f,username:e.target.value}))}/></div><div><Lbl t="Contraseña"/><Inp value={form.password} onChange={(e:any)=>setForm((f:any)=>({...f,password:e.target.value}))}/></div><div><Lbl t="Rol"/><Sel value={form.role} onChange={(e:any)=>setForm((f:any)=>({...f,role:e.target.value}))}><option value="vendedor">Vendedor</option><option value="admin">Admin</option></Sel></div><div><Lbl t="Local"/><Sel value={form.local||""} onChange={(e:any)=>setForm((f:any)=>({...f,local:e.target.value}))}>{LOCALES_OPT.map(l=><option key={l} value={l}>{l||"— Sin local —"}</option>)}</Sel></div><div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e:any)=>setForm((f:any)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#6a8090"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:14,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)} w={420}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Usuario</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Username"/><Inp value={form.username} onChange={(e)=>setForm((f)=>({...f,username:e.target.value}))}/></div><div><Lbl t="Contraseña"/><Inp value={form.password} onChange={(e)=>setForm((f)=>({...f,password:e.target.value}))}/></div><div><Lbl t="Rol"/><Sel value={form.role} onChange={(e)=>setForm((f)=>({...f,role:e.target.value}))}><option value="vendedor">Vendedor</option><option value="admin">Admin</option></Sel></div><div><Lbl t="Local"/><Sel value={form.local||""} onChange={(e)=>setForm((f)=>({...f,local:e.target.value}))}>{LOCALES_OPT.map(l=><option key={l} value={l}>{l||"— Sin local —"}</option>)}</Sel></div><div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e)=>setForm((f)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#6a8090"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:14,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
 
-function AdminProfile({session,setSession,notify,loadAll}:any) {
+function AdminProfile({session,setSession,notify,loadAll}) {
   const[name,setName]=useState(session.name);const[username,setUsername]=useState(session.username);const[pwOld,setPwOld]=useState("");const[pwNew,setPwNew]=useState("");const[pwConf,setPwConf]=useState("");const[showPw,setShowPw]=useState(false);const[saving,setSaving]=useState(false);
   const saveProfile=async()=>{
     if(!name.trim()||!username.trim()){notify("Campos requeridos","err");return;}
@@ -970,7 +1040,7 @@ function AdminProfile({session,setSession,notify,loadAll}:any) {
   };
   const savePassword=async()=>{
     const{data:cur}=await sb.from("gp_users").select("password").eq("id",session.id).single();
-    if((cur as any)?.password!==pwOld){notify("Contraseña incorrecta","err");return;}
+    if(cur?.password!==pwOld){notify("Contraseña incorrecta","err");return;}
     if(!pwNew||pwNew.length<4){notify("Mínimo 4 caracteres","err");return;}
     if(pwNew!==pwConf){notify("No coinciden","err");return;}
     setSaving(true);
@@ -982,13 +1052,13 @@ function AdminProfile({session,setSession,notify,loadAll}:any) {
       <div style={{marginBottom:20}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Mi Perfil</h1></div>
       <Card sx={{padding:20,marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18}}><div style={{width:52,height:52,borderRadius:"50%",background:"#110310",border:"2px solid #cc44ff44",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n="shld" s={22} c="#cc44ff"/></div><div><div style={{fontSize:16,fontWeight:800,color:"#bdd0e0"}}>{session.name}</div><div style={{fontSize:10,color:"#2a3d50"}}>@{session.username} · Admin</div></div></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:14}}><div><Lbl t="Nombre"/><Inp value={name} onChange={(e:any)=>setName(e.target.value)}/></div><div><Lbl t="Username"/><Inp value={username} onChange={(e:any)=>setUsername(e.target.value)}/></div></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:14}}><div><Lbl t="Nombre"/><Inp value={name} onChange={(e)=>setName(e.target.value)}/></div><div><Lbl t="Username"/><Inp value={username} onChange={(e)=>setUsername(e.target.value)}/></div></div>
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="g" onClick={saveProfile} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div>
       </Card>
       <Card sx={{padding:20}}>
         <div style={{fontSize:11,fontWeight:700,color:"#bdd0e0",marginBottom:14,display:"flex",alignItems:"center",gap:7}}><Ic n="key" s={14} c="#00d4ff"/>Cambiar Contraseña</div>
-        <div style={{marginBottom:11}}><Lbl t="Actual"/><div style={{position:"relative"}}><Inp type={showPw?"text":"password"} value={pwOld} onChange={(e:any)=>setPwOld(e.target.value)} placeholder="••••••••"/><button onClick={()=>setShowPw((s:boolean)=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#2a3d50",cursor:"pointer",fontSize:11}}>{showPw?"🙈":"👁"}</button></div></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:11}}><div><Lbl t="Nueva"/><Inp type={showPw?"text":"password"} value={pwNew} onChange={(e:any)=>setPwNew(e.target.value)}/></div><div><Lbl t="Confirmar"/><Inp type={showPw?"text":"password"} value={pwConf} onChange={(e:any)=>setPwConf(e.target.value)}/></div></div>
+        <div style={{marginBottom:11}}><Lbl t="Actual"/><div style={{position:"relative"}}><Inp type={showPw?"text":"password"} value={pwOld} onChange={(e)=>setPwOld(e.target.value)} placeholder="••••••••"/><button onClick={()=>setShowPw((s)=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#2a3d50",cursor:"pointer",fontSize:11}}>{showPw?"🙈":"👁"}</button></div></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:11}}><div><Lbl t="Nueva"/><Inp type={showPw?"text":"password"} value={pwNew} onChange={(e)=>setPwNew(e.target.value)}/></div><div><Lbl t="Confirmar"/><Inp type={showPw?"text":"password"} value={pwConf} onChange={(e)=>setPwConf(e.target.value)}/></div></div>
         {pwNew&&pwConf&&<div style={{fontSize:11,marginBottom:10,color:pwNew===pwConf?"#00cc55":"#ff6666"}}>{pwNew===pwConf?"✓ Coinciden":"✗ No coinciden"}</div>}
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="cy" onClick={savePassword} disabled={saving}><Ic n="key" s={13}/>Actualizar</Btn></div>
       </Card>
