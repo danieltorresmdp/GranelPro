@@ -750,7 +750,14 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[catF,setCatF]=useState("Todas");
   const[localStock,setLocalStock]=useState(stock);
 
-  useEffect(()=>{setLocalStock(stock);},[stock]);
+ useEffect(()=>{
+  setLocalStock(prev=>{
+    return stock.map(s=>{
+      const local=prev.find(p=>p.id===s.id);
+      return local&&local.stk!==s.stk&&saving===null?local:s;
+    });
+  });
+},[stock]);
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
@@ -782,7 +789,7 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
       });
      notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined}));
-      setTimeout(()=>loadAll(), 1500);
+      // no recargar - la suscripción realtime lo actualizará
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
