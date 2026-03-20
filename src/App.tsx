@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect } from "react";
-
+import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL  = "https://mmjadwmtfpfvvedybvmn.supabase.co";
 const SUPABASE_KEY  = "sb_publishable_xw0NlfE9BOT9kM4bZ_dhjA_p9Rw5-42";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
