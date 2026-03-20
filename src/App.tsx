@@ -780,9 +780,9 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:newStk}:s);
         return[...prev,{productId:prod.id,localName:localF,stk:newStk,min:0}];
       });
-      notify("✓ "+prod.name+" → "+newStk);
+     notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined}));
-      loadAll();
+      setTimeout(()=>loadAll(), 1500);
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
