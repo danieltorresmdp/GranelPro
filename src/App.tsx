@@ -749,19 +749,20 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
   const[localStock,setLocalStock]=useState(stock);
+  const savedIds=useState(new Set())[0];
 
-
-
-useEffect(()=>{
-  setLocalStock(prev=>{
-    return stock.map(s=>{
-      const local=prev.find(p=>p.id===s.id);
-      return local&&local.stk!==s.stk&&saving===null?local:s;
+  useEffect(()=>{
+    setLocalStock(prev=>{
+      return stock.map(s=>{
+        const key=`${s.productId}-${s.localName}`;
+        if(savedIds.has(key)) return prev.find(p=>p.productId===s.productId&&p.localName===s.localName)||s;
+        return s;
+      });
     });
-  });
-},[stock]);
+  },[stock]);
 
-useEffect(()=>{setVals({});},[localF]);
+  useEffect(()=>{setVals({});},[localF]);
+
   const getStk=(pid)=>{
     const r=localStock.find((s)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
@@ -773,26 +774,26 @@ useEffect(()=>{setVals({});},[localF]);
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
+    const key=`${prod.id}-${localF}`;
+    savedIds.add(key);
     try{
       const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
-      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
+      if(findErr){notify("Error: "+findErr.message,"err");savedIds.delete(key);setSaving(null);return;}
       if(rows&&rows.length>0){
         const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        if(res.error){notify("Error: "+res.error.message,"err");savedIds.delete(key);setSaving(null);return;}
       }else{
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        if(res.error){notify("Error: "+res.error.message,"err");savedIds.delete(key);setSaving(null);return;}
       }
-      // Actualizar estado local inmediatamente
       setLocalStock(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:newStk}:s);
         return[...prev,{productId:prod.id,localName:localF,stk:newStk,min:0}];
       });
-     notify("✓ "+prod.name+" → "+newStk);
+      notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined}));
-      // no recargar - la suscripción realtime lo actualizará
-    }catch(e){notify("Error: "+e.message,"err");}
+    }catch(e){notify("Error: "+e.message,"err");savedIds.delete(key);}
     setSaving(null);
   };
 
