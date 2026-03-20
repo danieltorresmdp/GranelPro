@@ -338,7 +338,7 @@ export default function App() {
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-            {isAdmin&&view==="stockmgt" &&<StockMgt key={stock.reduce((a,b)=>a+b.stk,0)} prods={prods} stock={stock} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
+            {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} stock={stock} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -748,11 +748,13 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
+  const[localStock,setLocalStock]=useState(stock);
 
+  useEffect(()=>{setLocalStock(stock);},[stock]);
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
-    const r=stock.find((s)=>s.productId===pid&&s.localName===localF);
+    const r=localStock.find((s)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
   };
 
@@ -764,20 +766,23 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
     setSaving(prod.id);
     try{
       const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
-      console.log("FIND:",JSON.stringify(rows),findErr,localF,prod.id);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
         const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        console.log("UPDATE:",JSON.stringify(res));
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }else{
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        console.log("INSERT:",JSON.stringify(res));
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
+      // Actualizar estado local inmediatamente
+      setLocalStock(prev=>{
+        const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
+        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:newStk}:s);
+        return[...prev,{productId:prod.id,localName:localF,stk:newStk,min:0}];
+      });
       notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined}));
-      await loadAll();
+      loadAll();
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
