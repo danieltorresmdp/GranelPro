@@ -213,7 +213,7 @@ export default function App() {
     loadFirst();
     const ch=sb.channel("gp_rt")
       .on("postgres_changes",{event:"*",schema:"public",table:"gp_products"},()=>loadAll())
-      .on("postgres_changes",{event:"*",schema:"public",table:"gp_stock"},()=>loadAll())
+      .on("postgres_changes",{event:"*",schema:"public",table:"gp_stock"},()=>{if(view!=="stockmgt")loadAll();})
       .on("postgres_changes",{event:"*",schema:"public",table:"gp_clients"},()=>loadAll())
       .on("postgres_changes",{event:"*",schema:"public",table:"gp_sales"},()=>loadAll())
       .on("postgres_changes",{event:"*",schema:"public",table:"gp_caja"},()=>loadAll())
