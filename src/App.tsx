@@ -742,23 +742,22 @@ function Reportes({sales,users,localeNames}) {
   );
 }
 
-function StockMgt({prods,notify,loadAll,localeNames}) {
+function StockMgt({prods,notify,localeNames}) {
   const[localF,setLocalF]=useState(localeNames[0]||"");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
   const[localStock,setLocalStock]=useState([]);
-  const savedIds=useState(new Set())[0];
+  const[loading,setLoading]=useState(true);
 
-  useEffect(()=>{
-    const fetchStock=async()=>{
-      const{data}=await sb.from("gp_stock").select("*");
-      if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
-    };
-    fetchStock();
-  },[]);
+  const fetchStock=async()=>{
+    const{data}=await sb.from("gp_stock").select("*");
+    if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+    setLoading(false);
+  };
 
+  useEffect(()=>{fetchStock();},[]);
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
@@ -772,17 +771,15 @@ function StockMgt({prods,notify,loadAll,localeNames}) {
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
     setSaving(prod.id);
-    const key=`${prod.id}-${localF}`;
-    savedIds.add(key);
     try{
       const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
-      if(findErr){notify("Error: "+findErr.message,"err");savedIds.delete(key);setSaving(null);return;}
+      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
         const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error: "+res.error.message,"err");savedIds.delete(key);setSaving(null);return;}
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }else{
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
-        if(res.error){notify("Error: "+res.error.message,"err");savedIds.delete(key);setSaving(null);return;}
+        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
       setLocalStock(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
@@ -791,7 +788,7 @@ function StockMgt({prods,notify,loadAll,localeNames}) {
       });
       notify("✓ "+prod.name+" → "+newStk);
       setVals(v=>({...v,[prod.id]:undefined}));
-    }catch(e){notify("Error: "+e.message,"err");savedIds.delete(key);}
+    }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
 
@@ -831,6 +828,7 @@ function StockMgt({prods,notify,loadAll,localeNames}) {
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span>
           <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
         </div>
+        {loading?<div style={{padding:20,textAlign:"center",color:"#2a3d50"}}>Cargando stock...</div>:
         <table>
           <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
           <tbody>{filtered.map((p)=>{
@@ -862,7 +860,7 @@ function StockMgt({prods,notify,loadAll,localeNames}) {
             );
           })}
           </tbody>
-        </table>
+        </table>}
       </Card>
     </div>
   );
