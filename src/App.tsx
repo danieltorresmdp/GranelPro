@@ -752,13 +752,14 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
   const[loading,setLoading]=useState(stockMgt.length===0);
 
   useEffect(()=>{
-    if(stockMgt.length>0){setLoading(false);return;}
+  if(stockMgt.length>0){setLoading(false);return;}
+  setTimeout(()=>{
     sb.from("gp_stock").select("*").then(({data})=>{
       if(data) setStockMgt(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
       setLoading(false);
     });
-  },[]);
-
+  },1000);
+},[]);
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
