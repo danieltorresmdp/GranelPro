@@ -338,7 +338,7 @@ export default function App() {
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-            {isAdmin&&view==="stockmgt" &&<StockMgt key={view} prods={prods} stock={stock} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
+           {isAdmin&&view==="stockmgt" &&<StockMgt key={view} prods={prods} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -742,7 +742,7 @@ function Reportes({sales,users,localeNames}) {
   );
 }
 
-function StockMgt({prods,stock,notify,loadAll,localeNames}) {
+function StockMgt({prods,notify,loadAll,localeNames}) {
   const[localF,setLocalF]=useState(localeNames[0]||"");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
@@ -751,7 +751,6 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[localStock,setLocalStock]=useState([]);
   const savedIds=useState(new Set())[0];
 
-  // Cargar stock fresco desde Supabase al montar
   useEffect(()=>{
     const fetchStock=async()=>{
       const{data}=await sb.from("gp_stock").select("*");
@@ -759,19 +758,6 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
     };
     fetchStock();
   },[]);
-
-  // Solo sincronizar productos que no fueron editados localmente
-  useEffect(()=>{
-    setLocalStock(prev=>{
-      if(prev.length===0) return stock;
-      return prev.map(s=>{
-        const key=`${s.productId}-${s.localName}`;
-        if(savedIds.has(key)) return s;
-        const fresh=stock.find(f=>f.productId===s.productId&&f.localName===s.localName);
-        return fresh||s;
-      });
-    });
-  },[stock]);
 
   useEffect(()=>{setVals({});},[localF]);
 
