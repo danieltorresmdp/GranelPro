@@ -338,7 +338,7 @@ export default function App() {
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-           {isAdmin&&view==="stockmgt" &&<StockMgt key={view} prods={prods} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
+           {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -757,7 +757,15 @@ function StockMgt({prods,notify,localeNames}) {
     setLoading(false);
   };
 
-  useEffect(()=>{fetchStock();},[]);
+  useEffect(()=>{
+  const fetchStock=async()=>{
+    await new Promise(r=>setTimeout(r,500));
+    const{data}=await sb.from("gp_stock").select("*");
+    if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+    setLoading(false);
+  };
+  fetchStock();
+},[]);
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
