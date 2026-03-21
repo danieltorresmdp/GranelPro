@@ -748,15 +748,27 @@ function StockMgt({prods,stock,notify,loadAll,localeNames}) {
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
-  const[localStock,setLocalStock]=useState(stock);
+  const[localStock,setLocalStock]=useState([]);
   const savedIds=useState(new Set())[0];
 
+  // Cargar stock fresco desde Supabase al montar
+  useEffect(()=>{
+    const fetchStock=async()=>{
+      const{data}=await sb.from("gp_stock").select("*");
+      if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+    };
+    fetchStock();
+  },[]);
+
+  // Solo sincronizar productos que no fueron editados localmente
   useEffect(()=>{
     setLocalStock(prev=>{
-      return stock.map(s=>{
+      if(prev.length===0) return stock;
+      return prev.map(s=>{
         const key=`${s.productId}-${s.localName}`;
-        if(savedIds.has(key)) return prev.find(p=>p.productId===s.productId&&p.localName===s.localName)||s;
-        return s;
+        if(savedIds.has(key)) return s;
+        const fresh=stock.find(f=>f.productId===s.productId&&f.localName===s.localName);
+        return fresh||s;
       });
     });
   },[stock]);
