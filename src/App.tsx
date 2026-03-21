@@ -754,7 +754,9 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
 useEffect(()=>{
   if(stockMgt.length>0){setLoading(false);return;}
   setTimeout(()=>{
-sb.from("gp_stock").select("*").limit(10000).then(({data})=>{      console.log("FETCH stock sample:", data?.slice(0,3));
+    sb.from("gp_stock").select("*").limit(10000).then(({data,error})=>{
+      console.log("FETCH total:", data?.length, "error:", error);
+      console.log("sample:", data?.slice(0,3));
       if(data) setStockMgt(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
       setLoading(false);
     });
