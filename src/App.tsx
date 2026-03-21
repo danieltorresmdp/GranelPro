@@ -167,10 +167,11 @@ export default function App() {
   const[stock,setStock]=useState([]);
   const[clients,setClients]=useState([]);
   const[sales,setSales]=useState([]);
-  const[caja,setCaja]=useState([]);
-  const[locales,setLocales]=useState([]);
-  const[loading,setLoading]=useState(true);
-  const[view,setView]=useState("dash");
+const[caja,setCaja]=useState([]);
+const[locales,setLocales]=useState([]);
+const[stockMgt,setStockMgt]=useState([]);
+const[loading,setLoading]=useState(true);
+const[view,setView]=useState("dash");
   const[toast,setToast]=useState(null);
   const[online,setOnline]=useState(navigator.onLine);
   const isAdmin=session?.role==="admin";
@@ -338,7 +339,7 @@ export default function App() {
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-           {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} loadAll={loadAll} localeNames={localeNames}/>}
+           {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -742,34 +743,26 @@ function Reportes({sales,users,localeNames}) {
   );
 }
 
-function StockMgt({prods,notify,localeNames}) {
+function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
   const[localF,setLocalF]=useState(localeNames[0]||"");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
-  const[localStock,setLocalStock]=useState([]);
-  const[loading,setLoading]=useState(true);
-
-  const fetchStock=async()=>{
-    const{data}=await sb.from("gp_stock").select("*");
-    if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
-    setLoading(false);
-  };
+  const[loading,setLoading]=useState(stockMgt.length===0);
 
   useEffect(()=>{
-  const fetchStock=async()=>{
-    await new Promise(r=>setTimeout(r,500));
-    const{data}=await sb.from("gp_stock").select("*");
-    if(data) setLocalStock(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
-    setLoading(false);
-  };
-  fetchStock();
-},[]);
+    if(stockMgt.length>0){setLoading(false);return;}
+    sb.from("gp_stock").select("*").then(({data})=>{
+      if(data) setStockMgt(data.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+      setLoading(false);
+    });
+  },[]);
+
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
-    const r=localStock.find((s)=>s.productId===pid&&s.localName===localF);
+    const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);
     return r?r.stk:0;
   };
 
@@ -789,7 +782,7 @@ function StockMgt({prods,notify,localeNames}) {
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
-      setLocalStock(prev=>{
+      setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:newStk}:s);
         return[...prev,{productId:prod.id,localName:localF,stk:newStk,min:0}];
