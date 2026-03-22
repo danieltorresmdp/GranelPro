@@ -753,16 +753,22 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
 
 useEffect(()=>{
   if(stockMgt.length>0){setLoading(false);return;}
-  setTimeout(()=>{
-    sb.from("gp_stock").select("*").limit(10000).then(({data,error})=>{
-      console.log("FETCH total:", data?.length, "error:", error);
-      console.log("sample:", data?.slice(0,3));
-      const mapped=data?.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}))||[];
-      console.log("prod14 CATALUÑA:", mapped.find(s=>s.productId===14&&s.localName==="CATALUÑA"));
-      setStockMgt(mapped);
-      setLoading(false);
-    });
-  },1000);
+  const fetchAll=async()=>{
+    let all=[];
+    let from=0;
+    const size=1000;
+    while(true){
+      const{data,error}=await sb.from("gp_stock").select("*").range(from,from+size-1);
+      if(error||!data||data.length===0) break;
+      all=[...all,...data];
+      if(data.length<size) break;
+      from+=size;
+    }
+    console.log("TOTAL fetched:",all.length);
+    setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+    setLoading(false);
+  };
+  fetchAll();
 },[]);
   useEffect(()=>{setVals({});},[localF]);
 
