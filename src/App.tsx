@@ -488,9 +488,10 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
         if(!prod) continue;
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
-        const stkRow=stock.find((s)=>s.productId===it.pid&&s.localName===localName);
-        if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
-        else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
+const stkRow=stock.find((s)=>s.productId===it.pid&&s.localName===localName);
+console.log("stkRow:",stkRow,"pid:",it.pid,"local:",localName,"stock:",stock.length);
+if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
+else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
       }
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
       const receiptData={sale:{id:saleId,date,pay,total,disc,items:cartSnapshot},clientName:clientSnapshot?.name,ptsE,ptsUs,local:session.local};
@@ -764,12 +765,13 @@ useEffect(()=>{
       if(data.length<size) break;
       from+=size;
     }
-    console.log("TOTAL fetched:",all.length);
+ console.log("TOTAL fetched:",all.length);
     setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
     setLoading(false);
   };
   fetchAll();
 },[]);
+
   useEffect(()=>{setVals({});},[localF]);
 
   const getStk=(pid)=>{
