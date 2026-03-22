@@ -189,7 +189,7 @@ const[view,setView]=useState("dash");
       const[u,p,sk,c,s,cj,lc]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
-        sb.from("gp_stock").select("*"),
+        sb.from("gp_stock").select("*").range(0,4999),
         sb.from("gp_clients").select("*").order("id"),
         sb.from("gp_sales").select("*").order("id",{ascending:false}).limit(500),
         sb.from("gp_caja").select("*").order("id"),
