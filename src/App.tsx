@@ -483,16 +483,29 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
       const cartSnapshot=[...cart];
       const clientSnapshot={...client};
       await sb.from("gp_sales").insert([{id:saleId,date,cid:parseInt(cid),items:cartSnapshot,sub,disc,total,pay,pts_e:ptsE,pts_s:ptsUs,uid:session.id,local_name:session.local||""}]);
+
       for(const it of cartSnapshot){
         const prod=prods.find((p)=>p.id===it.pid);
         if(!prod) continue;
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
-const stkRow=stock.find((s)=>s.productId===it.pid&&s.localName===localName);
-console.log("stkRow:",stkRow,"pid:",it.pid,"local:",localName,"stock:",stock.length);
-if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
-else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
+
+        // ✅ FIX: consulta directa a Supabase en lugar de buscar en array local
+        // (el array local puede no tener todos los registros si hay más de 5000 filas)
+        const{data:stkRow,error:stkErr}=await sb
+          .from("gp_stock")
+          .select("*")
+          .eq("product_id",it.pid)
+          .eq("local_name",localName)
+          .single();
+
+        if(stkRow){
+          await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
+        } else {
+          await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
+        }
       }
+
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
       const receiptData={sale:{id:saleId,date,pay,total,disc,items:cartSnapshot},clientName:clientSnapshot?.name,ptsE,ptsUs,local:session.local};
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
@@ -765,7 +778,7 @@ useEffect(()=>{
       if(data.length<size) break;
       from+=size;
     }
- console.log("TOTAL fetched:",all.length);
+    console.log("TOTAL fetched:",all.length);
     setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
     setLoading(false);
   };
