@@ -337,7 +337,7 @@ const[view,setView]=useState("dash");
             {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
-            {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll}/>}
+            {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
            {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
@@ -958,8 +958,8 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
   );
 }
 
-function CashClose({sales,caja,notify,session,loadAll}) {
-  const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);
+function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
+  const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const closedIds=caja.flatMap((d)=>d.saleIds||[]);
   const unclosed=sales.filter((s)=>!closedIds.includes(s.id));
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
@@ -974,6 +974,10 @@ function CashClose({sales,caja,notify,session,loadAll}) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
+  const delCierre=async(id)=>{
+    await sb.from("gp_caja").delete().eq("id",id);
+    notify("Cierre eliminado");setConfirmDel(null);loadAll();
+  };
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div><Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn></div>
@@ -984,11 +988,12 @@ function CashClose({sales,caja,notify,session,loadAll}) {
         <Stat label="QR" value={`$${(byPay["QR"]||0).toFixed(2)}`} sub="digital" color="#ccdd00" icon="trend"/>
       </div>
       {caja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial</span></div>
-        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th></tr></thead>
-          <tbody>{[...caja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td></tr>))}</tbody>
+        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th>{isAdmin&&<th></th>}</tr></thead>
+          <tbody>{[...caja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td>{isAdmin&&<td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>}</tr>))}</tbody>
         </table>
       </Card>}
       {closing&&(<Modal close={()=>setClosing(false)} w={400}><div style={{padding:24}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2><div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>{PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>${(byPay[m]||0).toFixed(2)}</span></div>))}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div></div><div style={{marginBottom:11}}><Lbl t="Fondo apertura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/></div><div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none"}}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div></div></Modal>)}
+      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#a0bcd0"}}>{new Date(confirmDel.closedAt).toLocaleString("es-AR")}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
 }
