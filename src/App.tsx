@@ -999,6 +999,10 @@ function Products({prods,notify,loadAll}) {
   const openEdit=(p)=>{setForm({...p});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
+    if(form.code&&form.code.trim()!==""){
+      const{data:dup}=await sb.from("gp_products").select("id").eq("code",form.code.trim()).neq("id",form.id||0).maybeSingle();
+      if(dup){notify("Ya existe un producto con ese código","err");return;}
+    }
     setSaving(true);
     const payload={code:form.code||"",name:form.name,cat:form.cat,unit:form.unit,price_per_kg:form.pricePerKg||0,bulk_weight:form.bulkWeight||0,bulk_price:form.bulkPrice||0,unit_price:form.unitPrice||0,stk:form.stk||0,min_stk:0,updated_at:new Date().toISOString()};
     try{
