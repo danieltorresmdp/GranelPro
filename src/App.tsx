@@ -430,7 +430,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
 function NewSale({prods,clients,notify,session,stock,loadAll}) {
   const[cart,setCart]=useState([]);
   const[cid,setCid]=useState("");
-  const[pay,setPay]=useState("efectivo");
+  const[pay,setPay]=useState("");
   const[date,setDate]=useState(todayStr());
   const[usePts,setUsePts]=useState(false);
   const[ptsIn,setPtsIn]=useState(0);
@@ -476,6 +476,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
 
   const confirm=async()=>{
     if(!cid){notify("Seleccioná un cliente","err");return;}
+    if(!pay){notify("Seleccioná un medio de pago","err");return;}
     if(!cart.length){notify("Carrito vacío","err");return;}
     setSaving(true);
     try{
@@ -570,7 +571,11 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
           </div>
           <div>
             <Lbl t="Pago"/>
-            <Sel value={pay} onChange={(e)=>setPay(e.target.value)}>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+            <Sel value={pay} onChange={(e)=>setPay(e.target.value)} sx={{borderColor:!pay?"#ff440055":"#192a38"}}>
+              <option value="" disabled>— Seleccioná —</option>
+              {PAY_OPTS.map(m=><option key={m}>{m}</option>)}
+            </Sel>
+            {!pay&&<div style={{fontSize:9,color:"#ff6666",marginTop:3}}>Requerido</div>}
             {pay==="efectivo"&&<div style={{fontSize:9,color:"#ff9900",marginTop:3,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
           </div>
           <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e)=>setDate(e.target.value)}/></div>
