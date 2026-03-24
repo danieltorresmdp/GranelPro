@@ -802,23 +802,26 @@ useEffect(()=>{
     const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
+    // Si el stock actual es negativo, el ingreso se ajusta descontando lo ya vendido
+    const finalStk=stk<0?newStk+stk:newStk;
     setSaving(prod.id);
     try{
       const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       if(rows&&rows.length>0){
-        const res=await sb.from("gp_stock").update({stk:newStk}).eq("id",rows[0].id);
+        const res=await sb.from("gp_stock").update({stk:finalStk}).eq("id",rows[0].id);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }else{
-        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:newStk}]);
+        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk}]);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
-        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:newStk}:s);
-        return[...prev,{productId:prod.id,localName:localF,stk:newStk,min:0}];
+        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk}:s);
+        return[...prev,{productId:prod.id,localName:localF,stk:finalStk,min:0}];
       });
-      notify("✓ "+prod.name+" → "+newStk);
+      const msg=stk<0?`✓ ${prod.name} → ${finalStk} (ajustado por ${stk} vendido)`:`✓ ${prod.name} → ${finalStk}`;
+      notify(msg);
       setVals(v=>({...v,[prod.id]:undefined}));
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
@@ -862,11 +865,13 @@ useEffect(()=>{
         </div>
         {loading?<div style={{padding:20,textAlign:"center",color:"#2a3d50"}}>Cargando stock...</div>:
         <table>
-          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Nuevo Stock</th><th></th></tr></thead>
+          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
           <tbody>{filtered.map((p)=>{
             const stk=getStk(p.id);
             const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
             const edited=vals[p.id]!==undefined;
+            const inputVal=edited?parseFloat(vals[p.id])||0:0;
+            const preview=stk<0&&edited?inputVal+stk:null;
             return(
               <tr key={p.id}>
                 <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
@@ -877,11 +882,16 @@ useEffect(()=>{
                   <input
                     type="number"
                     step={p.unit==="kg"?".5":"1"}
-                    value={edited?vals[p.id]:stk}
+                    value={edited?vals[p.id]:0}
                     onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                     onFocus={(e)=>e.target.select()}
                     style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
                   />
+                </td>
+                <td>
+                  {preview!==null
+                    ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
+                    :<span style={{color:"#2a3d50",fontSize:11}}>—</span>}
                 </td>
                 <td>
                   <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
