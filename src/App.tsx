@@ -126,7 +126,7 @@ const mapProd   = (r) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:
 const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
 const mapClient = (r) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
 const mapSale   = (r) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
-const mapCaja   = (r) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
+const mapCaja   = (r) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,retiro_efectivo:Number(r.retiro_efectivo)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
 const mapLocale = (r) => r?({id:r.id,name:r.name}):null;
 
 const Login = ({onLogin}) => {
@@ -545,7 +545,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
         {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados{receipt.sale.pay==="efectivo"&&<span style={{background:"#140800",border:"1px solid #ff990033",borderRadius:4,padding:"1px 6px",fontSize:9,color:"#ff9900"}}>★x2 EFECTIVO</span>}</div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
-          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>setReceipt(null)}><Ic n="plus" s={14}/>Nueva Venta</Btn>
+          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setReceipt(null);setQ("");setCatF("Todas");setExpandedId(null);setPay("");setDate(todayStr());}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
         </div>
       </Card>
     </div>
@@ -975,7 +975,7 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
 }
 
 function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
-  const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[retiro,setRetiro]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const myCaja=isAdmin?caja:caja.filter((d)=>d.closedBy===session?.id);
   const closedIds=caja.flatMap((d)=>d.saleIds||[]);
   const mySales=isAdmin?sales:sales.filter((s)=>s.uid===session?.id);
@@ -983,12 +983,15 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
   const totalEf=byPay["efectivo"]||0;const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=myCaja[myCaja.length-1];
+  // Fondo del turno anterior: último cierre del mismo local
+  const lastByLocal=[...caja].reverse().find((d)=>d.localName===(session?.local||""));
+  const fondoAnterior=lastByLocal?.openingAmount||0;
   const doClose=async()=>{
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     setSaving(true);
     try{
-      await sb.from("gp_caja").insert([{id:Date.now(),closed_by:session.id,closed_by_name:session.name,sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,total_ef:totalEf,total_dig:totalDig,total_all:totalAll,opening_amount:parseFloat(openAmt)||0,notes,sales_count:unclosed.length,local_name:session.local||""}]);
-      notify(`Caja cerrada. $${totalAll.toFixed(2)}`);setClosing(false);setOpenAmt("");setNotes("");loadAll();
+      await sb.from("gp_caja").insert([{id:Date.now(),closed_by:session.id,closed_by_name:session.name,sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,total_ef:totalEf,total_dig:totalDig,total_all:totalAll,opening_amount:parseFloat(openAmt)||0,retiro_efectivo:parseFloat(retiro)||0,notes,sales_count:unclosed.length,local_name:session.local||""}]);
+      notify(`Caja cerrada. $${totalAll.toFixed(2)}`);setClosing(false);setOpenAmt("");setRetiro("");setNotes("");loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -999,6 +1002,15 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div><Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn></div>
+      {/* Fondo turno anterior */}
+      {lastByLocal&&<Card sx={{padding:"12px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,background:"#03120a",border:"1px solid #00882233"}}>
+        <Ic n="cash" s={20} c="#00cc55"/>
+        <div>
+          <div style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase",marginBottom:3}}>Fondo del turno anterior · {lastByLocal.localName}</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#00cc55"}}>${(lastByLocal.openingAmount||0).toFixed(2)}</div>
+          <div style={{fontSize:9,color:"#2a3d50",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleString("es-AR")}</div>
+        </div>
+      </Card>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
         <Stat label="Sin Cerrar" value={unclosed.length} sub="ventas" color="#00d4ff" icon="hist"/>
         <Stat label="Efectivo" value={`$${totalEf.toFixed(2)}`} sub="físico" color="#00cc55" icon="cash"/>
@@ -1006,11 +1018,31 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
         <Stat label="QR" value={`$${(byPay["QR"]||0).toFixed(2)}`} sub="digital" color="#ccdd00" icon="trend"/>
       </div>
       {myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial{!isAdmin&&" · MIS CIERRES"}</span></div>
-        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th>{isAdmin&&<th></th>}</tr></thead>
-          <tbody>{[...myCaja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td>{isAdmin&&<td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>}</tr>))}</tbody>
+        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th>{isAdmin&&<><th>Fondo</th><th>Retiro</th><th></th></>}</tr></thead>
+          <tbody>{[...myCaja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td>{isAdmin&&<><td style={{color:"#00cc55",fontSize:11}}>${(d.openingAmount||0).toFixed(2)}</td><td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?`$${(d.retiro_efectivo).toFixed(2)}`:"—"}</td><td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td></>}</tr>))}</tbody>
         </table>
       </Card>}
-      {closing&&(<Modal close={()=>setClosing(false)} w={400}><div style={{padding:24}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2><div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>{PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>${(byPay[m]||0).toFixed(2)}</span></div>))}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div></div><div style={{marginBottom:11}}><Lbl t="Fondo apertura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/></div><div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none"}}/></div><div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div></div></Modal>)}
+      {closing&&(<Modal close={()=>setClosing(false)} w={420}><div style={{padding:24}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2>
+        <div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
+          {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>${(byPay[m]||0).toFixed(2)}</span></div>))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:11}}>
+          <div>
+            <Lbl t="Fondo que dejás ($)"/>
+            <Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/>
+            <div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Lo verá el próximo turno</div>
+          </div>
+          <div>
+            <Lbl t="Retiro en efectivo ($)"/>
+            <Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>
+            <div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Solo visible para admin</div>
+          </div>
+        </div>
+        <div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div>
+      </div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#6a8090",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#a0bcd0"}}>{new Date(confirmDel.closedAt).toLocaleString("es-AR")}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
