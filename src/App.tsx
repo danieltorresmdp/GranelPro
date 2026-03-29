@@ -443,7 +443,15 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
   const[expandedId,setExpandedId]=useState(null);
 
   const client=clients.find((c)=>c.id===parseInt(cid));
-  const filteredClients=clients.filter((c)=>c.active&&(c.name.toLowerCase().includes(cliQ.toLowerCase())||(c.dni&&c.dni.replace(/\D/g,"").includes(cliQ.replace(/\D/g,"")))));
+  const filteredClients=clients.filter((c)=>{
+    if(!c.active) return false;
+    const q=cliQ.toLowerCase().trim();
+    if(!q) return false;
+    const matchName=c.name.toLowerCase().includes(q);
+    const onlyDigits=/^\d+$/.test(cliQ.trim());
+    const matchDni=onlyDigits&&c.dni&&c.dni.replace(/\D/g,"").includes(cliQ.trim());
+    return matchName||matchDni;
+  });
   const visible=prods.filter((p)=>{
     const matchQ=q===""||p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
     const matchCat=catF==="Todas"||p.cat===catF;
