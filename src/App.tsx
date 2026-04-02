@@ -743,25 +743,86 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
 }
 
 function Reportes({sales,users,localeNames}) {
-  const[tab,setTab]=useState("local");
-  const byLocal=localeNames.map((l)=>{const ls=sales.filter((s)=>s.localName===l);return{name:l,count:ls.length,total:ls.reduce((a,b)=>a+b.total,0)};});
-  const byUser=users.map((u)=>{const us=sales.filter((s)=>s.uid===u.id);return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
+  const[tab,setTab]=useState("mensual");
   const totalGeneral=sales.reduce((a,b)=>a+b.total,0);
+
+  // Reporte mensual
+  const byMonth=()=>{
+    const map={};
+    sales.forEach((s)=>{
+      const ym=s.date?s.date.slice(0,7):"";
+      if(!ym) return;
+      if(!map[ym]) map[ym]={ym,count:0,total:0};
+      map[ym].count++;
+      map[ym].total+=s.total;
+    });
+    return Object.values(map).sort((a,b)=>b.ym.localeCompare(a.ym));
+  };
+  const months=byMonth();
+  const fmtMonth=(ym)=>{
+    const[y,m]=ym.split("-");
+    const names=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    return`${names[parseInt(m)-1]} ${y}`;
+  };
+  const maxMonth=months.length>0?Math.max(...months.map(m=>m.total)):1;
+
+  // Reporte por local
+  const byLocal=localeNames.map((l)=>{const ls=sales.filter((s)=>s.localName===l);return{name:l,count:ls.length,total:ls.reduce((a,b)=>a+b.total,0)};});
+
+  // Reporte por usuario
+  const byUser=users.map((u)=>{const us=sales.filter((s)=>s.uid===u.id);return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
+
   return(
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reportes</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>VENTAS TOTALES · {sales.length} OPERACIONES</p></div>
       <Card sx={{padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><div style={{fontSize:9,color:"#2a3d50",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General</div><div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>${totalGeneral.toFixed(2)}</div></div>
         <div style={{display:"flex",gap:8}}>
+          <Btn v={tab==="mensual"?"cy":"gh"} onClick={()=>setTab("mensual")}><Ic n="trend" s={13}/>Mensual</Btn>
           <Btn v={tab==="local"?"cy":"gh"} onClick={()=>setTab("local")}><Ic n="loc" s={13}/>Por Local</Btn>
           <Btn v={tab==="user"?"cy":"gh"} onClick={()=>setTab("user")}><Ic n="usr" s={13}/>Por Usuario</Btn>
         </div>
       </Card>
+
+      {tab==="mensual"&&(<Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Comparativo Mensual</span></div>
+        {months.length===0&&<div style={{padding:20,color:"#2a3d50",textAlign:"center"}}>Sin datos</div>}
+        {months.map((m,i)=>{
+          const prev=months[i+1];
+          const diff=prev?m.total-prev.total:null;
+          const pct=prev&&prev.total>0?((m.total-prev.total)/prev.total*100):null;
+          const barW=maxMonth>0?(m.total/maxMonth*100):0;
+          return(
+            <div key={m.ym} style={{padding:"12px 16px",borderBottom:"1px solid #192a3814"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:13,fontWeight:800,color:i===0?"#00d4ff":"#a0bcd0",minWidth:70}}>{fmtMonth(m.ym)}</span>
+                  {i===0&&<span style={{fontSize:8,background:"#00d4ff22",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>MES ACTUAL</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:14}}>
+                  {pct!==null&&<span style={{fontSize:10,fontWeight:700,color:diff>=0?"#00cc55":"#ff4444"}}>
+                    {diff>=0?"▲":"▼"} {Math.abs(pct).toFixed(1)}% vs mes ant.
+                  </span>}
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#00cc55"}}>${m.total.toFixed(2)}</div>
+                    <div style={{fontSize:9,color:"#2a3d50"}}>{m.count} ventas</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:"100%",background:i===0?"#00d4ff":"#00cc55",width:`${barW}%`,borderRadius:3,transition:"width .4s ease"}}/>
+              </div>
+            </div>
+          );
+        })}
+      </Card>)}
+
       {tab==="local"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Ventas por Local</span></div>
         <table><thead><tr><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
           <tbody>{byLocal.sort((a,b)=>b.total-a.total).map((l)=>(<tr key={l.name}><td style={{fontWeight:700,color:"#a0bcd0"}}>📍 {l.name}</td><td>{l.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${l.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#00cc55",width:`${totalGeneral>0?(l.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(l.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
         </table>
       </Card>)}
+
       {tab==="user"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Ventas por Usuario</span></div>
         <table><thead><tr><th>Usuario</th><th>Rol</th><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
           <tbody>{byUser.map((u,i)=>(<tr key={i}><td style={{fontWeight:700,color:"#a0bcd0"}}>{u.name}</td><td><Chip t={u.role}/></td><td style={{color:"#00d4ff"}}>{u.local||"—"}</td><td>{u.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>${u.total.toFixed(2)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#3388ff",width:`${totalGeneral>0?(u.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#2a3d50",minWidth:36}}>{totalGeneral>0?(u.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
@@ -772,7 +833,7 @@ function Reportes({sales,users,localeNames}) {
 }
 
 function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
-  const[localF,setLocalF]=useState(localeNames[0]||"");
+  const[localF,setLocalF]=useState("");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
@@ -799,7 +860,7 @@ useEffect(()=>{
   fetchAll();
 },[]);
 
-  useEffect(()=>{setVals({});},[localF]);
+  useEffect(()=>{setVals({});setQ("");setCatF("Todas");},[localF]);
 
   const getStk=(pid)=>{
     const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);
@@ -811,7 +872,6 @@ useEffect(()=>{
     const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
     const newStk=parseFloat(inputVal);
     if(isNaN(newStk)){notify("Valor inválido","err");return;}
-    // Si el stock actual es negativo, el ingreso se ajusta descontando lo ya vendido
     const finalStk=stk<0?newStk+stk:newStk;
     setSaving(prod.id);
     try{
@@ -844,75 +904,118 @@ useEffect(()=>{
 
   return(
     <div className="fade">
-      <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        {localeNames.map((l)=>(
-          <button key={l} onClick={()=>setLocalF(l)} style={{background:localF===l?"#051626":"transparent",border:`1px solid ${localF===l?"#00d4ff":"#192a38"}`,color:localF===l?"#00d4ff":"#2a3d50",borderRadius:7,padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>
-        ))}
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1>
+        <p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p>
       </div>
-      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
-        <div style={{position:"relative",flex:1,minWidth:180}}>
-          <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
-          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
-        </div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["Todas",...CATEGORIES].map(c=>{
-            const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
-            const active=catF===c;
+
+      {/* Paso 1: Selección de local */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:8}}>Seleccioná un local para ajustar stock</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {localeNames.map((l)=>{
+            const active=localF===l;
             return(
-              <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
-                {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
+              <button key={l} onClick={()=>setLocalF(l)} style={{
+                background:active?"#00d4ff":"transparent",
+                border:`2px solid ${active?"#00d4ff":"#192a38"}`,
+                color:active?"#030810":"#2a3d50",
+                borderRadius:9,padding:"10px 20px",cursor:"pointer",
+                fontFamily:"inherit",fontSize:12,fontWeight:800,
+                transition:"all .15s",
+                boxShadow:active?"0 0 18px #00d4ff55":"none",
+                transform:active?"scale(1.04)":"scale(1)",
+              }}>
+                📍 {l}
+                {active&&<span style={{marginLeft:7,fontSize:9,background:"#030810",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>AJUSTANDO</span>}
               </button>
             );
           })}
         </div>
       </div>
-      <Card sx={{overflow:"hidden"}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · {localF}</span>
-          <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+
+      {/* Paso 2: Filtros y tabla — solo si hay local seleccionado */}
+      {!localF&&(
+        <Card sx={{padding:40,textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:12}}>📍</div>
+          <div style={{fontSize:14,fontWeight:700,color:"#bdd0e0",marginBottom:6}}>Seleccioná un local</div>
+          <div style={{fontSize:11,color:"#2a3d50"}}>Elegí el local arriba para ver y editar su stock</div>
+        </Card>
+      )}
+
+      {localF&&<>
+        {/* Banner local activo */}
+        <div style={{background:"#00d4ff11",border:"1px solid #00d4ff33",borderRadius:8,padding:"8px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+          <Ic n="loc" s={14} c="#00d4ff"/>
+          <span style={{fontSize:11,fontWeight:700,color:"#00d4ff"}}>Editando stock de: {localF}</span>
+          <span style={{fontSize:9,color:"#2a3d50",marginLeft:4}}>{filtered.length} productos</span>
         </div>
-        {loading?<div style={{padding:20,textAlign:"center",color:"#2a3d50"}}>Cargando stock...</div>:
-        <table>
-          <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
-          <tbody>{filtered.map((p)=>{
-            const stk=getStk(p.id);
-            const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-            const edited=vals[p.id]!==undefined;
-            const inputVal=edited?parseFloat(vals[p.id])||0:0;
-            const preview=stk<0&&edited?inputVal+stk:null;
-            return(
-              <tr key={p.id}>
-                <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
-                <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
-                <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
-                <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
-                <td>
-                  <input
-                    type="number"
-                    step={p.unit==="kg"?".5":"1"}
-                    value={edited?vals[p.id]:0}
-                    onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
-                    onFocus={(e)=>e.target.select()}
-                    style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
-                  />
-                </td>
-                <td>
-                  {preview!==null
-                    ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
-                    :<span style={{color:"#2a3d50",fontSize:11}}>—</span>}
-                </td>
-                <td>
-                  <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
-                    {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
-                  </Btn>
-                </td>
-              </tr>
-            );
-          })}
-          </tbody>
-        </table>}
-      </Card>
+
+        <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
+          <div style={{position:"relative",flex:1,minWidth:180}}>
+            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
+            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {["Todas",...CATEGORIES].map(c=>{
+              const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
+              const active=catF===c;
+              return(
+                <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#2a3d50",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
+                  {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
+            <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+          </div>
+          {loading?<div style={{padding:20,textAlign:"center",color:"#2a3d50"}}>Cargando stock...</div>:
+          <table>
+            <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
+            <tbody>{filtered.map((p)=>{
+              const stk=getStk(p.id);
+              const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
+              const edited=vals[p.id]!==undefined;
+              const inputVal=edited?parseFloat(vals[p.id])||0:0;
+              const preview=stk<0&&edited?inputVal+stk:null;
+              return(
+                <tr key={p.id}>
+                  <td style={{fontWeight:700,color:"#a0bcd0"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
+                  <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
+                  <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
+                  <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
+                  <td>
+                    <input
+                      type="number"
+                      step={p.unit==="kg"?".5":"1"}
+                      value={edited?vals[p.id]:0}
+                      onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
+                      onFocus={(e)=>e.target.select()}
+                      style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
+                    />
+                  </td>
+                  <td>
+                    {preview!==null
+                      ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
+                      :<span style={{color:"#2a3d50",fontSize:11}}>—</span>}
+                  </td>
+                  <td>
+                    <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
+                      {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
+                    </Btn>
+                  </td>
+                </tr>
+              );
+            })}
+            </tbody>
+          </table>}
+        </Card>
+      </>}
     </div>
   );
 }
