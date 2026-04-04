@@ -550,7 +550,17 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
           {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,color:"#ff9900"}}><span>Desc. puntos</span><span>−${receipt.sale.disc.toFixed(2)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:15,borderTop:"1px solid #192a38"}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${receipt.sale.total.toFixed(2)}</span></div>
         </div>
-        {receipt.ptsE>0&&<div style={{fontSize:11,color:"#ff9900",marginBottom:16,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Ic n="star" s={13} c="#ff9900"/>+{receipt.ptsE} pts acreditados{receipt.sale.pay==="efectivo"&&<span style={{background:"#140800",border:"1px solid #ff990033",borderRadius:4,padding:"1px 6px",fontSize:9,color:"#ff9900"}}>★x2 EFECTIVO</span>}</div>}
+        {receipt.ptsE>0&&<div style={{marginBottom:16}}>
+          <div style={{fontSize:13,color:"#ff9900",display:"flex",alignItems:"center",gap:6,justifyContent:"center",fontWeight:800}}>
+            <Ic n="star" s={15} c="#ff9900"/>+{receipt.ptsE} pts acreditados
+          </div>
+          {receipt.sale.pay==="efectivo"&&<div style={{marginTop:8,background:"#140800",border:"1px solid #ff990055",borderRadius:8,padding:"8px 14px",textAlign:"center"}}>
+            <div style={{fontSize:11,color:"#ff9900",fontWeight:700,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+              <span style={{fontSize:14}}>★</span> ¡Pagando en efectivo sumás el doble de puntos!
+            </div>
+            <div style={{fontSize:9,color:"#cc7700",marginTop:3}}>Próxima compra podés canjear ${(receipt.ptsE*0.5).toFixed(2)} en descuento</div>
+          </div>}
+        </div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
           <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setReceipt(null);setQ("");setCatF("Todas");setExpandedId(null);setPay("");setDate(todayStr());}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
