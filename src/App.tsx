@@ -560,6 +560,14 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
             </div>
             <div style={{fontSize:9,color:"#cc7700",marginTop:3}}>Próxima compra podés canjear ${(receipt.ptsE*0.5).toFixed(2)} en descuento</div>
           </div>}
+          {(receipt.sale.pay==="tarjeta"||receipt.sale.pay==="QR")&&<div style={{marginTop:10,background:"#0a0500",border:"2px solid #ff990088",borderRadius:10,padding:"12px 16px",textAlign:"center",boxShadow:"0 0 18px #ff990033"}}>
+            <div style={{fontSize:16,marginBottom:4}}>💡</div>
+            <div style={{fontSize:13,color:"#ffbb00",fontWeight:800,marginBottom:4}}>¡La próxima pagá en efectivo!</div>
+            <div style={{fontSize:11,color:"#ff9900",fontWeight:600,marginBottom:6}}>Hubieras sumado <strong style={{fontSize:14,color:"#ffdd00"}}>+{receipt.ptsE} pts extra</strong> pagando en efectivo</div>
+            <div style={{background:"#1a0a00",borderRadius:7,padding:"6px 10px",fontSize:10,color:"#cc7700"}}>
+              💰 Efectivo = <span style={{color:"#ffbb00",fontWeight:800}}>puntos x2</span> · ¡El doble de beneficios!
+            </div>
+          </div>}
         </div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
