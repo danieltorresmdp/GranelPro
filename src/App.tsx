@@ -1119,6 +1119,10 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
   const openEdit=(c)=>{setForm({...c});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
+    if(form.dni&&form.dni.trim()!==""){
+      const{data:dup}=await sb.from("gp_clients").select("id,name").eq("dni",form.dni.trim()).neq("id",form.id||0).maybeSingle();
+      if(dup){notify(`DNI ya registrado para: ${dup.name}`,"err");return;}
+    }
     setSaving(true);
     try{
       if(form.id) await sb.from("gp_clients").update({name:form.name,dni:form.dni,phone:form.phone,email:form.email,addr:form.addr,pay:form.pay,pts:form.pts,active:form.active}).eq("id",form.id);
@@ -1127,7 +1131,6 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
-  const del=async(id)=>{await sb.from("gp_clients").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);loadAll();};
   const doRedeem=async()=>{
     const pts=parseInt(String(rpts))||0;
     if(pts<=0||pts>rdm.pts){notify("Puntos inválidos","err");return;}
