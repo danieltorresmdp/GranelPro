@@ -833,6 +833,8 @@ function Reportes({sales,users,localeNames}) {
           </div>
           {allMonths.length===0&&<div style={{padding:20,color:"#2a3d50",textAlign:"center"}}>Sin datos</div>}
           {allMonths.map((ym,i)=>{
+            const currentYm=new Date().toISOString().slice(0,7);
+            const isCurrentMonth=ym===currentYm;
             const total=totalByMonth(ym);
             const count=countByMonth(ym);
             const prevYm=allMonths[i+1];
@@ -844,8 +846,8 @@ function Reportes({sales,users,localeNames}) {
               <div key={ym} style={{padding:"12px 16px",borderBottom:"1px solid #192a3814"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <span style={{fontSize:13,fontWeight:800,color:i===0?"#00d4ff":"#a0bcd0",minWidth:70}}>{fmtMonth(ym)}</span>
-                    {i===0&&<span style={{fontSize:8,background:"#00d4ff22",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>MES ACTUAL</span>}
+                    <span style={{fontSize:13,fontWeight:800,color:isCurrentMonth?"#00d4ff":"#a0bcd0",minWidth:70}}>{fmtMonth(ym)}</span>
+                    {isCurrentMonth&&<span style={{fontSize:8,background:"#00d4ff22",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>MES ACTUAL</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:14}}>
                     {pct!=null&&<span style={{fontSize:10,fontWeight:700,color:diff>=0?"#00cc55":"#ff4444"}}>{diff>=0?"▲":"▼"} {Math.abs(pct).toFixed(1)}% vs mes ant.</span>}
@@ -857,7 +859,7 @@ function Reportes({sales,users,localeNames}) {
                 </div>
                 {/* Barra global */}
                 <div style={{height:5,background:"#192a38",borderRadius:3,overflow:"hidden",marginBottom:localSel==="todos"?6:0}}>
-                  <div style={{height:"100%",background:i===0?"#00d4ff":"#00cc55",width:`${barW}%`,borderRadius:3,transition:"width .4s ease"}}/>
+                  <div style={{height:"100%",background:isCurrentMonth?"#00d4ff":"#00cc55",width:`${barW}%`,borderRadius:3,transition:"width .4s ease"}}/>
                 </div>
                 {/* Desglose por local cuando es "todos" */}
                 {localSel==="todos"&&localeNames.map((l,li)=>{
