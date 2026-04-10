@@ -276,7 +276,7 @@ const[view,setView]=useState("dash");
           body{background:#fff !important;color:#000 !important}
           .no-print,.sidebar-nav{display:none !important}
           .print-receipt{display:block !important;background:#fff;color:#000;font-family:monospace;padding:12px;max-width:320px;margin:0 auto}
-          .print-receipt *{color:#000 !important;background:transparent !important}
+          .print-receipt *{color:#000 !important;background:transparent !important;border-color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         }
         .print-receipt{display:none}
       `}</style>
@@ -530,16 +530,20 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
   if(receipt) return(
     <div className="fade" style={{maxWidth:440,margin:"32px auto"}}>
       <div className="print-receipt" id="receipt-print">
-        <div style={{textAlign:"center",borderBottom:"1px dashed #000",paddingBottom:8,marginBottom:8}}>
-          <div style={{fontSize:16,fontWeight:700}}>🐾 GranelPro Pet Shop</div>
-          <div style={{fontSize:11}}>RECIBO · #{String(receipt.sale.id).slice(-6)}</div>
-          <div style={{fontSize:10}}>{receipt.sale.date}{receipt.local&&` · ${receipt.local}`}</div>
+        <div style={{textAlign:"center",borderBottom:"2px dashed #000",paddingBottom:8,marginBottom:8}}>
+          <div style={{fontSize:18,fontWeight:900,color:"#000"}}>Masc🐾tas Pet Shop</div>
+          <div style={{fontSize:10,color:"#000",marginTop:2}}>RECIBO · #{String(receipt.sale.id).slice(-6)}</div>
+          <div style={{fontSize:10,color:"#000"}}>{receipt.sale.date}{receipt.local&&` · ${receipt.local}`}</div>
         </div>
-        <div style={{fontSize:11,marginBottom:4}}>Cliente: {receipt.clientName}</div>
-        {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span>{it.name} ({it.unitDisplay})</span><span>${it.sub.toFixed(2)}</span></div>))}
-        {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span>Desc.</span><span>-${receipt.sale.disc.toFixed(2)}</span></div>}
-        <div style={{borderTop:"1px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:13}}><span>TOTAL</span><span>${receipt.sale.total.toFixed(2)}</span></div>
-        <div style={{textAlign:"center",marginTop:8,fontSize:10}}>¡Gracias por su compra!</div>
+        <div style={{fontSize:11,marginBottom:4,color:"#000"}}>Cliente: {receipt.clientName}</div>
+        {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3,color:"#000"}}><span>{it.name} ({it.unitDisplay})</span><span>${it.sub.toFixed(2)}</span></div>))}
+        {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Desc.</span><span>-${receipt.sale.disc.toFixed(2)}</span></div>}
+        <div style={{borderTop:"2px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14,color:"#000"}}><span>TOTAL</span><span>${receipt.sale.total.toFixed(2)}</span></div>
+        {receipt.ptsE>0&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center"}}>Puntos acreditados: +{receipt.ptsE} pts{receipt.sale.pay==="efectivo"&&" (x2 efectivo)"}</div>}
+        <div style={{borderTop:"1px dashed #000",marginTop:8,paddingTop:8,textAlign:"center"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#000"}}>¡Gracias por su compra!</div>
+          <div style={{fontSize:9,color:"#000",marginTop:6,lineHeight:1.4}}>Estimado cliente, cualquier sugerencia o queja{"\n"}puede comunicarse al <strong>2236786886</strong></div>
+        </div>
       </div>
       <Card sx={{padding:28,textAlign:"center"}}>
         <div style={{fontSize:44,marginBottom:12}}>✅</div>
