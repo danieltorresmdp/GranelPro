@@ -550,6 +550,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
         {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Desc.</span><span>-${receipt.sale.disc.toFixed(2)}</span></div>}
         <div style={{borderTop:"2px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14,color:"#000"}}><span>TOTAL</span><span>${receipt.sale.total.toFixed(2)}</span></div>
         {receipt.ptsE>0&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center"}}>Puntos acreditados: +{receipt.ptsE} pts{receipt.sale.pay==="efectivo"&&" (x2 efectivo)"}</div>}
+        {receipt.ptsE>0&&(receipt.sale.pay==="tarjeta"||receipt.sale.pay==="QR")&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center",fontWeight:700}}>
+          * La proxima paga en efectivo y gana{"\n"}el doble de puntos (+{receipt.ptsE} pts extra)!
+        </div>}
         <div style={{borderTop:"1px dashed #000",marginTop:8,paddingTop:8,textAlign:"center"}}>
           <div style={{fontSize:11,fontWeight:700,color:"#000"}}>¡Gracias por su compra!</div>
           <div style={{fontSize:9,color:"#000",marginTop:6,lineHeight:1.4}}>Estimado cliente, cualquier sugerencia o queja{"\n"}puede comunicarse al <strong>2236786886</strong></div>
