@@ -97,7 +97,7 @@ const Modal = ({close,children,w=520}) => (
     </div>
   </div>
 );
-const Card = ({children,sx}) => <div style={{background:"#0b1825",border:"1px solid #192a38",borderRadius:10,...sx}}>{children}</div>;
+const Card = ({children,sx,className}) => <div className={className} style={{background:"#0b1825",border:"1px solid #192a38",borderRadius:10,...sx}}>{children}</div>;
 const Btn = ({v="g",children,sx,...p}) => {
   const vs={
     g:{bg:"#008833",fg:"#011208",hv:"#00aa44"},
@@ -273,9 +273,19 @@ const[view,setView]=useState("dash");
         tr:last-child td{border-bottom:none}
         input[type=number]::-webkit-inner-spin-button{opacity:.4}
         @media print{
-          body{background:#fff !important;color:#000 !important}
-          .no-print,.sidebar-nav{display:none !important}
-          .print-receipt{display:block !important;background:#fff;color:#000;font-family:monospace;padding:12px;max-width:320px;margin:0 auto}
+          body *{visibility:hidden !important}
+          .print-receipt, .print-receipt *{visibility:visible !important}
+          .print-receipt{
+            display:block !important;
+            position:fixed !important;
+            top:0 !important;left:0 !important;
+            width:100% !important;
+            background:#fff !important;
+            color:#000 !important;
+            font-family:monospace !important;
+            padding:20px !important;
+            font-size:13px !important;
+          }
           .print-receipt *{color:#000 !important;background:transparent !important;border-color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         }
         .print-receipt{display:none}
@@ -545,7 +555,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
           <div style={{fontSize:9,color:"#000",marginTop:6,lineHeight:1.4}}>Estimado cliente, cualquier sugerencia o queja{"\n"}puede comunicarse al <strong>2236786886</strong></div>
         </div>
       </div>
-      <Card sx={{padding:28,textAlign:"center"}}>
+      <Card sx={{padding:28,textAlign:"center"}} className="no-print">
         <div style={{fontSize:44,marginBottom:12}}>✅</div>
         <div style={{fontSize:18,fontWeight:800,color:"#bdd0e0",marginBottom:4}}>¡Venta Cobrada!</div>
         <div style={{fontSize:12,color:"#2a3d50",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{receipt.clientName} <Chip t={receipt.sale.pay}/></div>
