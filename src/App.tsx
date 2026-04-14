@@ -441,6 +441,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
   const[cart,setCart]=useState([]);
   const[cid,setCid]=useState("");
   const[pay,setPay]=useState("");
+  const[pay2,setPay2]=useState("");
+  const[mixedMode,setMixedMode]=useState(false);
+  const[cashAmount,setCashAmount]=useState("");
   const[date,setDate]=useState(todayStr());
   const[usePts,setUsePts]=useState(false);
   const[ptsIn,setPtsIn]=useState(0);
@@ -471,8 +474,11 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
   const total=Math.max(0,sub-disc);
-  const ptsMultiplier=pay==="efectivo"?2:1;
+  const hasEfectivo=pay==="efectivo"||(mixedMode&&parseFloat(cashAmount||"0")>0);
+  const ptsMultiplier=hasEfectivo?2:1;
   const ptsE=Math.floor(total/POINTS_DENOM)*ptsMultiplier;
+  const cash2=mixedMode?Math.max(0,total-parseFloat(cashAmount||"0")):0;
+  const payLabel=mixedMode&&pay2?`efectivo + ${pay2}`:(pay||"");
 
   const selectClient=(c)=>{setCid(String(c.id));setCliQ(c.name);setShowCliList(false);setUsePts(false);setPtsIn(0);};
 
@@ -495,38 +501,29 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
   const confirm=async()=>{
     if(!cid){notify("Seleccioná un cliente","err");return;}
     if(!pay){notify("Seleccioná un medio de pago","err");return;}
+    if(mixedMode&&!pay2){notify("Seleccioná el segundo medio de pago","err");return;}
+    if(mixedMode&&(parseFloat(cashAmount||"0")<=0||parseFloat(cashAmount||"0")>=total)){notify("Ingresá un monto válido en efectivo","err");return;}
     if(!cart.length){notify("Carrito vacío","err");return;}
     setSaving(true);
     try{
       const saleId=Date.now();
       const cartSnapshot=[...cart];
       const clientSnapshot={...client};
-      await sb.from("gp_sales").insert([{id:saleId,date,cid:parseInt(cid),items:cartSnapshot,sub,disc,total,pay,pts_e:ptsE,pts_s:ptsUs,uid:session.id,local_name:session.local||""}]);
+      const finalPay=mixedMode?`efectivo + ${pay2}`:pay;
+      await sb.from("gp_sales").insert([{id:saleId,date,cid:parseInt(cid),items:cartSnapshot,sub,disc,total,pay:finalPay,pts_e:ptsE,pts_s:ptsUs,uid:session.id,local_name:session.local||""}]);
 
       for(const it of cartSnapshot){
         const prod=prods.find((p)=>p.id===it.pid);
         if(!prod) continue;
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
-
-        // ✅ FIX: consulta directa a Supabase en lugar de buscar en array local
-        // (el array local puede no tener todos los registros si hay más de 5000 filas)
-        const{data:stkRow,error:stkErr}=await sb
-          .from("gp_stock")
-          .select("*")
-          .eq("product_id",it.pid)
-          .eq("local_name",localName)
-          .single();
-
-        if(stkRow){
-          await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
-        } else {
-          await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
-        }
+        const{data:stkRow}=await sb.from("gp_stock").select("*").eq("product_id",it.pid).eq("local_name",localName).single();
+        if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
+        else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
       }
 
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
-      const receiptData={sale:{id:saleId,date,pay,total,disc,items:cartSnapshot},clientName:clientSnapshot?.name,ptsE,ptsUs,local:session.local};
+      const receiptData={sale:{id:saleId,date,pay:finalPay,total,disc,items:cartSnapshot,cashAmount:mixedMode?parseFloat(cashAmount||"0"):null,cash2:mixedMode?cash2:null,pay2:mixedMode?pay2:null},clientName:clientSnapshot?.name,ptsE,ptsUs,local:session.local};
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
       setSaving(false);setReceipt(receiptData);loadAll();
     }catch(e){notify("Error al guardar venta","err");setSaving(false);}
@@ -549,6 +546,10 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
         {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3,color:"#000"}}><span>{it.name} ({it.unitDisplay})</span><span>${it.sub.toFixed(2)}</span></div>))}
         {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Desc.</span><span>-${receipt.sale.disc.toFixed(2)}</span></div>}
         <div style={{borderTop:"2px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14,color:"#000"}}><span>TOTAL</span><span>${receipt.sale.total.toFixed(2)}</span></div>
+        {receipt.sale.cashAmount&&<div style={{marginTop:4,fontSize:10,color:"#000"}}>
+          <div>Efectivo: ${receipt.sale.cashAmount.toFixed(2)}</div>
+          <div>{receipt.sale.pay2}: ${receipt.sale.cash2.toFixed(2)}</div>
+        </div>}
         {receipt.ptsE>0&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center"}}>Puntos acreditados: +{receipt.ptsE} pts{receipt.sale.pay==="efectivo"&&" (x2 efectivo)"}</div>}
         {receipt.ptsE>0&&(receipt.sale.pay==="tarjeta"||receipt.sale.pay==="QR")&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:8,fontSize:10,color:"#000",textAlign:"center"}}>
           <div style={{fontWeight:900,fontSize:12}}>* La proxima paga en efectivo!</div>
@@ -568,6 +569,10 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
           {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",fontSize:12}}><div><span style={{color:"#6a8090"}}>{it.name}</span><div style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>${it.sub.toFixed(2)}</span></div>))}
           {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,color:"#ff9900"}}><span>Desc. puntos</span><span>−${receipt.sale.disc.toFixed(2)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:15,borderTop:"1px solid #192a38"}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${receipt.sale.total.toFixed(2)}</span></div>
+          {receipt.sale.cashAmount&&<div style={{marginTop:6,paddingTop:6,borderTop:"1px solid #192a3820",fontSize:11}}>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#6a8090"}}>Efectivo</span><span style={{color:"#00cc55",fontWeight:700}}>${receipt.sale.cashAmount.toFixed(2)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#6a8090"}}>{receipt.sale.pay2}</span><span style={{color:"#3388ff",fontWeight:700}}>${receipt.sale.cash2.toFixed(2)}</span></div>
+          </div>}
         </div>
         {receipt.ptsE>0&&<div style={{marginBottom:16}}>
           <div style={{fontSize:13,color:"#ff9900",display:"flex",alignItems:"center",gap:6,justifyContent:"center",fontWeight:800}}>
@@ -590,7 +595,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
         </div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
-          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setReceipt(null);setQ("");setCatF("Todas");setExpandedId(null);setPay("");setDate(todayStr());}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
+          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setReceipt(null);setQ("");setCatF("Todas");setExpandedId(null);setPay("");setPay2("");setMixedMode(false);setCashAmount("");setDate(todayStr());}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
         </div>
       </Card>
     </div>
@@ -616,12 +621,23 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
           </div>
           <div>
             <Lbl t="Pago"/>
-            <Sel value={pay} onChange={(e)=>setPay(e.target.value)} sx={{borderColor:!pay?"#ff440055":"#192a38"}}>
-              <option value="" disabled>— Seleccioná —</option>
-              {PAY_OPTS.map(m=><option key={m}>{m}</option>)}
-            </Sel>
+            <div style={{display:"flex",gap:5,marginBottom:5}}>
+              <Sel value={pay} onChange={(e)=>{setPay(e.target.value);if(e.target.value!=="efectivo"){setMixedMode(false);setCashAmount("");}}} sx={{flex:1,borderColor:!pay?"#ff440055":"#192a38"}}>
+                <option value="" disabled>— Seleccioná —</option>
+                {PAY_OPTS.map(m=><option key={m}>{m}</option>)}
+              </Sel>
+              {pay==="efectivo"&&<button onClick={()=>{setMixedMode(!mixedMode);setCashAmount("");setPay2("");}} style={{background:mixedMode?"#082244":"transparent",border:`1px solid ${mixedMode?"#3388ff":"#192a38"}`,color:mixedMode?"#3388ff":"#2a3d50",borderRadius:6,padding:"0 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700,whiteSpace:"nowrap"}}>+ 2do medio</button>}
+            </div>
+            {mixedMode&&pay==="efectivo"&&<div style={{display:"flex",gap:5,marginBottom:4}}>
+              <Sel value={pay2} onChange={(e)=>setPay2(e.target.value)} sx={{flex:1,fontSize:11}}>
+                <option value="" disabled>2do medio...</option>
+                {PAY_OPTS.filter(m=>m!=="efectivo").map(m=><option key={m}>{m}</option>)}
+              </Sel>
+              <Inp type="number" placeholder="$ efectivo" value={cashAmount} onChange={(e)=>setCashAmount(e.target.value)} sx={{width:90,fontSize:11}}/>
+            </div>}
+            {mixedMode&&cashAmount&&pay2&&total>0&&<div style={{fontSize:9,color:"#3388ff",marginBottom:3}}>Efectivo: ${parseFloat(cashAmount||"0").toFixed(2)} · {pay2}: ${Math.max(0,total-parseFloat(cashAmount||"0")).toFixed(2)}</div>}
             {!pay&&<div style={{fontSize:9,color:"#ff6666",marginTop:3}}>Requerido</div>}
-            {pay==="efectivo"&&<div style={{fontSize:9,color:"#ff9900",marginTop:3,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
+            {hasEfectivo&&<div style={{fontSize:9,color:"#ff9900",marginTop:2,display:"flex",alignItems:"center",gap:4}}><Ic n="star" s={10} c="#ff9900"/>Puntos x2 por efectivo</div>}
           </div>
           <div><Lbl t="Fecha"/><Inp type="date" value={date} onChange={(e)=>setDate(e.target.value)}/></div>
         </div>
