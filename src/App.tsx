@@ -924,14 +924,11 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
   const[vals,setVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
-  const[loading,setLoading]=useState(stockMgt.length===0);
+  const[loading,setLoading]=useState(true);
 
-useEffect(()=>{
-  if(stockMgt.length>0){setLoading(false);return;}
   const fetchAll=async()=>{
-    let all=[];
-    let from=0;
-    const size=1000;
+    setLoading(true);
+    let all=[];let from=0;const size=1000;
     while(true){
       const{data,error}=await sb.from("gp_stock").select("*").range(from,from+size-1);
       if(error||!data||data.length===0) break;
@@ -939,12 +936,11 @@ useEffect(()=>{
       if(data.length<size) break;
       from+=size;
     }
-    console.log("TOTAL fetched:",all.length);
     setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
     setLoading(false);
   };
-  fetchAll();
-},[]);
+
+useEffect(()=>{fetchAll();},[]);
 
   useEffect(()=>{setVals({});setQ("");setCatF("Todas");},[localF]);
 
@@ -990,9 +986,9 @@ useEffect(()=>{
 
   return(
     <div className="fade">
-      <div style={{marginBottom:16}}>
-        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1>
-        <p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p>
+      <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
+        <Btn v="gh" onClick={fetchAll} disabled={loading}><Ic n="spin" s={13} style={loading?{animation:"spin 1s linear infinite"}:{}}/>Actualizar</Btn>
       </div>
 
       {/* Paso 1: Selección de local */}
