@@ -393,13 +393,13 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         <h1 style={{fontSize:20,fontWeight:800,margin:0}}>Dashboard 🐾</h1>
         <p style={{color:"#2a3d50",fontSize:9,margin:"4px 0 0",letterSpacing:2.5}}>{new Date().toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"}).toUpperCase()}{!isAdmin&&session?.local&&<span style={{marginLeft:8,color:"#00d4ff"}}>· LOCAL {session.local.toUpperCase()}</span>}</p>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
         <Stat label="Ventas Hoy" value={`$${hoy.toFixed(0)}`} sub={`${st.length} operaciones`} color="#00cc55" icon="trend"/>
-        {isAdmin&&<Stat label="Total Mes" value={`$${mes.toFixed(0)}`} sub={`${sales.length} ventas`} color="#00d4ff" icon="hist"/>}
-        <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub={isAdmin?"todos los locales":"tu local"} color="#ff9900" icon="warn"/>
+        <Stat label="Total Mes" value={`$${mes.toFixed(0)}`} sub={`${sales.length} ventas`} color="#00d4ff" icon="hist"/>
+        <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub="todos los locales" color="#ff9900" icon="warn"/>
         <Stat label="Stock Negativo" value={critical.filter((p)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1.8fr 1fr",gap:14,marginBottom:14}}>
+      </div>}
+      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1.8fr 1fr",gap:14,marginBottom:14}}>
         <Card sx={{overflow:"hidden"}}>
           <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Últimas Ventas</span>
@@ -414,12 +414,12 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
           {critical.length===0?<div style={{padding:20,color:"#2a3d50",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
             :critical.slice(0,8).map((p,i)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
               <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{isAdmin&&p.localName?` · ${p.localName}`:""}</div></div>
+                <div><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#2a3d50"}}>{p.cat}{p.localName?` · ${p.localName}`:""}</div></div>
                 <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
               </div>
             );})}
         </Card>
-      </div>
+      </div>}
       <Card sx={{overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>🏆 Ranking por Puntos</span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"}}>
@@ -1229,7 +1229,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
         <Stat label="Tarjeta" value={`$${(byPay["tarjeta"]||0).toFixed(2)}`} sub="POS" color="#3388ff" icon="star"/>
         <Stat label="QR" value={`$${(byPay["QR"]||0).toFixed(2)}`} sub="digital" color="#ccdd00" icon="trend"/>
       </div>
-      {myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial{!isAdmin&&" · MIS CIERRES"}</span></div>
+      {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial</span></div>
         <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th>{isAdmin&&<><th>Fondo</th><th>Retiro</th><th></th></>}</tr></thead>
           <tbody>{[...myCaja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td>{isAdmin&&<><td style={{color:"#00cc55",fontSize:11}}>${(d.openingAmount||0).toFixed(2)}</td><td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?`$${(d.retiro_efectivo).toFixed(2)}`:"—"}</td><td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td></>}</tr>))}</tbody>
         </table>
