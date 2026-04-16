@@ -966,15 +966,18 @@ useEffect(()=>{fetchAll();},[]);
   };
 
   const saveStk=async(prod)=>{
-    const stk=getStk(prod.id);
-    const inputVal=vals[prod.id]!==undefined?vals[prod.id]:String(stk);
+    const inputVal=vals[prod.id];
+    if(inputVal===undefined){notify("No hay cambios para guardar","err");return;}
     const newStk=parseFloat(inputVal);
-    if(isNaN(newStk)){notify("Valor inválido","err");return;}
-    const finalStk=stk<0?newStk+stk:newStk;
+    if(isNaN(newStk)||newStk<0){notify("Valor inválido","err");return;}
     setSaving(prod.id);
     try{
-      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id").eq("product_id",prod.id).eq("local_name",localF);
+      // Leer stock real desde Supabase en este momento (puede haber cambiado por ventas)
+      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id,stk").eq("product_id",prod.id).eq("local_name",localF);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
+      const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
+      // Si el stock real es negativo, descontar lo ya vendido del ingreso
+      const finalStk=realStk<0?newStk+realStk:newStk;
       if(rows&&rows.length>0){
         const res=await sb.from("gp_stock").update({stk:finalStk}).eq("id",rows[0].id);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
@@ -987,7 +990,9 @@ useEffect(()=>{fetchAll();},[]);
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk}:s);
         return[...prev,{productId:prod.id,localName:localF,stk:finalStk,min:0}];
       });
-      const msg=stk<0?`✓ ${prod.name} → ${finalStk} (ajustado por ${stk} vendido)`:`✓ ${prod.name} → ${finalStk}`;
+      const msg=realStk<0
+        ?`✓ ${prod.name} → ${fmtW(finalStk)} (descontados ${fmtW(Math.abs(realStk))} vendidos)`
+        :`✓ ${prod.name} → ${prod.unit==="kg"?fmtW(finalStk):`${finalStk} u`}`;
       notify(msg);
       setVals(v=>({...v,[prod.id]:undefined}));
     }catch(e){notify("Error: "+e.message,"err");}
