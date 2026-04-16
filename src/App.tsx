@@ -518,8 +518,13 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin}) {
         const delta=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
         const localName=session.local||"";
         const{data:stkRow}=await sb.from("gp_stock").select("*").eq("product_id",it.pid).eq("local_name",localName).single();
-        if(stkRow) await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
-        else await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
+        if(stkRow){
+          await sb.from("gp_stock").update({stk:stkRow.stk-delta}).eq("id",stkRow.id);
+          await sb.from("gp_stock_mov").insert([{id:Date.now()+it.pid,product_id:it.pid,local_name:localName,tipo:"venta",cantidad:delta,stock_antes:stkRow.stk,stock_despues:stkRow.stk-delta,usuario:session.name||session.username||"vendedor",fecha:new Date().toISOString()}]);
+        } else {
+          await sb.from("gp_stock").insert([{product_id:it.pid,local_name:localName,stk:-delta}]);
+          await sb.from("gp_stock_mov").insert([{id:Date.now()+it.pid,product_id:it.pid,local_name:localName,tipo:"venta",cantidad:delta,stock_antes:0,stock_despues:-delta,usuario:session.name||session.username||"vendedor",fecha:new Date().toISOString()}]);
+        }
       }
 
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
@@ -941,6 +946,9 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
   const[loading,setLoading]=useState(true);
+  const[histProd,setHistProd]=useState(null);
+  const[histData,setHistData]=useState([]);
+  const[histLoading,setHistLoading]=useState(false);
 
   const fetchAll=async()=>{
     setLoading(true);
@@ -957,6 +965,12 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
   };
 
 useEffect(()=>{fetchAll();},[]);
+
+  const openHist=async(prod)=>{
+    setHistProd(prod);setHistLoading(true);setHistData([]);
+    const{data}=await sb.from("gp_stock_mov").select("*").eq("product_id",prod.id).eq("local_name",localF).order("fecha",{ascending:false}).limit(50);
+    setHistData(data||[]);setHistLoading(false);
+  };
 
   useEffect(()=>{setVals({});setQ("");setCatF("Todas");},[localF]);
 
@@ -985,6 +999,8 @@ useEffect(()=>{fetchAll();},[]);
         const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk}]);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
+      // Registrar movimiento de ingreso
+      await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:"admin",fecha:new Date().toISOString()}]);
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk}:s);
@@ -1108,9 +1124,14 @@ useEffect(()=>{fetchAll();},[]);
                       :<span style={{color:"#2a3d50",fontSize:11}}>—</span>}
                   </td>
                   <td>
-                    <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
-                      {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
-                    </Btn>
+                    <div style={{display:"flex",gap:5}}>
+                      <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
+                        {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
+                      </Btn>
+                      <Btn v="gh" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>openHist(p)} title="Ver historial">
+                        <Ic n="hist" s={11}/>
+                      </Btn>
+                    </div>
                   </td>
                 </tr>
               );
@@ -1119,6 +1140,41 @@ useEffect(()=>{fetchAll();},[]);
           </table>}
         </Card>
       </>}
+
+      {/* Modal historial de movimientos */}
+      {histProd&&<Modal close={()=>setHistProd(null)} w={520}>
+        <div style={{padding:22}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div>
+              <h2 style={{margin:0,fontSize:15,fontWeight:800}}>Historial · {histProd.name}</h2>
+              <div style={{fontSize:9,color:"#2a3d50",marginTop:3,letterSpacing:2}}>📍 {localF} · últimos 50 movimientos</div>
+            </div>
+            <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setHistProd(null)}><Ic n="x" s={13}/></Btn>
+          </div>
+          {histLoading&&<div style={{padding:20,textAlign:"center",color:"#2a3d50"}}>Cargando...</div>}
+          {!histLoading&&histData.length===0&&<div style={{padding:20,textAlign:"center",color:"#2a3d50",fontSize:12}}>Sin movimientos registrados aún</div>}
+          {!histLoading&&histData.length>0&&<div style={{maxHeight:420,overflowY:"auto"}}>
+            <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
+              <tbody>{histData.map((m,i)=>{
+                const isIngreso=m.tipo==="ingreso";
+                const fmtQ=histProd.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`;
+                const fmtA=histProd.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`;
+                const fmtD=histProd.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`;
+                return(
+                  <tr key={i}>
+                    <td style={{fontSize:10,color:"#2a3d50"}}>{new Date(m.fecha).toLocaleString("es-AR")}</td>
+                    <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:isIngreso?"#021408":"#110305",color:isIngreso?"#00cc55":"#ff5555",border:`1px solid ${isIngreso?"#00882233":"#ff333333"}`}}>{isIngreso?"▲ INGRESO":"▼ VENTA"}</span></td>
+                    <td style={{fontWeight:700,color:isIngreso?"#00cc55":"#ff6666"}}>{isIngreso?"+":"-"}{fmtQ}</td>
+                    <td style={{color:"#6a8090",fontSize:11}}>{fmtA}</td>
+                    <td style={{fontWeight:700,color:Number(m.stock_despues)<0?"#ff4444":"#00cc55",fontSize:11}}>{fmtD}</td>
+                    <td style={{color:"#2a3d50",fontSize:10}}>{m.usuario||"—"}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>}
+        </div>
+      </Modal>}
     </div>
   );
 }
