@@ -344,7 +344,7 @@ const[view,setView]=useState("dash");
             </div>
           ):<>
             {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView} stock={stock} localeNames={localeNames}/>}
-            {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll}/>}
+            {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll} isAdmin={isAdmin}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll} session={session}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin}/>}
@@ -437,7 +437,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
   );
 }
 
-function NewSale({prods,clients,notify,session,stock,loadAll}) {
+function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin}) {
   const[cart,setCart]=useState([]);
   const[cid,setCid]=useState("");
   const[pay,setPay]=useState("");
@@ -666,7 +666,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll}) {
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <span style={{fontSize:11,fontWeight:700,color:p.stk<0?"#ff4444":p.stk<=p.min?"#ff9900":"#2a3d50"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}</span>
+                    {isAdmin&&<span style={{fontSize:11,fontWeight:700,color:p.stk<0?"#ff4444":p.stk<=p.min?"#ff9900":"#2a3d50"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}</span>}
                     <div style={{transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s",color:"#2a3d50"}}><Ic n="chev" s={14}/></div>
                   </div>
                 </div>
