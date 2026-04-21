@@ -722,7 +722,6 @@ function ProdCardInline({p,onAdd}) {
   const isKg=p.unit==="kg";
   const[granelMonto,setGranelMonto]=useState("");
   const[granelKg,setGranelKg]=useState("");
-  const[modoGranel,setModoGranel]=useState("pesos");
   const[bultoQty,setBultoQty]=useState(1);
   const[unitQty,setUnitQty]=useState(1);
   const kgPorMonto=isKg&&p.pricePerKg>0&&granelMonto?parseFloat(granelMonto)/p.pricePerKg:0;
@@ -742,66 +741,58 @@ function ProdCardInline({p,onAdd}) {
   return(
     <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
       {isKg&&<>
-        <div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:7,padding:"10px 12px",minWidth:220,flex:1}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,alignItems:"center"}}>
+        <div style={{background:"#020e06",border:"1px solid #00882220",borderRadius:7,padding:"10px 12px",flex:1,minWidth:200}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"center"}}>
             <Chip t="granel"/><span style={{color:"#00cc55",fontWeight:700,fontSize:10}}>${p.pricePerKg.toFixed(2)}/kg</span>
           </div>
-          {/* Tabs */}
-          <div style={{display:"flex",gap:4,marginBottom:10}}>
-            <button onClick={()=>setModoGranel("pesos")} style={{flex:1,padding:"5px 0",borderRadius:5,border:`1px solid ${modoGranel==="pesos"?"#00cc55":"#192a38"}`,background:modoGranel==="pesos"?"#021408":"transparent",color:modoGranel==="pesos"?"#00cc55":"#2a3d50",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>$ Pesos</button>
-            <button onClick={()=>setModoGranel("kg")} style={{flex:1,padding:"5px 0",borderRadius:5,border:`1px solid ${modoGranel==="kg"?"#00d4ff":"#192a38"}`,background:modoGranel==="kg"?"#021520":"transparent",color:modoGranel==="kg"?"#00d4ff":"#2a3d50",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>Kg</button>
-          </div>
 
-          {modoGranel==="pesos"&&<>
-            {kgPorMonto>0&&<div style={{background:"#060f1a",borderRadius:5,padding:"3px 8px",marginBottom:6,fontSize:10,color:"#00cc55",fontWeight:700}}>${granelMonto} = {fmtW(kgPorMonto)}</div>}
+          {/* PESOS */}
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:8,fontWeight:700,letterSpacing:1.5,color:"#2a3d50",textTransform:"uppercase",marginBottom:5}}>$ Pesos</div>
+            {kgPorMonto>0&&<div style={{background:"#060f1a",borderRadius:5,padding:"2px 8px",marginBottom:5,fontSize:10,color:"#00cc55",fontWeight:700}}>${granelMonto} = {fmtW(kgPorMonto)}</div>}
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               <div style={{position:"relative",flex:1}}>
-                <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#2a3d50",fontWeight:700}}>$</span>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Importe..."
-                  value={granelMonto}
+                <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#2a3d50",fontWeight:700,pointerEvents:"none"}}>$</span>
+                <input type="number" min="1" placeholder="Importe..." value={granelMonto}
                   onChange={(e)=>setGranelMonto(e.target.value)}
                   onKeyDown={(e)=>e.key==="Enter"&&handleAddPesos()}
-                  style={{width:"100%",paddingLeft:20,fontSize:13,background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"7px 8px 7px 20px",borderRadius:6,fontFamily:"inherit",outline:"none",boxSizing:"border-box",MozAppearance:"textfield"}}
-                />
+                  style={{width:"100%",fontSize:13,background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"7px 8px 7px 20px",borderRadius:6,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
               </div>
               <Btn v="g" sx={{padding:"6px 12px",fontSize:9,flexShrink:0}} onClick={handleAddPesos} disabled={!granelMonto}>+ Ag.</Btn>
             </div>
-          </>}
+          </div>
 
-          {modoGranel==="kg"&&<>
-            {montoPorKg>0&&<div style={{background:"#060f1a",borderRadius:5,padding:"3px 8px",marginBottom:6,fontSize:10,color:"#00d4ff",fontWeight:700}}>{fmtW(parseFloat(granelKg)||0)} = ${montoPorKg.toFixed(2)}</div>}
+          {/* Divisor */}
+          <div style={{height:1,background:"#192a38",marginBottom:10}}/>
+
+          {/* KG */}
+          <div>
+            <div style={{fontSize:8,fontWeight:700,letterSpacing:1.5,color:"#2a3d50",textTransform:"uppercase",marginBottom:5}}>Kilogramos</div>
+            {montoPorKg>0&&<div style={{background:"#060f1a",borderRadius:5,padding:"2px 8px",marginBottom:5,fontSize:10,color:"#00d4ff",fontWeight:700}}>{fmtW(parseFloat(granelKg)||0)} = ${montoPorKg.toFixed(2)}</div>}
             {/* Botones rápidos */}
             <div style={{display:"flex",gap:5,marginBottom:7}}>
               {[0.5,1,2].map(kg=>(
-                <button key={kg} onClick={()=>handleAddKg(kg)} style={{flex:1,padding:"6px 4px",borderRadius:6,border:"1px solid #00d4ff44",background:"#021520",color:"#00d4ff",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:800,transition:"all .15s"}}
-                  onMouseEnter={(e)=>{e.currentTarget.style.background="#032a30"}}
-                  onMouseLeave={(e)=>{e.currentTarget.style.background="#021520"}}>
+                <button key={kg} onClick={()=>handleAddKg(kg)}
+                  style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid #00d4ff44",background:"#021520",color:"#00d4ff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:800,transition:"all .15s"}}
+                  onMouseEnter={(e)=>{e.currentTarget.style.background="#032a30";e.currentTarget.style.borderColor="#00d4ff"}}
+                  onMouseLeave={(e)=>{e.currentTarget.style.background="#021520";e.currentTarget.style.borderColor="#00d4ff44"}}>
                   {kg===0.5?"½ kg":`${kg} kg`}
                 </button>
               ))}
             </div>
             {/* Campo libre */}
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input
-                type="number"
-                min="0.1"
-                step="0.1"
-                placeholder="Otro kg..."
-                value={granelKg}
+              <input type="number" min="0.1" step="0.1" placeholder="Otro kg..." value={granelKg}
                 onChange={(e)=>setGranelKg(e.target.value)}
                 onKeyDown={(e)=>e.key==="Enter"&&granelKg&&handleAddKg(parseFloat(granelKg))}
-                style={{flex:1,fontSize:12,background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none",MozAppearance:"textfield"}}
-              />
+                style={{flex:1,fontSize:12,background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
               <span style={{fontSize:9,color:"#2a3d50",flexShrink:0}}>kg</span>
               <Btn v="cy" sx={{padding:"6px 10px",fontSize:9,flexShrink:0}} onClick={()=>granelKg&&handleAddKg(parseFloat(granelKg))} disabled={!granelKg}>+ Ag.</Btn>
             </div>
-          </>}
+          </div>
         </div>
 
-        {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px",minWidth:180,flex:1}}>
+        {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px",minWidth:160,flex:"0 0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="bulto"/><span style={{color:"#3388ff",fontWeight:700,fontSize:10}}>${p.bulkPrice} · {fmtW(p.bulkWeight)}</span></div>
           <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={bultoQty} onChange={(e)=>setBultoQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#bdd0e0",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#2a3d50"}}>bultos</span><Btn v="b" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"bulto",parseInt(String(bultoQty))||1)}>+ Ag.</Btn></div>
         </div>}
