@@ -495,7 +495,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin}) {
     const key=`${prod.id}-${type}`;
     setCart((prev)=>{
       const ex=prev.find(i=>i.key===key);
-      if(ex) return prev.map(i=>i.key===key?{...i,qty:i.qty+qty,sub:i.sub+sub_val,unitDisplay:type==="granel"&&prod.unit==="kg"?fmtW(i.qty+qty):unitDisplay}:i);
+      if(ex) return prev.map(i=>i.key===key?{...i,qty:i.qty+qty,sub:i.sub+sub_val,unitDisplay:type==="granel"&&prod.unit==="kg"?fmtW(i.qty+qty):type==="unidad"?`${i.qty+qty} u`:type==="bulto"?`${Math.round((i.qty+qty)/prod.bulkWeight)} bultos (${fmtW(i.qty+qty)})`:unitDisplay}:i);
       return[...prev,{key,pid:prod.id,name:prod.name,unit:prod.unit,type,qty,sub:sub_val,unitDisplay}];
     });
   };
@@ -669,7 +669,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin}) {
                     <div style={{fontSize:18,lineHeight:1}}>{catEm}</div>
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:"#a0bcd0"}}>{p.name}{p.code&&<span style={{marginLeft:8,fontFamily:"monospace",fontSize:10,color:"#00d4ff",fontWeight:400}}>#{p.code}</span>}</div>
-                      <div style={{fontSize:9,color:"#2a3d50",marginTop:1}}>{p.cat} · {p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</div>
+                      <div style={{fontSize:10,color:"#2a3d50",marginTop:1}}>{p.cat} · <span style={{color:"#00cc55",fontWeight:800,fontSize:11}}>{p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</span></div>
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -693,7 +693,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin}) {
         </div>
         <div style={{flex:1,overflow:"auto"}}>
           {!cart.length&&<div style={{padding:22,color:"#2a3d50",textAlign:"center",fontSize:11}}>Seleccioná productos</div>}
-          {cart.map((it)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#2a3d50"}}>{it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p)=>p.filter((i)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
+          {cart.map((it)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#2a3d50"}}>{it.type==="unidad"?`${it.qty} u`:it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p)=>p.filter((i)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
         </div>
         {client&&client.pts>0&&(
           <div style={{padding:"9px 13px",borderTop:"1px solid #192a38",background:"#030e06",flexShrink:0}}>
