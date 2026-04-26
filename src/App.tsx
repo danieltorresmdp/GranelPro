@@ -1,3 +1,4 @@
+
 // @ts-nocheck
 import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -349,7 +350,7 @@ const[view,setView]=useState("dash");
             {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll} isAdmin={isAdmin}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll} session={session}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
-            {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin}/>}
+            {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
            {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
@@ -1282,8 +1283,10 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
   );
 }
 
-function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
+function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[retiro,setRetiro]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[filtLocal,setFiltLocal]=useState("todos");
+  const[filtUser,setFiltUser]=useState("todos");
   const myCaja=isAdmin?caja:caja.filter((d)=>d.closedBy===session?.id);
   const closedIds=caja.flatMap((d)=>d.saleIds||[]);
   const mySales=isAdmin?sales:sales.filter((s)=>s.uid===session?.id);
@@ -1291,9 +1294,15 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
   const totalEf=byPay["efectivo"]||0;const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=myCaja[myCaja.length-1];
-  // Fondo del turno anterior: último cierre del mismo local
   const lastByLocal=[...caja].reverse().find((d)=>d.localName===(session?.local||""));
-  const fondoAnterior=lastByLocal?.openingAmount||0;
+
+  // Filtered historial
+  const filteredCaja=[...myCaja].reverse().filter((d)=>{
+    const matchLocal=filtLocal==="todos"||d.localName===filtLocal;
+    const matchUser=filtUser==="todos"||String(d.closedBy)===filtUser;
+    return matchLocal&&matchUser;
+  });
+
   const doClose=async()=>{
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     setSaving(true);
@@ -1307,10 +1316,14 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
     await sb.from("gp_caja").delete().eq("id",id);
     notify("Cierre eliminado");setConfirmDel(null);loadAll();
   };
+
+  // Unique locals and users that have cierres
+  const cajaLocales=[...new Set(myCaja.map(d=>d.localName).filter(Boolean))];
+  const cajaUsers=[...new Set(myCaja.map(d=>({id:String(d.closedBy),name:d.closedByName})).map(u=>JSON.stringify(u)))].map(s=>JSON.parse(s));
+
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#2a3d50",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div><Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn></div>
-      {/* Fondo turno anterior */}
       {lastByLocal&&<Card sx={{padding:"12px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,background:"#03120a",border:"1px solid #00882233"}}>
         <Ic n="cash" s={20} c="#00cc55"/>
         <div>
@@ -1325,9 +1338,27 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
         <Stat label="Tarjeta" value={`$${(byPay["tarjeta"]||0).toFixed(2)}`} sub="POS" color="#3388ff" icon="star"/>
         <Stat label="QR" value={`$${(byPay["QR"]||0).toFixed(2)}`} sub="digital" color="#ccdd00" icon="trend"/>
       </div>
-      {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial</span></div>
-        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th>{isAdmin&&<><th>Fondo</th><th>Retiro</th><th></th></>}</tr></thead>
-          <tbody>{[...myCaja].reverse().map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td>{isAdmin&&<><td style={{color:"#00cc55",fontSize:11}}>${(d.openingAmount||0).toFixed(2)}</td><td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?`$${(d.retiro_efectivo).toFixed(2)}`:"—"}</td><td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td></>}</tr>))}</tbody>
+      {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#2a3d50",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
+          <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
+            {/* Filtro por local */}
+            <Sel value={filtLocal} onChange={(e)=>setFiltLocal(e.target.value)} sx={{width:130,fontSize:10,padding:"4px 8px"}}>
+              <option value="todos">📍 Todos los locales</option>
+              {cajaLocales.map(l=><option key={l} value={l}>{l}</option>)}
+            </Sel>
+            {/* Filtro por vendedor */}
+            <Sel value={filtUser} onChange={(e)=>setFiltUser(e.target.value)} sx={{width:150,fontSize:10,padding:"4px 8px"}}>
+              <option value="todos">👤 Todos los vendedores</option>
+              {cajaUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </Sel>
+            {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
+          </div>
+        </div>
+        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th></th></tr></thead>
+          <tbody>{filteredCaja.map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#6a8090",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>${(d.totalEf||0).toFixed(2)}</td><td style={{color:"#3388ff",fontWeight:700}}>${(d.totalDig||0).toFixed(2)}</td><td style={{fontWeight:800,color:"#00cc55"}}>${(d.totalAll||0).toFixed(2)}</td><td style={{color:"#00cc55",fontSize:11}}>${(d.openingAmount||0).toFixed(2)}</td><td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?`$${(d.retiro_efectivo).toFixed(2)}`:"—"}</td><td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td></tr>))}
+          {filteredCaja.length===0&&<tr><td colSpan={10} style={{textAlign:"center",color:"#2a3d50",padding:20}}>Sin resultados para ese filtro</td></tr>}
+          </tbody>
         </table>
       </Card>}
       {closing&&(<Modal close={()=>setClosing(false)} w={420}><div style={{padding:24}}>
@@ -1337,16 +1368,8 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin}) {
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#bdd0e0"}}>TOTAL</span><span style={{color:"#00cc55"}}>${totalAll.toFixed(2)}</span></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:11}}>
-          <div>
-            <Lbl t="Fondo que dejás ($)"/>
-            <Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/>
-            <div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Lo verá el próximo turno</div>
-          </div>
-          <div>
-            <Lbl t="Retiro en efectivo ($)"/>
-            <Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>
-            <div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Solo visible para admin</div>
-          </div>
+          <div><Lbl t="Fondo que dejás ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/><div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Lo verá el próximo turno</div></div>
+          <div><Lbl t="Retiro en efectivo ($)"/><Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#2a3d50",marginTop:3}}>Solo visible para admin</div></div>
         </div>
         <div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
         <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div>
