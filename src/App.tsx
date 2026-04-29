@@ -565,18 +565,15 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
           <div>Efectivo: ${receipt.sale.cashAmount.toFixed(2)}</div>
           <div>{receipt.sale.pay2}: ${receipt.sale.cash2.toFixed(2)}</div>
         </div>}
-        {receipt.ptsE>0&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center"}}>Puntos acreditados: +{receipt.ptsE} pts{receipt.sale.pay==="efectivo"&&" (x2 efectivo)"}</div>}
-        {receipt.ptsE>0&&(receipt.sale.pay==="tarjeta"||receipt.sale.pay==="QR")&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:8,fontSize:10,color:"#000",textAlign:"center"}}>
+        {receipt.ptsE>0&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:6,fontSize:10,color:"#000",textAlign:"center"}}>Puntos acreditados: +{receipt.ptsE} pts</div>}
+        {receipt.ptsE>0&&(receipt.sale.pay==="tarjeta"||receipt.sale.pay==="QR"||(receipt.sale.pay&&receipt.sale.pay.includes("+")))&&<div style={{borderTop:"1px dashed #000",marginTop:6,paddingTop:8,fontSize:10,color:"#000",textAlign:"center"}}>
           <div style={{fontWeight:900,fontSize:12}}>* La proxima paga en efectivo!</div>
           <div style={{marginTop:3}}>Hubieras sumado +{receipt.ptsE} pts extra pagando en efectivo</div>
-          <div style={{marginTop:3,fontWeight:700}}>Efectivo = puntos x2 · El doble de beneficios!</div>
         </div>}
         <div style={{borderTop:"1px dashed #000",marginTop:8,paddingTop:8,textAlign:"center"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#000"}}>¡Muchas gracias por su compra!</div>
-          {receipt.ptsUs>0&&<div style={{fontSize:10,color:"#000",marginTop:4}}>Puntos canjeados: -{receipt.ptsUs} pts</div>}
-          {receipt.ptsE>0&&<div style={{fontSize:10,color:"#000",marginTop:2}}>Puntos ganados: +{receipt.ptsE} pts{receipt.sale.pay==="efectivo"?" (x2 efectivo)":""}</div>}
-          {(receipt.clientPts!=null)&&<div style={{fontSize:10,fontWeight:700,color:"#000",marginTop:2}}>Puntos acumulados: {receipt.clientPts} pts</div>}
-          <div style={{fontSize:9,color:"#000",marginTop:6,lineHeight:1.4}}>Estimado cliente, cualquier sugerencia o queja{"\n"}puede comunicarse al <strong>2236786886</strong></div>
+          {receipt.clientPts!=null&&<div style={{fontSize:10,fontWeight:700,color:"#000",marginBottom:6}}>Puntos acumulados: {receipt.clientPts} pts</div>}
+          <div style={{fontSize:9,color:"#000",lineHeight:1.5}}>Estimado cliente, cualquier sugerencia o queja puede comunicarse al <strong>2236786886</strong></div>
+          <div style={{fontSize:12,fontWeight:900,color:"#000",marginTop:6}}>¡Muchas gracias por su compra!</div>
         </div>
       </div>
       <Card sx={{padding:28,textAlign:"center"}} className="no-print">
@@ -613,7 +610,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
         </div>}
         <div style={{display:"flex",gap:9}}>
           <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={printReceipt}><Ic n="prt" s={14}/>Imprimir Recibo</Btn>
-          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setReceipt(null);setQ("");setCatF("Todas");setExpandedId(null);setPay("");setPay2("");setMixedMode(false);setCashAmount("");setDate(todayStr());setCart([]);setCid("");setCliQ("");}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
+          <Btn v="g" sx={{flex:1,justifyContent:"center",fontSize:12}} onClick={()=>{setCart([]);setCid("");setCliQ("");setPay("");setPay2("");setMixedMode(false);setCashAmount("");setDate(todayStr());setQ("");setCatF("Todas");setExpandedId(null);setUsePts(false);setPtsIn(0);setReceipt(null);}}><Ic n="plus" s={14}/>Nueva Venta</Btn>
         </div>
       </Card>
     </div>
@@ -704,7 +701,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
         </div>
         <div style={{flex:1,overflow:"auto"}}>
           {!cart.length&&<div style={{padding:22,color:"#2a3d50",textAlign:"center",fontSize:11}}>Seleccioná productos</div>}
-          {cart.map((it)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#2a3d50"}}>{it.type==="unidad"?`${it.qty} u`:it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p)=>p.filter((i)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
+          {cart.map((it)=>(<div key={it.key} style={{padding:"8px 13px",borderBottom:"1px solid #192a3814",display:"flex",justifyContent:"space-between",alignItems:"center",gap:7}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:"#a0bcd0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><Chip t={it.type}/><span style={{fontSize:9,color:"#bdd0e0"}}>{it.type==="unidad"?`${it.qty} u`:it.unitDisplay}</span></div></div><div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}><span style={{fontWeight:800,color:"#00cc55",fontSize:12}}>${it.sub.toFixed(2)}</span><button onClick={()=>setCart((p)=>p.filter((i)=>i.key!==it.key))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button></div></div>))}
         </div>
         {client&&client.pts>0&&(
           <div style={{padding:"9px 13px",borderTop:"1px solid #192a38",background:"#030e06",flexShrink:0}}>
