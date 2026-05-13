@@ -630,7 +630,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
           <div style={{position:"relative"}}>
             <Lbl t="Cliente"/>
             <div style={{position:"relative"}}>
-              <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34,color:"#ffffff"}}/>
+              <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34,color:"#ffffff",border:"1.5px solid #8ab4c8"}}/>
               <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.7}}><Ic n="srch" s={13}/></span>
             </div>
             {showCliList&&cliQ&&filteredClients.length>0&&(
@@ -664,10 +664,10 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
         </div>
         <div style={{display:"flex",gap:9,marginBottom:10}}>
           <div style={{flex:1,position:"relative"}}>
-            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34,color:"#ffffff","::placeholder":{color:"#ffffff"}}}/>
+            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34,color:"#ffffff",border:"1.5px solid #8ab4c8"}}/>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.7}}><Ic n="srch" s={13}/></span>
           </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#4a6070"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;const isTodas=c==="Todas";return<button key={c} onClick={()=>setCatF(c)} style={{background:active?(isTodas?"#ffffff":"#0b1825"):"transparent",border:`2px solid ${active?(isTodas?"#ffffff":tx):(isTodas?"#8ab4c8":"#4a6070")}`,color:active?(isTodas?"#030810":tx):"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:800,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
         </div>
         <Card sx={{overflow:"hidden"}}>
           {visible.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center",fontSize:12}}>No hay productos</div>}
