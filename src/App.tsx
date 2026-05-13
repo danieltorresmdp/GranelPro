@@ -630,7 +630,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
           <div style={{position:"relative"}}>
             <Lbl t="Cliente"/>
             <div style={{position:"relative"}}>
-              <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34}}/>
+              <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34,color:"#ffffff"}}/>
               <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.7}}><Ic n="srch" s={13}/></span>
             </div>
             {showCliList&&cliQ&&filteredClients.length>0&&(
