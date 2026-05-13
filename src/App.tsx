@@ -80,7 +80,7 @@ const Ic = ({n,s=16,c="currentColor"}) => (
   </svg>
 );
 
-const Lbl = ({t}) => <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:5}}>{t}</div>;
+const Lbl = ({t}) => <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#ffffff",marginBottom:5}}>{t}</div>;
 const Inp = ({sx,...p}) => (
   <input {...p} style={{background:"#060f1a",border:"1px solid #192a38",color:"#bdd0e0",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",transition:"border .15s",...sx}}
     onFocus={(e)=>e.target.style.borderColor="#00d4ff"} onBlur={(e)=>e.target.style.borderColor="#192a38"}/>
@@ -280,6 +280,7 @@ const[view,setView]=useState("dash");
         td{padding:11px 14px;font-size:12px;border-bottom:1px solid #192a3814;color:#ffffff;vertical-align:middle}
         tr:hover td{background:#06111e}
         tr:last-child td{border-bottom:none}
+        input::placeholder{color:#8ab4c8 !important}
         input[type=number]::-webkit-inner-spin-button{display:none}
         input[type=number]::-webkit-outer-spin-button{display:none}
         input[type=number]{-moz-appearance:textfield}
@@ -630,7 +631,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
             <Lbl t="Cliente"/>
             <div style={{position:"relative"}}>
               <Inp placeholder="Buscar..." value={cliQ} onChange={(e)=>{setCliQ(e.target.value);setCid("");setShowCliList(true);}} onFocus={()=>setShowCliList(true)} sx={{paddingLeft:34}}/>
-              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.35}}><Ic n="srch" s={13}/></span>
+              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.7}}><Ic n="srch" s={13}/></span>
             </div>
             {showCliList&&cliQ&&filteredClients.length>0&&(
               <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#060f1a",border:"1px solid #192a38",borderRadius:7,zIndex:100,maxHeight:200,overflowY:"auto",boxShadow:"0 12px 32px rgba(0,0,0,.7)"}}>
@@ -663,10 +664,10 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
         </div>
         <div style={{display:"flex",gap:9,marginBottom:10}}>
           <div style={{flex:1,position:"relative"}}>
-            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
-            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
+            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34,color:"#ffffff","::placeholder":{color:"#ffffff"}}}/>
+            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.7}}><Ic n="srch" s={13}/></span>
           </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#4a6070"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div>
         </div>
         <Card sx={{overflow:"hidden"}}>
           {visible.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center",fontSize:12}}>No hay productos</div>}
