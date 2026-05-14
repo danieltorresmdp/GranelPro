@@ -544,7 +544,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
       }
 
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
-      const receiptData={sale:{id:saleId,date,pay:finalPay,total,disc,items:cartSnapshot,cashAmount:mixedMode?parseFloat(cashAmount||"0"):null,cash2:mixedMode?cash2:null,pay2:mixedMode?pay2:null},clientName:clientSnapshot?.name,clientPts:(clientSnapshot?.pts||0)-ptsUs+ptsE,ptsE,ptsUs,local:session.local};
+      const receiptData={sale:{id:saleId,date,pay:finalPay,total,disc,items:cartSnapshot,cashAmount:mixedMode?parseFloat(cashAmount||"0"):null,cash2:mixedMode?cash2:null,pay2:mixedMode?pay2:null},clientName:clientSnapshot?.name,clientDni:clientSnapshot?.dni||"",clientPts:(clientSnapshot?.pts||0)-ptsUs+ptsE,ptsE,ptsUs,local:session.local};
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
       setSaving(false);setReceipt(receiptData);loadAll();
     }catch(e){notify("Error al guardar venta","err");setSaving(false);}
@@ -563,7 +563,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
           <div style={{fontSize:10,color:"#000",marginTop:2}}>RECIBO · #{String(receipt.sale.id).slice(-6)}</div>
           <div style={{fontSize:10,color:"#000"}}>{receipt.sale.date}{receipt.local&&` · ${receipt.local}`}</div>
         </div>
-        <div style={{fontSize:11,marginBottom:4,color:"#000"}}>Cliente: {receipt.clientName}</div>
+        <div style={{fontSize:11,marginBottom:4,color:"#000"}}>Cliente: {receipt.clientName}{receipt.clientDni&&` · DNI: ${receipt.clientDni}`}</div>
         {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3,color:"#000"}}><span>{it.name} ({it.unitDisplay})</span><span>{fmtM(it.sub)}</span></div>))}
         {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Desc.</span><span>-{fmtM(receipt.sale.disc)}</span></div>}
         <div style={{borderTop:"2px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14,color:"#000"}}><span>TOTAL</span><span>{fmtM(receipt.sale.total)}</span></div>
