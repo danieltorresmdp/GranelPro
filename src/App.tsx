@@ -683,7 +683,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
                     <div style={{fontSize:18,lineHeight:1}}>{catEm}</div>
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{p.name}{p.code&&<span style={{marginLeft:8,fontFamily:"monospace",fontSize:10,color:"#ffffff",fontWeight:400}}>#{p.code}</span>}</div>
-                      <div style={{fontSize:10,color:"#ffffff",marginTop:1}}>{p.cat} · <span style={{color:"#00cc55",fontWeight:800,fontSize:11}}>{p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</span></div>
+                      <div style={{fontSize:10,color:"#ffffff",marginTop:1}}>{p.cat} · <span style={{color:"#00cc55",fontWeight:800,fontSize:11}}>{p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</span>{p.unit==="kg"&&p.bulkWeight>0&&<span style={{color:"#ff2222",fontWeight:700,fontSize:10,marginLeft:8}}>| Bulto: ${p.bulkPrice} · {fmtW(p.bulkWeight)}</span>}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -807,7 +807,7 @@ function ProdCardInline({p,onAdd}) {
         </div>
 
         {p.bulkWeight>0&&<div style={{background:"#02060e",border:"1px solid #2266ee20",borderRadius:7,padding:"8px 10px",minWidth:160,flex:"0 0 auto"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="bulto"/><span style={{color:"#3388ff",fontWeight:700,fontSize:10}}>${p.bulkPrice} · {fmtW(p.bulkWeight)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}><Chip t="bulto"/><span style={{color:"#ff2222",fontWeight:700,fontSize:10}}>${p.bulkPrice} · {fmtW(p.bulkWeight)}</span></div>
           <div style={{display:"flex",gap:5,alignItems:"center"}}><input type="number" min="1" value={bultoQty} onChange={(e)=>setBultoQty(e.target.value)} style={{width:52,background:"#030810",border:"1px solid #192a38",color:"#ffffff",padding:"4px 7px",borderRadius:5,fontFamily:"inherit",fontSize:11,outline:"none"}}/><span style={{fontSize:9,color:"#ffffff"}}>bultos</span><Btn v="b" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px 6px"}} onClick={()=>onAdd(p,"bulto",parseInt(String(bultoQty))||1)}>+ Ag.</Btn></div>
         </div>}
       </>}
