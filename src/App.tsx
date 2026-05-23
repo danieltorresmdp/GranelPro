@@ -683,7 +683,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
                     <div style={{fontSize:18,lineHeight:1}}>{catEm}</div>
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{p.name}{p.code&&<span style={{marginLeft:8,fontFamily:"monospace",fontSize:10,color:"#ffffff",fontWeight:400}}>#{p.code}</span>}</div>
-                      <div style={{fontSize:10,color:"#ffffff",marginTop:1}}>{p.cat} · <span style={{color:"#00cc55",fontWeight:800,fontSize:11}}>{p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</span>{p.unit==="kg"&&p.bulkWeight>0&&<span style={{color:"#ff2222",fontWeight:700,fontSize:10,marginLeft:8}}>| Bulto: ${p.bulkPrice} · {fmtW(p.bulkWeight)}</span>}</div>
+                      <div style={{fontSize:11,color:"#ffffff",marginTop:1}}>{p.cat} · <span style={{color:"#00cc55",fontWeight:800,fontSize:14}}>{p.unit==="kg"?`$${p.pricePerKg}/kg`:`$${p.unitPrice}/u`}</span>{p.unit==="kg"&&p.bulkWeight>0&&<span style={{color:"#ff2222",fontWeight:700,fontSize:13,marginLeft:8}}>| Bulto: ${p.bulkPrice} · {fmtW(p.bulkWeight)}</span>}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
