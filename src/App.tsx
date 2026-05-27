@@ -195,19 +195,31 @@ const[view,setView]=useState("dash");
 
   const loadAll=useCallback(async()=>{
     try{
-      const[u,p,sk,c,s,cj,lc]=await Promise.all([
+      // Cargar clientes con paginación (pueden superar 1000)
+      const loadClients=async()=>{
+        let all=[];let from=0;const size=1000;
+        while(true){
+          const{data,error}=await sb.from("gp_clients").select("*").order("id").range(from,from+size-1);
+          if(error||!data||data.length===0) break;
+          all=[...all,...data];
+          if(data.length<size) break;
+          from+=size;
+        }
+        return all;
+      };
+      const[u,p,sk,s,cj,lc,c]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
         sb.from("gp_stock").select("*").range(0,4999),
-        sb.from("gp_clients").select("*").order("id"),
         sb.from("gp_sales").select("*").order("id",{ascending:false}).limit(500),
         sb.from("gp_caja").select("*").order("id"),
         sb.from("gp_locales").select("*").order("id"),
+        loadClients(),
       ]);
       if(!u.error) setUsers((u.data||[]).map(mapUser));
       if(!p.error) setProds((p.data||[]).map(mapProd));
       if(!sk.error) setStock((sk.data||[]).map(mapStock));
-      if(!c.error) setClients((c.data||[]).map(mapClient));
+      setClients((c||[]).map(mapClient));
       if(!s.error) setSales((s.data||[]).map(mapSale));
       if(!cj.error) setCaja((cj.data||[]).map(mapCaja));
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
