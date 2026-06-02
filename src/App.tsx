@@ -207,20 +207,32 @@ const[view,setView]=useState("dash");
         }
         return all;
       };
-      const[u,p,sk,s,cj,lc,c]=await Promise.all([
+      // Cargar ventas con paginación (ilimitado)
+      const loadSales=async()=>{
+        let all=[];let from=0;const size=1000;
+        while(true){
+          const{data,error}=await sb.from("gp_sales").select("*").order("id",{ascending:false}).range(from,from+size-1);
+          if(error||!data||data.length===0) break;
+          all=[...all,...data];
+          if(data.length<size) break;
+          from+=size;
+        }
+        return all;
+      };
+      const[u,p,sk,cj,lc,c,s]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
         sb.from("gp_stock").select("*").range(0,4999),
-        sb.from("gp_sales").select("*").order("id",{ascending:false}).limit(2000),
         sb.from("gp_caja").select("*").order("id"),
         sb.from("gp_locales").select("*").order("id"),
         loadClients(),
+        loadSales(),
       ]);
       if(!u.error) setUsers((u.data||[]).map(mapUser));
       if(!p.error) setProds((p.data||[]).map(mapProd));
       if(!sk.error) setStock((sk.data||[]).map(mapStock));
       setClients((c||[]).map(mapClient));
-      if(!s.error) setSales((s.data||[]).map(mapSale));
+      setSales((s||[]).map(mapSale));
       if(!cj.error) setCaja((cj.data||[]).map(mapCaja));
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
     }catch(e){notify("Error cargando datos","err");}
