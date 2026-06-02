@@ -194,6 +194,7 @@ const[view,setView]=useState("dash");
   },[]);
 
   const loadAll=useCallback(async()=>{
+    const isAdminSession=session?.role==="admin";
     try{
       // Cargar clientes con paginación (pueden superar 1000)
       const loadClients=async()=>{
@@ -207,17 +208,23 @@ const[view,setView]=useState("dash");
         }
         return all;
       };
-      // Cargar ventas con paginación (ilimitado)
+      // Admin: todas las ventas paginadas. Vendedor: solo ventas de hoy de su local
       const loadSales=async()=>{
-        let all=[];let from=0;const size=1000;
-        while(true){
-          const{data,error}=await sb.from("gp_sales").select("*").order("id",{ascending:false}).range(from,from+size-1);
-          if(error||!data||data.length===0) break;
-          all=[...all,...data];
-          if(data.length<size) break;
-          from+=size;
+        if(isAdminSession){
+          let all=[];let from=0;const size=1000;
+          while(true){
+            const{data,error}=await sb.from("gp_sales").select("*").order("id",{ascending:false}).range(from,from+size-1);
+            if(error||!data||data.length===0) break;
+            all=[...all,...data];
+            if(data.length<size) break;
+            from+=size;
+          }
+          return all;
+        } else {
+          // Vendedor: solo ventas de hoy
+          const{data}=await sb.from("gp_sales").select("*").eq("date",todayStr()).order("id",{ascending:false});
+          return data||[];
         }
-        return all;
       };
       const[u,p,sk,cj,lc,c,s]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
@@ -236,7 +243,7 @@ const[view,setView]=useState("dash");
       if(!cj.error) setCaja((cj.data||[]).map(mapCaja));
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
     }catch(e){notify("Error cargando datos","err");}
-  },[]);
+  },[session]);
 
   const loadFirst=useCallback(async()=>{
     setLoading(true);await loadAll();setLoading(false);
@@ -257,7 +264,7 @@ const[view,setView]=useState("dash");
     return()=>{sb.removeChannel(ch);};
   },[session,loadFirst,loadAll]);
 
-  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
+  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setView(u.role==="admin"?"dash":"sale");try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
   const handleLogout=()=>{setSession(null);try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
 
   const localeNames=locales.length>0?locales.map((l)=>l.name):["Centro","Norte","Sur"];
@@ -272,7 +279,7 @@ const[view,setView]=useState("dash");
   );
 
   const nav=[
-    {v:"dash",   icon:"db",   label:"Dashboard"},
+    ...(isAdmin?[{v:"dash",icon:"db",label:"Dashboard"}]:[]),
     {v:"sale",   icon:"cart", label:"Nueva Venta"},
     {v:"history",icon:"hist", label:"Ventas"},
     {v:"clients",icon:"users",label:"Clientes"},
