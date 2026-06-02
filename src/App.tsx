@@ -211,7 +211,7 @@ const[view,setView]=useState("dash");
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
         sb.from("gp_stock").select("*").range(0,4999),
-        sb.from("gp_sales").select("*").order("id",{ascending:false}).limit(500),
+        sb.from("gp_sales").select("*").order("id",{ascending:false}).limit(2000),
         sb.from("gp_caja").select("*").order("id"),
         sb.from("gp_locales").select("*").order("id"),
         loadClients(),
@@ -373,7 +373,7 @@ const[view,setView]=useState("dash");
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-           {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt}/>}
+           {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -832,21 +832,34 @@ function ProdCardInline({p,onAdd}) {
 }
 
 function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
-  const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
+  const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[vendF,setVendF]=useState("todos");const[localF,setLocalF]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
   const loginAt=session?.loginAt?new Date(session.loginAt):null;
   const mySales=isAdmin?sales:sales.filter((s)=>{
     if(s.uid!==session?.id) return false;
     if(s.date!==todayStr()) return false;
     return true;
   });
-  const vis=mySales.filter((s)=>{const cl=clients.find((c)=>c.id===s.cid);return(!q||cl?.name.toLowerCase().includes(q.toLowerCase()))&&(pf==="todos"||s.pay===pf);});
+  // Unique vendors and locals for filters
+  const vendorOptions=[...new Map(mySales.map(s=>{const u=users.find(u=>u.id===s.uid);return[s.uid,{id:s.uid,name:u?.name||"—"}];}).filter(([,u])=>u.name!=="—")).values()];
+  const localOptions=[...new Set(mySales.map(s=>s.localName).filter(Boolean))];
+  const vis=mySales.filter((s)=>{
+    const cl=clients.find((c)=>c.id===s.cid);
+    const matchQ=!q||cl?.name.toLowerCase().includes(q.toLowerCase());
+    const matchPay=pf==="todos"||s.pay===pf;
+    const matchVend=vendF==="todos"||String(s.uid)===vendF;
+    const matchLocal=localF==="todos"||s.localName===localF;
+    return matchQ&&matchPay&&matchVend&&matchLocal;
+  });
   const delSale=async(id)=>{await sb.from("gp_sales").delete().eq("id",id);notify("Venta eliminada");setConfirmDel(null);loadAll();};
   return(
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Ventas</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{mySales.length} REGISTROS{!isAdmin&&" · MIS VENTAS"}</p></div>
-      <div style={{display:"flex",gap:9,marginBottom:12}}>
-        <div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar cliente..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div>
-        <Sel value={pf} onChange={(e)=>setPf(e.target.value)} sx={{width:160}}><option value="todos">Todos</option>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,position:"relative",minWidth:160}}><Inp placeholder="Buscar cliente..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={13}/></span></div>
+        <Sel value={pf} onChange={(e)=>setPf(e.target.value)} sx={{width:130}}><option value="todos">Todos los pagos</option>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
+        {isAdmin&&<Sel value={vendF} onChange={(e)=>setVendF(e.target.value)} sx={{width:140}}><option value="todos">👤 Vendedor</option>{vendorOptions.map(u=><option key={u.id} value={String(u.id)}>{u.name}</option>)}</Sel>}
+        {isAdmin&&<Sel value={localF} onChange={(e)=>setLocalF(e.target.value)} sx={{width:130}}><option value="todos">📍 Local</option>{localOptions.map(l=><option key={l} value={l}>{l}</option>)}</Sel>}
+        {isAdmin&&(vendF!=="todos"||localF!=="todos"||pf!=="todos")&&<Btn v="gh" sx={{padding:"6px 10px",fontSize:9}} onClick={()=>{setVendF("todos");setLocalF("todos");setPf("todos");}}>Limpiar</Btn>}
       </div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th><th>Local</th><th></th></tr></thead>
         <tbody>{vis.map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);return(<tr key={s.id}><td style={{color:"#ffffff",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#ffffff"}}>{s.date}</td><td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(s.total)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
@@ -1010,7 +1023,7 @@ function Reportes({sales,users,localeNames}) {
   );
 }
 
-function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt}) {
+function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
   const[localF,setLocalF]=useState("");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
@@ -1039,7 +1052,7 @@ useEffect(()=>{fetchAll();},[]);
 
   const openHist=async(prod)=>{
     setHistProd(prod);setHistLoading(true);setHistData([]);
-    const{data}=await sb.from("gp_stock_mov").select("*").eq("product_id",prod.id).eq("local_name",localF).order("fecha",{ascending:false}).limit(50);
+    const{data}=await sb.from("gp_stock_mov").select("*").eq("product_id",prod.id).eq("local_name",localF).order("fecha",{ascending:false}).limit(200);
     setHistData(data||[]);setHistLoading(false);
   };
 
@@ -1071,7 +1084,7 @@ useEffect(()=>{fetchAll();},[]);
         if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
       }
       // Registrar movimiento de ingreso
-      await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:"admin",fecha:new Date().toISOString()}]);
+      await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
         if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk}:s);
@@ -1218,7 +1231,7 @@ useEffect(()=>{fetchAll();},[]);
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div>
               <h2 style={{margin:0,fontSize:15,fontWeight:800}}>Historial · {histProd.name}</h2>
-              <div style={{fontSize:9,color:"#ffffff",marginTop:3,letterSpacing:2}}>📍 {localF} · últimos 50 movimientos</div>
+              <div style={{fontSize:9,color:"#ffffff",marginTop:3,letterSpacing:2}}>📍 {localF} · últimos 200 movimientos</div>
             </div>
             <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setHistProd(null)}><Ic n="x" s={13}/></Btn>
           </div>
