@@ -1413,12 +1413,12 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleString("es-AR")}</div>
         </div>
       </Card>}
-      <div style={{display:"grid",gridTemplateColumns:isAdmin?"repeat(4,1fr)":"1fr",gap:12,marginBottom:14}}>
-        {isAdmin&&<Stat label="Sin Cerrar" value={unclosed.length} sub="ventas" color="#00d4ff" icon="hist"/>}
-        <Stat label="Efectivo" value={`${fmtM(totalEf)}`} sub="mis ventas en efectivo" color="#00cc55" icon="cash"/>
-        {isAdmin&&<Stat label="Tarjeta" value={`${fmtM((byPay["tarjeta"]||0))}`} sub="POS" color="#3388ff" icon="star"/>}
-        {isAdmin&&<Stat label="QR" value={`${fmtM((byPay["QR"]||0))}`} sub="digital" color="#ccdd00" icon="trend"/>}
-      </div>
+      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+        <Stat label="Sin Cerrar" value={unclosed.length} sub="ventas" color="#00d4ff" icon="hist"/>
+        <Stat label="Efectivo" value={`${fmtM(totalEf)}`} sub="físico" color="#00cc55" icon="cash"/>
+        <Stat label="Tarjeta" value={`${fmtM((byPay["tarjeta"]||0))}`} sub="POS" color="#3388ff" icon="star"/>
+        <Stat label="QR" value={`${fmtM((byPay["QR"]||0))}`} sub="digital" color="#ccdd00" icon="trend"/>
+      </div>}
       {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
