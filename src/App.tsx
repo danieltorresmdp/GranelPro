@@ -1445,7 +1445,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
       {closing&&(<Modal close={()=>setClosing(false)} w={420}><div style={{padding:24}}>
         <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2>
         <div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
-          {PAY_OPTS.filter(m=>(byPay[m]||0)>0&&(isAdmin||m==="efectivo")).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
+          {isAdmin&&PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
           {isAdmin&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:isAdmin?"1fr 1fr":"1fr",gap:11,marginBottom:11}}>
