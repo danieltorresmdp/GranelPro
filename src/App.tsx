@@ -140,8 +140,13 @@ const Login = ({onLogin}) => {
     setLoading(true);setErr("");
     try{
       const{data,error}=await sb.from("gp_users").select("*").eq("username",un).eq("password",pw).eq("active",true).single();
-      if(error||!data) setErr("Usuario o contraseña incorrectos");
-      else onLogin(mapUser(data));
+      if(error||!data){setErr("Usuario o contraseña incorrectos");}
+      else{
+        // Generar token de sesión único y guardarlo en el usuario
+        const sessionToken=Date.now().toString(36)+Math.random().toString(36).slice(2);
+        await sb.from("gp_users").update({session_token:sessionToken}).eq("id",data.id);
+        onLogin({...mapUser(data),sessionToken});
+      }
     }catch(e){setErr("Error de conexión.");}
     setLoading(false);
   };
@@ -186,6 +191,21 @@ const[view,setView]=useState("dash");
   const isAdmin=session?.role==="admin";
 
   const notify=(msg,t="ok")=>{setToast({msg,t});setTimeout(()=>setToast(null),3400);};
+
+  useEffect(()=>{
+    if(!session) return;
+    // Verificar cada 30 segundos que la sesión sigue siendo válida
+    const checkSession=async()=>{
+      const{data}=await sb.from("gp_users").select("session_token").eq("id",session.id).single();
+      if(data&&session.sessionToken&&data.session_token!==session.sessionToken){
+        // Otra sesión tomó el control — cerrar esta
+        handleLogout();
+        alert("Tu sesión fue cerrada porque el usuario inició sesión en otro dispositivo.");
+      }
+    };
+    const interval=setInterval(checkSession,30000);
+    return()=>clearInterval(interval);
+  },[session]);
 
   useEffect(()=>{
     const on=()=>setOnline(true);const off=()=>setOnline(false);
@@ -551,6 +571,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
     if(mixedMode&&!pay2){notify("Seleccioná el segundo medio de pago","err");return;}
     if(mixedMode&&(parseFloat(cashAmount||"0")<=0||parseFloat(cashAmount||"0")>=total)){notify("Ingresá un monto válido en efectivo","err");return;}
     if(!cart.length){notify("Carrito vacío","err");return;}
+    if(total<=0){notify("El total no puede ser $0,00","err");return;}
     setSaving(true);
     try{
       const saleId=Date.now();
@@ -881,7 +902,7 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
         {isAdmin&&(vendF!=="todos"||localF!=="todos"||pf!=="todos")&&<Btn v="gh" sx={{padding:"6px 10px",fontSize:9}} onClick={()=>{setVendF("todos");setLocalF("todos");setPf("todos");}}>Limpiar</Btn>}
       </div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th><th>Local</th><th></th></tr></thead>
-        <tbody>{vis.map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);return(<tr key={s.id}><td style={{color:"#ffffff",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#ffffff"}}>{s.date}</td><td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(s.total)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
+        <tbody>{vis.map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);const saleTime=new Date(s.id).toString()!=="Invalid Date"?new Date(s.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false}):"";return(<tr key={s.id}><td style={{color:"#ffffff",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#ffffff"}}>{s.date}{saleTime&&<div style={{fontSize:9,color:"#00d4ff"}}>{saleTime}</div>}</td><td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(s.total)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
           <td><div style={{display:"flex",gap:4}}>
             <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setDet(s)}><Ic n="eye" s={11}/></Btn>
             {isAdmin&&<Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(s)}><Ic n="del" s={11}/></Btn>}
@@ -889,7 +910,7 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
         </tr>);})}</tbody>
       </table></Card>
       {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2><Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div>
-        <div style={{fontSize:10,color:"#ffffff",marginBottom:12}}>{det.date} · <Chip t={det.pay}/> {det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}</div>
+        <div style={{fontSize:10,color:"#ffffff",marginBottom:12}}>{det.date}{new Date(det.id).toString()!=="Invalid Date"&&<span style={{color:"#00d4ff",marginLeft:6}}>{new Date(det.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span>} · <Chip t={det.pay}/> {det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}</div>
         {det.items?.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><div><div style={{fontSize:12,color:"#ffffff",fontWeight:600}}>{it.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>{fmtM(it.sub)}</span></div>))}
         <div style={{background:"#040c16",borderRadius:8,padding:"11px 13px",marginTop:11}}>{det.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,color:"#ff9900"}}><span>Desc.</span><span>−{fmtM(det.disc)}</span></div>}<div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:14}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(det.total)}</span></div></div>
       </div></Modal>)}
@@ -1265,7 +1286,7 @@ useEffect(()=>{fetchAll();},[]);
                 const fmtD=histProd.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`;
                 return(
                   <tr key={i}>
-                    <td style={{fontSize:10,color:"#ffffff"}}>{new Date(m.fecha).toLocaleString("es-AR")}</td>
+                    <td style={{fontSize:10,color:"#ffffff"}}>{new Date(m.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</td>
                     <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:isIngreso?"#021408":"#110305",color:isIngreso?"#00cc55":"#ff5555",border:`1px solid ${isIngreso?"#00882233":"#ff333333"}`}}>{isIngreso?"▲ INGRESO":"▼ VENTA"}</span></td>
                     <td style={{fontWeight:700,color:isIngreso?"#00cc55":"#ff6666"}}>{isIngreso?"+":"-"}{fmtQ}</td>
                     <td style={{color:"#ffffff",fontSize:11}}>{fmtA}</td>
