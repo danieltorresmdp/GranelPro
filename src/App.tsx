@@ -1485,6 +1485,59 @@ function Products({prods,notify,loadAll}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const openNew=()=>{setForm({name:"",code:"",cat:"Perro",unit:"kg",pricePerKg:0,bulkWeight:25,bulkPrice:0,unitPrice:0,stk:0});setModal(true);};
   const openEdit=(p)=>{setForm({...p});setModal(true);};
+
+  const exportPDF=()=>{
+    const fecha=new Date().toLocaleDateString("es-AR");
+    const catEmojis={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+    const bycat={};
+    prods.forEach(p=>{if(!bycat[p.cat])bycat[p.cat]=[];bycat[p.cat].push(p);});
+    let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de Precios - Masc🐾tas Pet Shop</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:20px;color:#000;background:#fff;font-size:13px}
+      h1{text-align:center;font-size:22px;margin-bottom:4px}
+      .subtitle{text-align:center;color:#555;font-size:11px;margin-bottom:20px}
+      h2{background:#1a1a2e;color:#fff;padding:6px 12px;border-radius:4px;font-size:14px;margin-top:20px;margin-bottom:0}
+      table{width:100%;border-collapse:collapse;margin-top:0}
+      th{background:#f0f0f0;padding:6px 10px;text-align:left;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid #ccc}
+      td{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
+      tr:nth-child(even){background:#fafafa}
+      .code{color:#555;font-size:10px;font-family:monospace}
+      .price{font-weight:700;color:#006600}
+      .bulto{color:#cc0000;font-size:11px}
+      .footer{text-align:center;margin-top:30px;font-size:10px;color:#888;border-top:1px solid #ccc;padding-top:10px}
+      @media print{body{padding:10px}.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print" style="text-align:center;margin-bottom:15px">
+      <button onclick="window.print()" style="background:#006600;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / Guardar PDF</button>
+      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    <h1>🐾 Masc🐾tas Pet Shop</h1>
+    <div class="subtitle">Lista de Precios · ${fecha} · Total: ${prods.length} productos</div>`;
+
+    CATEGORIES.forEach(cat=>{
+      const ps=bycat[cat]||[];
+      if(ps.length===0) return;
+      const em=catEmojis[cat]||"";
+      html+=`<h2>${em} ${cat} (${ps.length} productos)</h2>
+      <table><thead><tr><th>Código</th><th>Producto</th><th>Precio/kg</th><th>Bulto</th><th>Precio Unitario</th></tr></thead><tbody>`;
+      ps.sort((a,b)=>a.name.localeCompare(b.name)).forEach(p=>{
+        html+=`<tr>
+          <td class="code">${p.code||"—"}</td>
+          <td>${p.name}</td>
+          <td class="price">${p.unit==="kg"?`$${p.pricePerKg.toLocaleString("es-AR")}/kg`:"—"}</td>
+          <td class="bulto">${p.unit==="kg"&&p.bulkWeight>0?`$${p.bulkPrice.toLocaleString("es-AR")} · ${fmtW(p.bulkWeight)}`:"—"}</td>
+          <td class="price">${p.unit!=="kg"?`$${(p.unitPrice||0).toLocaleString("es-AR")}/u`:"—"}</td>
+        </tr>`;
+      });
+      html+=`</tbody></table>`;
+    });
+
+    html+=`<div class="footer">Masc🐾tas Pet Shop · Tel: 2236786886 · Generado el ${fecha}</div></body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();}
+    else notify("Permitir ventanas emergentes para exportar","err");
+  };
+
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
     if(form.code&&form.code.trim()!==""){
@@ -1512,7 +1565,7 @@ function Products({prods,notify,loadAll}) {
   const vis=prods.filter((p)=>p.name.toLowerCase().includes(q.toLowerCase())&&(catF==="Todas"||p.cat===catF));
   return(
     <div className="fade">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><div style={{display:"flex",gap:8}}><Btn v="cy" onClick={exportPDF}><Ic n="prt" s={13}/>Exportar Lista PDF</Btn><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div></div>
       <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>Código</th><th>Nombre</th><th>Cat.</th><th>P./Kg</th><th>Bulto</th><th>P.Unit.</th><th></th></tr></thead>
         <tbody>{vis.map((p)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`${fmtM(p.pricePerKg)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`${fmtM((p.unitPrice||0))}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
