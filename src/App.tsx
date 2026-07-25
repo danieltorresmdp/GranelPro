@@ -1490,53 +1490,69 @@ function Products({prods,notify,loadAll}) {
   const openNew=()=>{setForm({name:"",code:"",cat:"Perro",unit:"kg",pricePerKg:0,bulkWeight:25,bulkPrice:0,unitPrice:0,costo:0,stk:0});setModal(true);};
   const openEdit=(p)=>{setForm({...p});setModal(true);};
 
+  const[exportCat,setExportCat]=useState("Todas");
+
   const exportPDF=()=>{
     const fecha=new Date().toLocaleDateString("es-AR");
     const catEmojis={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
-    const bycat={};
-    prods.forEach(p=>{if(!bycat[p.cat])bycat[p.cat]=[];bycat[p.cat].push(p);});
+    const catsToExport=exportCat==="Todas"?CATEGORIES:[exportCat];
+    const totalExport=prods.filter(p=>catsToExport.includes(p.cat)).length;
+
     let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de Precios - Masc🐾tas Pet Shop</title>
     <style>
-      body{font-family:Arial,sans-serif;padding:20px;color:#000;background:#fff;font-size:13px}
-      h1{text-align:center;font-size:22px;margin-bottom:4px}
-      .subtitle{text-align:center;color:#555;font-size:11px;margin-bottom:20px}
-      h2{background:#1a1a2e;color:#fff;padding:6px 12px;border-radius:4px;font-size:14px;margin-top:20px;margin-bottom:0}
-      table{width:100%;border-collapse:collapse;margin-top:0}
-      th{background:#f0f0f0;padding:6px 10px;text-align:left;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid #ccc}
-      td{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
-      tr:nth-child(even){background:#fafafa}
-      .code{color:#555;font-size:10px;font-family:monospace}
-      .price{font-weight:700;color:#006600}
-      .bulto{color:#cc0000;font-size:11px}
-      .footer{text-align:center;margin-top:30px;font-size:10px;color:#888;border-top:1px solid #ccc;padding-top:10px}
-      @media print{body{padding:10px}.no-print{display:none}}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;padding:15px;color:#000;background:#fff;font-size:11px}
+      h1{text-align:center;font-size:18px;margin-bottom:2px}
+      .subtitle{text-align:center;color:#555;font-size:10px;margin-bottom:12px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+      .cat-block{break-inside:avoid;margin-bottom:10px}
+      h2{background:#1a1a2e;color:#fff;padding:4px 8px;font-size:11px;margin-bottom:0;display:flex;align-items:center;gap:4px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f0f0f0;padding:3px 6px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid #ccc}
+      td{padding:3px 6px;border-bottom:1px solid #f0f0f0;font-size:10px;line-height:1.3}
+      tr:nth-child(even) td{background:#fafafa}
+      .code{color:#777;font-size:9px;font-family:monospace}
+      .pkg{font-weight:700;color:#006600}
+      .bulk{color:#cc0000}
+      .unit{color:#006600;font-weight:700}
+      .footer{text-align:center;margin-top:15px;font-size:9px;color:#888;border-top:1px solid #ccc;padding-top:8px;grid-column:1/-1}
+      .no-print{text-align:center;margin-bottom:12px;grid-column:1/-1}
+      @media print{.no-print{display:none}body{padding:8px}}
     </style></head><body>
-    <div class="no-print" style="text-align:center;margin-bottom:15px">
-      <button onclick="window.print()" style="background:#006600;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / Guardar PDF</button>
-      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;cursor:pointer">✕ Cerrar</button>
+    <div class="no-print">
+      <button onclick="window.print()" style="background:#006600;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir / Guardar PDF</button>
+      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
     </div>
     <h1>🐾 Masc🐾tas Pet Shop</h1>
-    <div class="subtitle">Lista de Precios · ${fecha} · Total: ${prods.length} productos</div>`;
+    <div class="subtitle">Lista de Precios · ${fecha}${exportCat!=="Todas"?` · ${exportCat}`:""} · ${totalExport} productos</div>
+    <div class="grid">`;
 
-    CATEGORIES.forEach(cat=>{
-      const ps=bycat[cat]||[];
+    catsToExport.forEach(cat=>{
+      const ps=prods.filter(p=>p.cat===cat).sort((a,b)=>a.name.localeCompare(b.name));
       if(ps.length===0) return;
       const em=catEmojis[cat]||"";
-      html+=`<h2>${em} ${cat} (${ps.length} productos)</h2>
-      <table><thead><tr><th>Código</th><th>Producto</th><th>Precio/kg</th><th>Bulto</th><th>Precio Unitario</th></tr></thead><tbody>`;
-      ps.sort((a,b)=>a.name.localeCompare(b.name)).forEach(p=>{
-        html+=`<tr>
-          <td class="code">${p.code||"—"}</td>
-          <td>${p.name}</td>
-          <td class="price">${p.unit==="kg"?`$${p.pricePerKg.toLocaleString("es-AR")}/kg`:"—"}</td>
-          <td class="bulto">${p.unit==="kg"&&p.bulkWeight>0?`$${p.bulkPrice.toLocaleString("es-AR")} · ${fmtW(p.bulkWeight)}`:"—"}</td>
-          <td class="price">${p.unit!=="kg"?`$${(p.unitPrice||0).toLocaleString("es-AR")}/u`:"—"}</td>
-        </tr>`;
+      html+=`<div class="cat-block"><h2>${em} ${cat} (${ps.length})</h2>
+      <table><thead><tr><th>#</th><th>Producto</th><th>$/kg</th><th>Bulto</th></tr></thead><tbody>`;
+      ps.forEach(p=>{
+        if(p.unit==="kg"){
+          html+=`<tr>
+            <td class="code">${p.code||"—"}</td>
+            <td>${p.name}</td>
+            <td class="pkg">$${p.pricePerKg.toLocaleString("es-AR")}</td>
+            <td class="bulk">${p.bulkWeight>0?`$${p.bulkPrice.toLocaleString("es-AR")}·${fmtW(p.bulkWeight)}`:"—"}</td>
+          </tr>`;
+        } else {
+          html+=`<tr>
+            <td class="code">${p.code||"—"}</td>
+            <td colspan="2">${p.name}</td>
+            <td class="unit">$${(p.unitPrice||0).toLocaleString("es-AR")}/u</td>
+          </tr>`;
+        }
       });
-      html+=`</tbody></table>`;
+      html+=`</tbody></table></div>`;
     });
 
-    html+=`<div class="footer">Masc🐾tas Pet Shop · Tel: 2236786886 · Generado el ${fecha}</div></body></html>`;
+    html+=`<div class="footer">Masc🐾tas Pet Shop · Tel: 2236786886 · Generado el ${fecha}</div></div></body></html>`;
     const win=window.open("","_blank");
     if(win){win.document.write(html);win.document.close();}
     else notify("Permitir ventanas emergentes para exportar","err");
@@ -1569,7 +1585,7 @@ function Products({prods,notify,loadAll}) {
   const vis=prods.filter((p)=>p.name.toLowerCase().includes(q.toLowerCase())&&(catF==="Todas"||p.cat===catF));
   return(
     <div className="fade">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><div style={{display:"flex",gap:8}}><Btn v="cy" onClick={exportPDF}><Ic n="prt" s={13}/>Exportar Lista PDF</Btn><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Productos</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{prods.length} REGISTROS</p></div><div style={{display:"flex",gap:8,alignItems:"center"}}><Sel value={exportCat} onChange={(e)=>setExportCat(e.target.value)} sx={{width:130,fontSize:11}}><option value="Todas">Todas las cats.</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel><Btn v="cy" onClick={exportPDF}><Ic n="prt" s={13}/>PDF</Btn><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn></div></div>
       <div style={{display:"flex",gap:9,marginBottom:12}}><div style={{flex:1,position:"relative"}}><Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Todas",...CATEGORIES].map(c=>{const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];const active=catF===c;return<button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>{em?`${em} ${c}`:c}</button>;})}</div></div>
       <Card sx={{overflow:"hidden"}}><table><thead><tr><th>Código</th><th>Nombre</th><th>Cat.</th><th>P./Kg</th><th>Bulto</th><th>P.Unit.</th><th></th></tr></thead>
         <tbody>{vis.map((p)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`${fmtM(p.pricePerKg)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`${fmtM((p.unitPrice||0))}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
@@ -1663,6 +1679,56 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
   const[loadingHist,setLoadingHist]=useState(true);
   const[q,setQ]=useState("");
 
+  const imprimirRemito=(prod,qty,org,dest,ts)=>{
+    const fecha=new Date(ts).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remito de Traslado</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:600px;margin:0 auto}
+      h1{font-size:20px;margin-bottom:4px;text-align:center}
+      .sub{text-align:center;font-size:11px;color:#555;margin-bottom:20px}
+      .remito-num{text-align:center;font-size:13px;font-weight:700;background:#f0f0f0;padding:6px;border-radius:4px;margin-bottom:20px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+      .field{border:1px solid #ccc;border-radius:4px;padding:8px 12px}
+      .field label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#888;display:block;margin-bottom:2px}
+      .field span{font-size:14px;font-weight:700}
+      .producto{border:2px solid #1a1a2e;border-radius:6px;padding:12px 16px;margin-bottom:20px}
+      .producto .nombre{font-size:16px;font-weight:700;margin-bottom:4px}
+      .producto .cant{font-size:24px;font-weight:900;color:#006600}
+      .firma{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px}
+      .firma-box{border-top:1px solid #000;padding-top:6px;text-align:center;font-size:10px;color:#555}
+      .no-print{text-align:center;margin-bottom:20px}
+      @media print{.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print">
+      <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir Remito</button>
+      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    <h1>🐾 Masc🐾tas Pet Shop</h1>
+    <div class="sub">Remito de Traslado Interno</div>
+    <div class="remito-num">Nº ${String(ts).slice(-8)} · ${fecha}</div>
+    <div class="grid">
+      <div class="field"><label>Origen</label><span>📦 ${org}</span></div>
+      <div class="field"><label>Destino</label><span>📍 ${dest}</span></div>
+      <div class="field"><label>Responsable</label><span>${session?.name||"Admin"}</span></div>
+      <div class="field"><label>Fecha y hora</label><span>${fecha}</span></div>
+    </div>
+    <div class="producto">
+      <div class="nombre">${prod.name}${prod.code?` — Código #${prod.code}`:""}</div>
+      <div style="font-size:11px;color:#555;margin-bottom:8px">${prod.cat} · ${prod.unit==="kg"?"Granel":"Unidad"}</div>
+      <div class="cant">${prod.unit==="kg"?fmtW(qty):`${qty} unidades`}</div>
+    </div>
+    <div style="font-size:11px;color:#555;border:1px solid #eee;border-radius:4px;padding:10px;margin-bottom:20px">
+      ⚠ Este remito es un documento interno. El local destino debe verificar la mercadería recibida y firmar conformidad.
+    </div>
+    <div class="firma">
+      <div class="firma-box">Entregó: ${org}<br><br><br>Firma y aclaración</div>
+      <div class="firma-box">Recibió: ${dest}<br><br><br>Firma y aclaración</div>
+    </div>
+    </body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();}
+  };
+
   useEffect(()=>{
     const load=async()=>{
       setLoadingHist(true);
@@ -1717,6 +1783,7 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
       ]);
 
       notify(`✓ Traslado: ${fmtW(qty)} de ${origen} → ${destino}`);
+      imprimirRemito(prod,qty,origen,destino,ts);
       setProdId("");setCantidad("");
       // Reload hist
       const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(100);
