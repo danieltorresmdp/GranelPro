@@ -127,7 +127,7 @@ const Stat = ({label,value,sub,color="#00d4ff",icon}) => (
 );
 
 const mapUser   = (r) => r?({id:r.id,name:r.name,username:r.username,password:r.password,role:r.role,local:r.local||"",active:r.active}):null;
-const mapProd   = (r) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
+const mapProd   = (r) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,costo:Number(r.costo)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
 const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
 const mapClient = (r) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
 const mapSale   = (r) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
@@ -305,12 +305,14 @@ const[view,setView]=useState("dash");
     {v:"clients",icon:"users",label:"Clientes"},
     {v:"caja",   icon:"cash", label:"Cierre Caja"},
     ...(isAdmin?[
-      {v:"prods",   icon:"box", label:"Productos"},
-      {v:"stockmgt",icon:"stk", label:"Stock x Local"},
-      {v:"localmgt",icon:"loc", label:"Locales"},
-      {v:"reporte", icon:"rpt", label:"Reportes"},
-      {v:"usermgt", icon:"shld",label:"Usuarios"},
-      {v:"perfil",  icon:"pfil",label:"Mi Perfil"},
+      {v:"prods",     icon:"box",  label:"Productos"},
+      {v:"stockmgt",  icon:"stk",  label:"Stock x Local"},
+      {v:"traslados", icon:"trend",label:"Traslados"},
+      {v:"rentab",    icon:"cash", label:"Rentabilidad"},
+      {v:"localmgt",  icon:"loc",  label:"Locales"},
+      {v:"reporte",   icon:"rpt",  label:"Reportes"},
+      {v:"usermgt",   icon:"shld", label:"Usuarios"},
+      {v:"perfil",    icon:"pfil", label:"Mi Perfil"},
     ]:[]),
   ];
 
@@ -412,7 +414,9 @@ const[view,setView]=useState("dash");
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
-           {isAdmin&&view==="stockmgt"&&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
+            {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
+            {isAdmin&&view==="traslados"&&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll}/>}
+            {isAdmin&&view==="rentab"   &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -1483,7 +1487,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
 
 function Products({prods,notify,loadAll}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
-  const openNew=()=>{setForm({name:"",code:"",cat:"Perro",unit:"kg",pricePerKg:0,bulkWeight:25,bulkPrice:0,unitPrice:0,stk:0});setModal(true);};
+  const openNew=()=>{setForm({name:"",code:"",cat:"Perro",unit:"kg",pricePerKg:0,bulkWeight:25,bulkPrice:0,unitPrice:0,costo:0,stk:0});setModal(true);};
   const openEdit=(p)=>{setForm({...p});setModal(true);};
 
   const exportPDF=()=>{
@@ -1545,7 +1549,7 @@ function Products({prods,notify,loadAll}) {
       if(dup){notify("Ya existe un producto con ese código","err");return;}
     }
     setSaving(true);
-    const payload={code:form.code||"",name:form.name,cat:form.cat,unit:form.unit,price_per_kg:form.pricePerKg||0,bulk_weight:form.bulkWeight||0,bulk_price:form.bulkPrice||0,unit_price:form.unitPrice||0,stk:form.stk||0,min_stk:0,updated_at:new Date().toISOString()};
+    const payload={code:form.code||"",name:form.name,cat:form.cat,unit:form.unit,price_per_kg:form.pricePerKg||0,bulk_weight:form.bulkWeight||0,bulk_price:form.bulkPrice||0,unit_price:form.unitPrice||0,costo:form.costo||0,stk:form.stk||0,min_stk:0,updated_at:new Date().toISOString()};
     try{
       if(form.id) await sb.from("gp_products").update(payload).eq("id",form.id);
       else{
@@ -1571,7 +1575,7 @@ function Products({prods,notify,loadAll}) {
         <tbody>{vis.map((p)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`${fmtM(p.pricePerKg)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`${fmtM((p.unitPrice||0))}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
       </table></Card>
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong style={{color:"#ffffff"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
-      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e)=>setForm((f)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}</div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e)=>setForm((f)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div style={{gridColumn:"1/-1",background:"#03120a",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px"}}><Lbl t="💰 Costo del producto ($)"/><Inp type="number" step=".01" value={form.costo||0} onChange={(e)=>setForm((f)=>({...f,costo:parseFloat(e.target.value)||0}))} placeholder="Precio al que comprás (sin IVA)"/><div style={{fontSize:9,color:"#00cc55",marginTop:4}}>Usado para calcular margen real y valor de stock</div></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
@@ -1644,6 +1648,340 @@ function AdminProfile({session,setSession,notify,loadAll}) {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11,marginBottom:11}}><div><Lbl t="Nueva"/><Inp type={showPw?"text":"password"} value={pwNew} onChange={(e)=>setPwNew(e.target.value)}/></div><div><Lbl t="Confirmar"/><Inp type={showPw?"text":"password"} value={pwConf} onChange={(e)=>setPwConf(e.target.value)}/></div></div>
         {pwNew&&pwConf&&<div style={{fontSize:11,marginBottom:10,color:pwNew===pwConf?"#00cc55":"#ff6666"}}>{pwNew===pwConf?"✓ Coinciden":"✗ No coinciden"}</div>}
         <div style={{display:"flex",justifyContent:"flex-end"}}><Btn v="cy" onClick={savePassword} disabled={saving}><Ic n="key" s={13}/>Actualizar</Btn></div>
+      </Card>
+    </div>
+  );
+}
+
+function Traslados({prods,localeNames,notify,session,loadAll}) {
+  const[prodId,setProdId]=useState("");
+  const[origen,setOrigen]=useState("DEPOSITO");
+  const[destino,setDestino]=useState("");
+  const[cantidad,setCantidad]=useState("");
+  const[saving,setSaving]=useState(false);
+  const[hist,setHist]=useState([]);
+  const[loadingHist,setLoadingHist]=useState(true);
+  const[q,setQ]=useState("");
+
+  useEffect(()=>{
+    const load=async()=>{
+      setLoadingHist(true);
+      const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(100);
+      setHist(data||[]);
+      setLoadingHist(false);
+    };
+    load();
+  },[]);
+
+  const confirmar=async()=>{
+    if(!prodId){notify("Seleccioná un producto","err");return;}
+    if(!destino){notify("Seleccioná local destino","err");return;}
+    if(origen===destino){notify("Origen y destino no pueden ser iguales","err");return;}
+    const qty=parseFloat(cantidad);
+    if(!qty||qty<=0){notify("Ingresá una cantidad válida","err");return;}
+    setSaving(true);
+    try{
+      const prod=prods.find(p=>p.id===parseInt(prodId));
+      if(!prod){notify("Producto no encontrado","err");setSaving(false);return;}
+
+      // Leer stock actual del origen
+      const{data:stkOrigen}=await sb.from("gp_stock").select("*").eq("product_id",prod.id).eq("local_name",origen).single();
+      const stkActualOrigen=stkOrigen?Number(stkOrigen.stk)||0:0;
+      const nuevoOrigen=stkActualOrigen-qty;
+
+      // Actualizar origen
+      if(stkOrigen){
+        await sb.from("gp_stock").update({stk:nuevoOrigen}).eq("id",stkOrigen.id);
+      } else {
+        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:origen,stk:-qty}]);
+      }
+
+      // Leer stock actual del destino
+      const{data:stkDestino}=await sb.from("gp_stock").select("*").eq("product_id",prod.id).eq("local_name",destino).single();
+      const stkActualDestino=stkDestino?Number(stkDestino.stk)||0:0;
+      const nuevoDestino=stkActualDestino+qty;
+
+      // Actualizar destino
+      if(stkDestino){
+        await sb.from("gp_stock").update({stk:nuevoDestino}).eq("id",stkDestino.id);
+      } else {
+        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:destino,stk:qty}]);
+      }
+
+      // Registrar movimiento como traslado (dos entradas: salida y entrada)
+      const now=new Date().toISOString();
+      const ts=Date.now();
+      await sb.from("gp_stock_mov").insert([
+        {id:ts,product_id:prod.id,local_name:origen,tipo:"traslado",cantidad:-qty,stock_antes:stkActualOrigen,stock_despues:nuevoOrigen,usuario:`${session?.name||"admin"} → ${destino}`,fecha:now},
+        {id:ts+1,product_id:prod.id,local_name:destino,tipo:"traslado",cantidad:qty,stock_antes:stkActualDestino,stock_despues:nuevoDestino,usuario:`${session?.name||"admin"} desde ${origen}`,fecha:now},
+      ]);
+
+      notify(`✓ Traslado: ${fmtW(qty)} de ${origen} → ${destino}`);
+      setProdId("");setCantidad("");
+      // Reload hist
+      const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(100);
+      setHist(data||[]);
+      loadAll();
+    }catch(e){notify("Error al trasladar: "+e.message,"err");}
+    setSaving(false);
+  };
+
+  const filtProds=prods.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
+  const destOptions=localeNames.filter(l=>l!==origen);
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Traslados de Stock</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>MOVIMIENTO INTERNO ENTRE LOCALES · NO AFECTA VENTAS</p>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        <Card sx={{padding:20}}>
+          <h2 style={{fontSize:14,fontWeight:800,margin:"0 0 14px"}}>Nuevo Traslado</h2>
+          <div style={{marginBottom:11}}>
+            <Lbl t="Origen"/>
+            <Sel value={origen} onChange={(e)=>setOrigen(e.target.value)}>
+              {localeNames.map(l=><option key={l}>{l}</option>)}
+            </Sel>
+          </div>
+          <div style={{marginBottom:11}}>
+            <Lbl t="Destino"/>
+            <Sel value={destino} onChange={(e)=>setDestino(e.target.value)}>
+              <option value="">— Seleccioná —</option>
+              {destOptions.map(l=><option key={l}>{l}</option>)}
+            </Sel>
+          </div>
+          <div style={{marginBottom:11}}>
+            <Lbl t="Producto"/>
+            <div style={{position:"relative",marginBottom:6}}>
+              <Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:28}}/>
+              <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={12}/></span>
+            </div>
+            <Sel value={prodId} onChange={(e)=>setProdId(e.target.value)}>
+              <option value="">— Seleccioná producto —</option>
+              {filtProds.map(p=><option key={p.id} value={p.id}>{p.name}{p.code?` #${p.code}`:""}</option>)}
+            </Sel>
+          </div>
+          <div style={{marginBottom:14}}>
+            <Lbl t="Cantidad"/>
+            <div style={{display:"flex",gap:7,alignItems:"center"}}>
+              <Inp type="number" min="0" step="0.5" placeholder="ej: 25" value={cantidad} onChange={(e)=>setCantidad(e.target.value)} sx={{flex:1}}/>
+              <span style={{fontSize:11,color:"#ffffff"}}>kg/u</span>
+            </div>
+          </div>
+          {prodId&&cantidad&&destino&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:11}}>
+            <div style={{color:"#00cc55",fontWeight:700}}>📦 Resumen del traslado:</div>
+            <div style={{marginTop:4,color:"#ffffff"}}>{prods.find(p=>p.id===parseInt(prodId))?.name}</div>
+            <div style={{color:"#ffffff",marginTop:2}}>{fmtW(parseFloat(cantidad)||0)} · {origen} → {destino}</div>
+          </div>}
+          <Btn v="g" sx={{width:"100%",justifyContent:"center"}} onClick={confirmar} disabled={saving}>
+            {saving?<><Ic n="spin" s={14}/>Trasladando...</>:<><Ic n="trend" s={14}/>Confirmar Traslado</>}
+          </Btn>
+        </Card>
+
+        <Card sx={{padding:20}}>
+          <h2 style={{fontSize:14,fontWeight:800,margin:"0 0 14px"}}>ℹ️ ¿Cómo funciona?</h2>
+          <div style={{fontSize:12,color:"#ffffff",lineHeight:1.7}}>
+            <div style={{marginBottom:8}}>📥 <strong>Recibís mercadería en Depósito</strong> → cargás el stock en <em>Stock x Local → DEPOSITO</em></div>
+            <div style={{marginBottom:8}}>🚚 <strong>Movés al local</strong> → usás este módulo para registrar el traslado</div>
+            <div style={{marginBottom:8}}>✅ El stock baja del origen y sube en el destino automáticamente</div>
+            <div style={{marginBottom:8}}>📊 El movimiento queda registrado como "traslado" (no como venta ni compra)</div>
+            <div style={{padding:"8px 12px",background:"#140800",border:"1px solid #ff990033",borderRadius:6,color:"#ff9900",fontSize:11}}>
+              ⚠️ Los traslados no afectan los reportes de ventas ni el cálculo de rentabilidad
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial de Traslados · últimos 100</span>
+        </div>
+        {loadingHist&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
+        {!loadingHist&&hist.length===0&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Sin traslados registrados</div>}
+        {!loadingHist&&hist.length>0&&<table>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Local</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
+          <tbody>{hist.map((m,i)=>{
+            const prod=prods.find(p=>p.id===m.product_id);
+            const isEntrada=m.cantidad>0;
+            return(<tr key={i}>
+              <td style={{fontSize:10}}>{new Date(m.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</td>
+              <td style={{fontWeight:700,color:"#ffffff"}}>{prod?.name||`#${m.product_id}`}</td>
+              <td style={{color:"#00d4ff"}}>{m.local_name}</td>
+              <td style={{color:isEntrada?"#00cc55":"#ff9900",fontWeight:700}}>{isEntrada?"+":""}{prod?.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`}</td>
+              <td style={{color:"#ffffff",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`}</td>
+              <td style={{color:"#00cc55",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`}</td>
+              <td style={{color:"#ffffff",fontSize:10}}>{m.usuario}</td>
+            </tr>);
+          })}</tbody>
+        </table>}
+      </Card>
+    </div>
+  );
+}
+
+function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
+  const[periodo,setPeriodo]=useState(30);
+  const[iibb,setIibb]=useState(3);
+  const[payway,setPayway]=useState(2.5);
+
+  const hoy=new Date();
+  const desdeFecha=new Date(hoy);
+  desdeFecha.setDate(hoy.getDate()-periodo);
+  const desdeStr=desdeFecha.toISOString().split("T")[0];
+
+  // Locales de venta (excluir DEPOSITO)
+  const localesVenta=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
+
+  // Ventas del período filtradas
+  const ventasPeriodo=sales.filter(s=>s.date>=desdeStr);
+
+  // Para cada local calcular métricas
+  const metricas=localesVenta.map(loc=>{
+    const ventasLocal=ventasPeriodo.filter(s=>s.localName===loc);
+    const totalVentas=ventasLocal.reduce((a,b)=>a+b.total,0);
+    const cantVentas=ventasLocal.length;
+
+    // CMV estimado: para cada venta, buscar los items y calcular costo
+    let cmv=0;
+    ventasLocal.forEach(s=>{
+      (s.items||[]).forEach(it=>{
+        const prod=prods.find(p=>p.id===it.pid);
+        if(!prod||!prod.costo) return;
+        // Calcular unidades vendidas
+        const qty=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
+        cmv+=qty*(prod.costo||0);
+      });
+    });
+
+    // Valor del stock actual a costo
+    const stockLocal=stockMgt.filter(s=>s.localName===loc);
+    let valorStockCosto=0;
+    stockLocal.forEach(s=>{
+      const prod=prods.find(p=>p.id===s.productId);
+      if(!prod||!prod.costo) return;
+      valorStockCosto+=Math.max(0,s.stk)*(prod.costo||0);
+    });
+
+    // Días de inventario
+    const cmvDia=periodo>0?cmv/periodo:0;
+    const diasInventario=cmvDia>0?Math.round(valorStockCosto/cmvDia):null;
+
+    // Margen bruto
+    const margenBruto=totalVentas>0?((totalVentas-cmv)/totalVentas*100):null;
+
+    // Descuentos: IIBB + Payway proporcional
+    const ventasDigital=ventasLocal.filter(s=>s.pay==="tarjeta"||s.pay==="QR"||s.pay?.includes("+")).reduce((a,b)=>a+b.total,0);
+    const costoIIBB=totalVentas*(iibb/100);
+    const costoPayway=ventasDigital*(payway/100);
+    const margenNeto=totalVentas>0?((totalVentas-cmv-costoIIBB-costoPayway)/totalVentas*100):null;
+
+    // Productos sin costo cargado
+    const prodsSinCosto=prods.filter(p=>{
+      const enLocal=stockLocal.find(s=>s.productId===p.id);
+      return enLocal&&(!p.costo||p.costo===0);
+    }).length;
+
+    return{loc,totalVentas,cantVentas,cmv,valorStockCosto,diasInventario,margenBruto,margenNeto,costoIIBB,costoPayway,prodsSinCosto};
+  }).sort((a,b)=>b.totalVentas-a.totalVentas);
+
+  const totales={
+    ventas:metricas.reduce((a,b)=>a+b.totalVentas,0),
+    cmv:metricas.reduce((a,b)=>a+b.cmv,0),
+    stock:metricas.reduce((a,b)=>a+b.valorStockCosto,0),
+  };
+
+  const sinCostoTotal=prods.filter(p=>!p.costo||p.costo===0).length;
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Rentabilidad por Local</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>MARGEN REAL · DÍAS DE INVENTARIO · DIAGNÓSTICO DE CAJA</p>
+      </div>
+
+      {sinCostoTotal>0&&<div style={{background:"#140800",border:"1px solid #ff990055",borderRadius:8,padding:"10px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+        <Ic n="warn" s={16} c="#ff9900"/>
+        <div style={{fontSize:11,color:"#ff9900"}}>
+          <strong>{sinCostoTotal} productos</strong> sin precio de costo cargado — los cálculos de margen y CMV son parciales.
+          <span style={{color:"#ffffff",marginLeft:6}}>Cargalos en Productos → Editar → campo "Costo"</span>
+        </div>
+      </div>}
+
+      {/* Configuración */}
+      <Card sx={{padding:"14px 16px",marginBottom:14}}>
+        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Lbl t="Período"/>
+            <Sel value={periodo} onChange={(e)=>setPeriodo(parseInt(e.target.value))} sx={{width:120}}>
+              <option value={30}>30 días</option>
+              <option value={60}>60 días</option>
+              <option value={90}>90 días</option>
+            </Sel>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Lbl t="IIBB %"/>
+            <Inp type="number" step="0.1" value={iibb} onChange={(e)=>setIibb(parseFloat(e.target.value)||0)} sx={{width:70}}/>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Lbl t="Payway %"/>
+            <Inp type="number" step="0.1" value={payway} onChange={(e)=>setPayway(parseFloat(e.target.value)||0)} sx={{width:70}}/>
+          </div>
+          <div style={{fontSize:10,color:"#ffffff"}}>Período: {desdeFecha.toLocaleDateString("es-AR")} → hoy</div>
+        </div>
+      </Card>
+
+      {/* Totales */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>
+        <Stat label="Ventas totales" value={fmtM(totales.ventas)} sub={`${ventasPeriodo.length} operaciones`} color="#00cc55" icon="trend"/>
+        <Stat label="CMV estimado" value={fmtM(totales.cmv)} sub="costo mercadería vendida" color="#ff9900" icon="box"/>
+        <Stat label="Stock a costo" value={fmtM(totales.stock)} sub="plata inmovilizada" color="#00d4ff" icon="stk"/>
+      </div>
+
+      {/* Tabla por local */}
+      <Card sx={{overflow:"hidden",marginBottom:14}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Comparativo por Local · {periodo} días</span>
+        </div>
+        <table>
+          <thead><tr><th>Local</th><th>Ventas</th><th>CMV</th><th>Margen Bruto</th><th>IIBB+Payway</th><th>Margen Neto</th><th>Stock $</th><th>Días Inv.</th><th>⚠</th></tr></thead>
+          <tbody>{metricas.map(m=>{
+            const diasColor=m.diasInventario===null?"#ffffff":m.diasInventario>60?"#ff4444":m.diasInventario>30?"#ff9900":"#00cc55";
+            const margenColor=m.margenNeto===null?"#ffffff":m.margenNeto<10?"#ff4444":m.margenNeto<20?"#ff9900":"#00cc55";
+            return(<tr key={m.loc}>
+              <td style={{fontWeight:700,color:"#00d4ff"}}>📍 {m.loc}</td>
+              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(m.totalVentas)}</td>
+              <td style={{color:"#ff9900"}}>{fmtM(m.cmv)}</td>
+              <td style={{color:m.margenBruto===null?"#ffffff":m.margenBruto>25?"#00cc55":"#ff9900",fontWeight:700}}>{m.margenBruto!==null?`${m.margenBruto.toFixed(1)}%`:"—"}</td>
+              <td style={{color:"#ff6666",fontSize:11}}>{fmtM(m.costoIIBB+m.costoPayway)}</td>
+              <td style={{color:margenColor,fontWeight:800,fontSize:13}}>{m.margenNeto!==null?`${m.margenNeto.toFixed(1)}%`:"—"}</td>
+              <td style={{color:"#00d4ff"}}>{fmtM(m.valorStockCosto)}</td>
+              <td style={{color:diasColor,fontWeight:700}}>{m.diasInventario!==null?`${m.diasInventario}d`:"—"}</td>
+              <td>{m.prodsSinCosto>0&&<span style={{fontSize:9,background:"#140800",color:"#ff9900",padding:"2px 6px",borderRadius:8}}>{m.prodsSinCosto} sin costo</span>}</td>
+            </tr>);
+          })}</tbody>
+        </table>
+      </Card>
+
+      {/* Diagnóstico */}
+      <Card sx={{padding:20}}>
+        <h2 style={{fontSize:14,fontWeight:800,margin:"0 0 14px"}}>🔍 Diagnóstico de Liquidez</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          {metricas.filter(m=>m.diasInventario!==null).map(m=>{
+            const alerta=m.diasInventario>45||m.margenNeto<10;
+            return(<div key={m.loc} style={{background:alerta?"#110305":"#03120a",border:`1px solid ${alerta?"#ff333333":"#00882233"}`,borderRadius:8,padding:"12px 14px"}}>
+              <div style={{fontWeight:700,color:"#ffffff",marginBottom:6}}>📍 {m.loc}</div>
+              {m.diasInventario>45&&<div style={{fontSize:11,color:"#ff6666",marginBottom:4}}>⚠ Stock parado {m.diasInventario} días → {fmtM(m.valorStockCosto)} inmovilizados</div>}
+              {m.margenNeto!==null&&m.margenNeto<15&&<div style={{fontSize:11,color:"#ff9900",marginBottom:4}}>⚠ Margen neto bajo: {m.margenNeto.toFixed(1)}%</div>}
+              {!alerta&&<div style={{fontSize:11,color:"#00cc55"}}>✓ Rotación y margen normales</div>}
+              {m.prodsSinCosto>0&&<div style={{fontSize:10,color:"#ff9900",marginTop:4}}>📝 {m.prodsSinCosto} productos sin costo → análisis incompleto</div>}
+            </div>);
+          })}
+        </div>
+        {sinCostoTotal>0&&<div style={{marginTop:14,padding:"10px 14px",background:"#030810",border:"1px solid #192a38",borderRadius:8,fontSize:11,color:"#ffffff"}}>
+          <strong style={{color:"#00d4ff"}}>Próximo paso:</strong> Cargá el precio de costo en cada producto (Productos → Editar → campo "Costo"). Con más costos cargados, el diagnóstico va a ser más preciso.
+        </div>}
       </Card>
     </div>
   );
