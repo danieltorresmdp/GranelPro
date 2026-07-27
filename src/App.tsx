@@ -2068,8 +2068,12 @@ function Proveedores({notify}) {
   const[saving,setSaving]=useState(false);
   const[detId,setDetId]=useState(null);
   const[pagos,setPagos]=useState([]);
+  const[facturas,setFacturas]=useState([]);
+  const[tab,setTab]=useState("facturas");
   const[pagoModal,setPagoModal]=useState(false);
+  const[factModal,setFactModal]=useState(false);
   const[pagoForm,setPagoForm]=useState(null);
+  const[factForm,setFactForm]=useState(null);
   const[q,setQ]=useState("");
   const[confirmDel,setConfirmDel]=useState(null);
 
@@ -2080,9 +2084,13 @@ function Proveedores({notify}) {
     setLoading(false);
   };
 
-  const loadPagos=async(pid)=>{
-    const{data}=await sb.from("gp_prov_pagos").select("*").eq("proveedor_id",pid).order("fecha",{ascending:false});
-    setPagos(data||[]);
+  const loadDet=async(pid)=>{
+    const[pg,fc]=await Promise.all([
+      sb.from("gp_prov_pagos").select("*").eq("proveedor_id",pid).order("fecha",{ascending:false}),
+      sb.from("gp_prov_facturas").select("*").eq("proveedor_id",pid).order("fecha",{ascending:false}),
+    ]);
+    setPagos(pg.data||[]);
+    setFacturas(fc.data||[]);
   };
 
   useEffect(()=>{load();},[]);
@@ -2103,23 +2111,37 @@ function Proveedores({notify}) {
 
   const del=async(id)=>{await sb.from("gp_proveedores").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
 
-  const openPago=()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"efectivo",factura:"",es_blanco:true,notas:""});setPagoModal(true);};
-
   const savePago=async()=>{
     if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
     setSaving(true);
     try{
       await sb.from("gp_prov_pagos").insert([{proveedor_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,factura:pagoForm.factura,es_blanco:pagoForm.es_blanco,notas:pagoForm.notas}]);
-      notify("Pago registrado");setPagoModal(false);loadPagos(detId);
+      notify("Pago registrado");setPagoModal(false);loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
 
-  const delPago=async(id)=>{await sb.from("gp_prov_pagos").delete().eq("id",id);notify("Pago eliminado");loadPagos(detId);};
+  const saveFact=async()=>{
+    if(!factForm.monto||parseFloat(factForm.monto)<=0){notify("Monto inválido","err");return;}
+    setSaving(true);
+    try{
+      await sb.from("gp_prov_facturas").insert([{proveedor_id:detId,fecha:factForm.fecha,fecha_vencimiento:factForm.fecha_vencimiento||null,numero:factForm.numero,monto:parseFloat(factForm.monto),es_blanco:factForm.es_blanco,concepto:factForm.concepto,pagada:false,notas:factForm.notas}]);
+      notify("Factura registrada");setFactModal(false);loadDet(detId);
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const togglePagada=async(f)=>{
+    await sb.from("gp_prov_facturas").update({pagada:!f.pagada}).eq("id",f.id);
+    loadDet(detId);
+  };
 
   const vis=provs.filter(p=>p.nombre.toLowerCase().includes(q.toLowerCase())||(p.vendedor&&p.vendedor.toLowerCase().includes(q.toLowerCase())));
   const detProv=provs.find(p=>p.id===detId);
   const totalPagos=pagos.reduce((a,b)=>a+Number(b.monto),0);
+  const totalFacturado=facturas.reduce((a,b)=>a+Number(b.monto),0);
+  const totalPendiente=facturas.filter(f=>!f.pagada).reduce((a,b)=>a+Number(b.monto),0);
+  const hoy=todayStr();
 
   return(
     <div className="fade">
@@ -2141,7 +2163,7 @@ function Proveedores({notify}) {
             <td style={{color:"#00d4ff",fontWeight:700}}>{p.dias_plazo?`${p.dias_plazo}d`:"—"}</td>
             <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:p.activo?"#021408":"#130900",color:p.activo?"#00cc55":"#ff9900",border:`1px solid ${p.activo?"#00882233":"#ff990033"}`}}>{p.activo?"ACTIVO":"INACTIVO"}</span></td>
             <td><div style={{display:"flex",gap:4}}>
-              <Btn v="cy" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setDetId(p.id);loadPagos(p.id);}}><Ic n="cash" s={11}/></Btn>
+              <Btn v="cy" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setDetId(p.id);setTab("facturas");loadDet(p.id);}}><Ic n="hist" s={11}/>C.Cte</Btn>
               <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn>
               <Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn>
             </div></td>
@@ -2171,36 +2193,94 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal cuenta corriente */}
-      {detId&&detProv&&<Modal close={()=>setDetId(null)} w={620}><div style={{padding:22}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      {detId&&detProv&&<Modal close={()=>setDetId(null)} w={700}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div>
             <h2 style={{margin:0,fontSize:16,fontWeight:800}}>{detProv.nombre}</h2>
             <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>{detProv.telefono&&`📞 ${detProv.telefono}`}{detProv.vendedor&&` · Vendedor: ${detProv.vendedor}`}{detProv.dias_plazo?` · Plazo: ${detProv.dias_plazo}d`:""}</div>
           </div>
           <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDetId(null)}><Ic n="x" s={13}/></Btn>
         </div>
-        {detProv.condiciones&&<div style={{background:"#021520",border:"1px solid #00d4ff33",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#00d4ff"}}>📋 {detProv.condiciones}</div>}
-        {detProv.descuentos&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#00cc55"}}>🎯 {detProv.descuentos}</div>}
-        {detProv.notas&&<div style={{background:"#0a0808",border:"1px solid #ff990033",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#ff9900"}}>💬 {detProv.notas}</div>}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#ffffff"}}>Cuenta Corriente · Total pagado: <span style={{color:"#00cc55"}}>{fmtM(totalPagos)}</span></div>
-          <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={openPago}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+        {detProv.condiciones&&<div style={{background:"#021520",border:"1px solid #00d4ff33",borderRadius:7,padding:"7px 12px",marginBottom:8,fontSize:11,color:"#00d4ff"}}>📋 {detProv.condiciones}</div>}
+        {detProv.descuentos&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:7,padding:"7px 12px",marginBottom:8,fontSize:11,color:"#00cc55"}}>🎯 {detProv.descuentos}</div>}
+        {detProv.notas&&<div style={{background:"#0a0808",border:"1px solid #ff990033",borderRadius:7,padding:"7px 12px",marginBottom:8,fontSize:11,color:"#ff9900"}}>💬 {detProv.notas}</div>}
+
+        {/* Resumen cuenta corriente */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+          <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL FACTURADO</div><div style={{fontSize:15,fontWeight:800,color:"#ff9900"}}>{fmtM(totalFacturado)}</div></div>
+          <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL PAGADO</div><div style={{fontSize:15,fontWeight:800,color:"#00cc55"}}>{fmtM(totalPagos)}</div></div>
+          <div style={{background:totalPendiente>0?"#110305":"#030810",border:`1px solid ${totalPendiente>0?"#ff333333":"#192a38"}`,borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>SALDO PENDIENTE</div><div style={{fontSize:15,fontWeight:800,color:totalPendiente>0?"#ff4444":"#00cc55"}}>{fmtM(totalPendiente)}</div></div>
         </div>
-        <Card sx={{overflow:"hidden",maxHeight:320,overflowY:"auto"}}>
-          <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Factura</th><th>Modalidad</th><th>Notas</th><th></th></tr></thead>
-            <tbody>{pagos.map(pg=>(<tr key={pg.id}>
-              <td style={{fontSize:11}}>{pg.fecha}</td>
-              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
-              <td><Chip t={pg.tipo}/></td>
-              <td style={{fontSize:11,color:"#ffffff"}}>{pg.factura||"—"}</td>
-              <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:pg.es_blanco?"#021520":"#0a0800",color:pg.es_blanco?"#00d4ff":"#ff9900",border:`1px solid ${pg.es_blanco?"#00d4ff33":"#ff990033"}`}}>{pg.es_blanco?"⬜ BLANCO":"⬛ NEGRO"}</span></td>
-              <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas||"—"}</td>
-              <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={()=>delPago(pg.id)}><Ic n="del" s={10}/></Btn></td>
-            </tr>))}
-            {pagos.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
-            </tbody>
-          </table>
-        </Card>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <button onClick={()=>setTab("facturas")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="facturas"?"#ff9900":"#192a38"}`,background:tab==="facturas"?"#140800":"transparent",color:tab==="facturas"?"#ff9900":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>🧾 Facturas ({facturas.length})</button>
+          <button onClick={()=>setTab("pagos")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="pagos"?"#00cc55":"#192a38"}`,background:tab==="pagos"?"#021408":"transparent",color:tab==="pagos"?"#00cc55":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>💰 Pagos ({pagos.length})</button>
+        </div>
+
+        {tab==="facturas"&&<>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <Btn v="or" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setFactForm({fecha:todayStr(),fecha_vencimiento:"",numero:"",monto:"",es_blanco:true,concepto:"",notas:""});setFactModal(true);}}><Ic n="plus" s={12}/>Cargar Factura</Btn>
+          </div>
+          <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
+            <table><thead><tr><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+              <tbody>{facturas.map(f=>{
+                const vencida=f.fecha_vencimiento&&f.fecha_vencimiento<hoy&&!f.pagada;
+                return(<tr key={f.id} style={{background:vencida?"#110305":"transparent"}}>
+                  <td style={{fontSize:11}}>{f.fecha}</td>
+                  <td style={{fontSize:11,color:vencida?"#ff4444":"#ffffff",fontWeight:vencida?700:400}}>{f.fecha_vencimiento||"—"}{vencida&&" ⚠"}</td>
+                  <td style={{fontSize:11,fontFamily:"monospace",color:"#ffffff"}}>{f.numero||"—"}</td>
+                  <td style={{fontSize:11,color:"#ffffff"}}>{f.concepto||"—"}</td>
+                  <td style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</td>
+                  <td><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:f.es_blanco?"#021520":"#0a0800",color:f.es_blanco?"#00d4ff":"#ff9900"}}>{f.es_blanco?"⬜ B":"⬛ N"}</span></td>
+                  <td><button onClick={()=>togglePagada(f)} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",background:f.pagada?"#021408":"#110305",color:f.pagada?"#00cc55":"#ff4444"}}>{f.pagada?"✓ PAGADA":"PENDIENTE"}</button></td>
+                  <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                </tr>);
+              })}
+              {facturas.length===0&&<tr><td colSpan={8} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin facturas registradas</td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </>}
+
+        {tab==="pagos"&&<>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"efectivo",factura:"",es_blanco:true,notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+          </div>
+          <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
+            <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Ref. Factura</th><th>Modalidad</th><th>Notas</th><th></th></tr></thead>
+              <tbody>{pagos.map(pg=>(<tr key={pg.id}>
+                <td style={{fontSize:11}}>{pg.fecha}</td>
+                <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
+                <td><Chip t={pg.tipo}/></td>
+                <td style={{fontSize:11,color:"#ffffff"}}>{pg.factura||"—"}</td>
+                <td><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:pg.es_blanco?"#021520":"#0a0800",color:pg.es_blanco?"#00d4ff":"#ff9900"}}>{pg.es_blanco?"⬜ BLANCO":"⬛ NEGRO"}</span></td>
+                <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas||"—"}</td>
+                <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_prov_pagos").delete().eq("id",pg.id);loadDet(detId);notify("Pago eliminado");}}><Ic n="del" s={10}/></Btn></td>
+              </tr>))}
+              {pagos.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </>}
+      </div></Modal>}
+
+      {/* Modal nueva factura */}
+      {factModal&&factForm&&<Modal close={()=>setFactModal(false)} w={480}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Cargar Factura — {detProv?.nombre}</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div><Lbl t="Fecha factura"/><Inp type="date" value={factForm.fecha} onChange={(e)=>setFactForm(f=>({...f,fecha:e.target.value}))}/></div>
+          <div><Lbl t="Fecha vencimiento"/><Inp type="date" value={factForm.fecha_vencimiento||""} onChange={(e)=>setFactForm(f=>({...f,fecha_vencimiento:e.target.value}))}/></div>
+          <div><Lbl t="Nº Factura"/><Inp value={factForm.numero||""} onChange={(e)=>setFactForm(f=>({...f,numero:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
+          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={factForm.monto} onChange={(e)=>setFactForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Concepto / Descripción"/><Inp value={factForm.concepto||""} onChange={(e)=>setFactForm(f=>({...f,concepto:e.target.value}))} placeholder="ej: Compra alimentos perro - Marzo"/></div>
+          <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={factForm.es_blanco===true} onChange={()=>setFactForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ Factura en BLANCO</span></label>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={factForm.es_blanco===false} onChange={()=>setFactForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ En NEGRO</span></label>
+          </div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={factForm.notas||""} onChange={(e)=>setFactForm(f=>({...f,notas:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setFactModal(false)}>Cancelar</Btn><Btn v="or" onClick={saveFact} disabled={saving}>{saving?"Guardando...":"Cargar Factura"}</Btn></div>
       </div></Modal>}
 
       {/* Modal nuevo pago */}
@@ -2210,10 +2290,10 @@ function Proveedores({notify}) {
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
           <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
           <div><Lbl t="Tipo de pago"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option>efectivo</option><option>transferencia</option><option>cheque</option><option>tarjeta</option></Sel></div>
-          <div><Lbl t="Nº Factura"/><Inp value={pagoForm.factura||""} onChange={(e)=>setPagoForm(f=>({...f,factura:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
+          <div><Lbl t="Ref. Factura"/><Inp value={pagoForm.factura||""} onChange={(e)=>setPagoForm(f=>({...f,factura:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
-            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ Factura en BLANCO</span></label>
-            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ En NEGRO (sin factura)</span></label>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ BLANCO</span></label>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ NEGRO</span></label>
           </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
