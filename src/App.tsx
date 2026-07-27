@@ -2074,6 +2074,8 @@ function Proveedores({notify}) {
   const[factModal,setFactModal]=useState(false);
   const[pagoForm,setPagoForm]=useState(null);
   const[factForm,setFactForm]=useState(null);
+  const[selectedFacts,setSelectedFacts]=useState([]);
+  const[descuentoPct,setDescuentoPct]=useState("");
   const[q,setQ]=useState("");
   const[confirmDel,setConfirmDel]=useState(null);
 
@@ -2112,14 +2114,29 @@ function Proveedores({notify}) {
   const del=async(id)=>{await sb.from("gp_proveedores").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
 
   const savePago=async()=>{
-    const montoBase=parseFloat(pagoForm.monto)||0;
-    if(montoBase<=0){notify("Monto inválido","err");return;}
-    const descPct=parseFloat(pagoForm.descuento_pct)||0;
+    const montoBase=selectedFacts.reduce((a,b)=>a+Number(b.monto),0);
+    if(montoBase<=0){notify("Seleccioná al menos una factura","err");return;}
+    const descPct=parseFloat(descuentoPct)||0;
     const montoFinal=montoBase*(1-descPct/100);
+    const refs=selectedFacts.map(f=>f.numero||`#${f.id}`).join(", ");
     setSaving(true);
     try{
-      await sb.from("gp_prov_pagos").insert([{proveedor_id:detId,fecha:pagoForm.fecha,monto:montoFinal,tipo:pagoForm.tipo,factura:pagoForm.factura,es_blanco:pagoForm.es_blanco,notas:pagoForm.notas+(descPct>0?` [Descuento ${descPct}% aplicado sobre $${fmtM(montoBase)}]`:"")}]);
-      notify(`Pago registrado${descPct>0?` · Descuento ${descPct}% = ${fmtM(montoBase-montoFinal)} ahorrado`:""}`);setPagoModal(false);loadDet(detId);
+      // Registrar el pago
+      await sb.from("gp_prov_pagos").insert([{
+        proveedor_id:detId,
+        fecha:pagoForm.fecha,
+        monto:montoFinal,
+        tipo:pagoForm.tipo,
+        factura:refs,
+        es_blanco:pagoForm.es_blanco,
+        notas:(pagoForm.notas||"")+(descPct>0?` [Desc. ${descPct}% sobre ${fmtM(montoBase)}]`:"")
+      }]);
+      // Marcar facturas seleccionadas como pagadas
+      for(const f of selectedFacts){
+        await sb.from("gp_prov_facturas").update({pagada:true}).eq("id",f.id);
+      }
+      notify(`Pago registrado${descPct>0?` · Ahorro ${fmtM(montoBase-montoFinal)}`:""} · ${selectedFacts.length} factura${selectedFacts.length>1?"s":""} saldada${selectedFacts.length>1?"s":""}`);
+      setPagoModal(false);setSelectedFacts([]);setDescuentoPct("");loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -2225,22 +2242,55 @@ function Proveedores({notify}) {
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
             <Btn v="or" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setFactForm({fecha:todayStr(),fecha_vencimiento:"",numero:"",monto:"",es_blanco:true,concepto:"",notas:""});setFactModal(true);}}><Ic n="plus" s={12}/>Cargar Factura</Btn>
           </div>
+
+          {/* Panel de pago integrado cuando hay seleccionadas */}
+          {selectedFacts.length>0&&<div style={{background:"#021408",border:"2px solid #00882266",borderRadius:10,padding:"14px 16px",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginBottom:10}}>💰 Pagar {selectedFacts.length} factura{selectedFacts.length>1?"s":""} seleccionada{selectedFacts.length>1?"s":""}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:8,alignItems:"end",marginBottom:8}}>
+              <div>
+                <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL SELECCIONADO</div>
+                <div style={{fontSize:18,fontWeight:900,color:"#ff9900"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</div>
+              </div>
+              <div>
+                <Lbl t="Descuento %"/>
+                <Inp type="number" step="0.1" min="0" max="100" placeholder="0" value={descuentoPct} onChange={(e)=>setDescuentoPct(e.target.value)} sx={{fontSize:13}}/>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>MONTO FINAL A PAGAR</div>
+                <div style={{fontSize:18,fontWeight:900,color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</div>
+                {(parseFloat(descuentoPct)||0)>0&&<div style={{fontSize:9,color:"#00cc55"}}>Ahorro: {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</div>}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <Btn v="g" sx={{padding:"6px 14px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),tipo:"efectivo",es_blanco:true,notas:""});setPagoModal(true);}}>✓ Confirmar Pago</Btn>
+                <Btn v="gh" sx={{padding:"6px 10px",fontSize:10}} onClick={()=>{setSelectedFacts([]);setDescuentoPct("");}}>✕</Btn>
+              </div>
+            </div>
+            <div style={{fontSize:10,color:"#ffffff"}}>Facturas: {selectedFacts.map(f=>f.numero||`#${f.id}`).join(" · ")}</div>
+          </div>}
+
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
-            <table><thead><tr><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+            <table><thead><tr><th style={{width:32}}></th><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
               <tbody>{facturas.map(f=>{
                 const vencida=f.fecha_vencimiento&&f.fecha_vencimiento<hoy&&!f.pagada;
-                return(<tr key={f.id} style={{background:vencida?"#110305":"transparent"}}>
+                const seleccionada=selectedFacts.some(s=>s.id===f.id);
+                return(<tr key={f.id} style={{background:seleccionada?"#021408":vencida?"#110305":"transparent",cursor:f.pagada?"default":"pointer"}} onClick={()=>{
+                  if(f.pagada) return;
+                  setSelectedFacts(prev=>seleccionada?prev.filter(s=>s.id!==f.id):[...prev,f]);
+                }}>
+                  <td onClick={(e)=>e.stopPropagation()}>
+                    {!f.pagada&&<input type="checkbox" checked={seleccionada} onChange={(e)=>{e.stopPropagation();setSelectedFacts(prev=>e.target.checked?[...prev,f]:prev.filter(s=>s.id!==f.id));}} style={{accentColor:"#00cc55",cursor:"pointer"}}/>}
+                  </td>
                   <td style={{fontSize:11}}>{f.fecha}</td>
                   <td style={{fontSize:11,color:vencida?"#ff4444":"#ffffff",fontWeight:vencida?700:400}}>{f.fecha_vencimiento||"—"}{vencida&&" ⚠"}</td>
                   <td style={{fontSize:11,fontFamily:"monospace",color:"#ffffff"}}>{f.numero||"—"}</td>
                   <td style={{fontSize:11,color:"#ffffff"}}>{f.concepto||"—"}</td>
                   <td style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:f.es_blanco?"#021520":"#0a0800",color:f.es_blanco?"#00d4ff":"#ff9900"}}>{f.es_blanco?"⬜ B":"⬛ N"}</span></td>
-                  <td><button onClick={()=>togglePagada(f)} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",background:f.pagada?"#021408":"#110305",color:f.pagada?"#00cc55":"#ff4444"}}>{f.pagada?"✓ PAGADA":"PENDIENTE"}</button></td>
-                  <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                  <td><button onClick={(e)=>{e.stopPropagation();togglePagada(f);}} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",background:f.pagada?"#021408":"#110305",color:f.pagada?"#00cc55":"#ff4444"}}>{f.pagada?"✓ PAGADA":"PENDIENTE"}</button></td>
+                  <td onClick={(e)=>e.stopPropagation()}><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
                 </tr>);
               })}
-              {facturas.length===0&&<tr><td colSpan={8} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin facturas registradas</td></tr>}
+              {facturas.length===0&&<tr><td colSpan={9} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin facturas registradas</td></tr>}
               </tbody>
             </table>
           </Card>
@@ -2287,30 +2337,30 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal nuevo pago */}
-      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={460}><div style={{padding:22}}>
-        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detProv?.nombre}</h2>
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={440}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Confirmar Pago — {detProv?.nombre}</h2>
+        <div style={{background:"#040c16",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+          <div style={{fontSize:11,color:"#ffffff",marginBottom:6}}>Facturas a saldar:</div>
+          {selectedFacts.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:"1px solid #192a3820"}}><span style={{color:"#ffffff"}}>{f.numero||`Fact. #${f.id}`}{f.concepto?` · ${f.concepto}`:""}</span><span style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,marginTop:4,borderTop:"1px solid #192a38"}}>
+            <span style={{color:"#ffffff",fontWeight:700}}>Subtotal</span>
+            <span style={{color:"#ff9900",fontWeight:700}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</span>
+          </div>
+          {(parseFloat(descuentoPct)||0)>0&&<>
+            <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,fontSize:11}}><span style={{color:"#00cc55"}}>Descuento {descuentoPct}%</span><span style={{color:"#00cc55"}}>- {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,fontWeight:900,fontSize:15,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL A PAGAR</span><span style={{color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</span></div>
+          </>}
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
-          <div><Lbl t="Monto factura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
-          <div><Lbl t="Descuento por pago (%)"/><Inp type="number" step="0.1" min="0" max="100" placeholder="0" value={pagoForm.descuento_pct||""} onChange={(e)=>setPagoForm(f=>({...f,descuento_pct:e.target.value}))}/></div>
-          <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:2}}>
-            {(parseFloat(pagoForm.descuento_pct)||0)>0&&parseFloat(pagoForm.monto)>0
-              ?<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:6,padding:"7px 10px"}}>
-                <div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>MONTO FINAL A PAGAR</div>
-                <div style={{fontSize:16,fontWeight:900,color:"#00cc55"}}>{fmtM(parseFloat(pagoForm.monto)*(1-(parseFloat(pagoForm.descuento_pct)||0)/100))}</div>
-                <div style={{fontSize:9,color:"#00cc55",marginTop:1}}>Ahorro: {fmtM(parseFloat(pagoForm.monto)*(parseFloat(pagoForm.descuento_pct)||0)/100)}</div>
-              </div>
-              :<div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:6,padding:"7px 10px",textAlign:"center",color:"#ffffff",fontSize:11}}>Sin descuento</div>}
-          </div>
           <div><Lbl t="Tipo de pago"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option>efectivo</option><option>transferencia</option><option>cheque</option><option>tarjeta</option></Sel></div>
-          <div><Lbl t="Ref. Factura"/><Inp value={pagoForm.factura||""} onChange={(e)=>setPagoForm(f=>({...f,factura:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ BLANCO</span></label>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ NEGRO</span></label>
           </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"✓ Registrar Pago"}</Btn></div>
       </div></Modal>}
 
       {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar proveedor?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
