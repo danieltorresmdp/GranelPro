@@ -2112,11 +2112,14 @@ function Proveedores({notify}) {
   const del=async(id)=>{await sb.from("gp_proveedores").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
 
   const savePago=async()=>{
-    if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
+    const montoBase=parseFloat(pagoForm.monto)||0;
+    if(montoBase<=0){notify("Monto inválido","err");return;}
+    const descPct=parseFloat(pagoForm.descuento_pct)||0;
+    const montoFinal=montoBase*(1-descPct/100);
     setSaving(true);
     try{
-      await sb.from("gp_prov_pagos").insert([{proveedor_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,factura:pagoForm.factura,es_blanco:pagoForm.es_blanco,notas:pagoForm.notas}]);
-      notify("Pago registrado");setPagoModal(false);loadDet(detId);
+      await sb.from("gp_prov_pagos").insert([{proveedor_id:detId,fecha:pagoForm.fecha,monto:montoFinal,tipo:pagoForm.tipo,factura:pagoForm.factura,es_blanco:pagoForm.es_blanco,notas:pagoForm.notas+(descPct>0?` [Descuento ${descPct}% aplicado sobre $${fmtM(montoBase)}]`:"")}]);
+      notify(`Pago registrado${descPct>0?` · Descuento ${descPct}% = ${fmtM(montoBase-montoFinal)} ahorrado`:""}`);setPagoModal(false);loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -2245,7 +2248,7 @@ function Proveedores({notify}) {
 
         {tab==="pagos"&&<>
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"efectivo",factura:"",es_blanco:true,notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",descuento_pct:"",tipo:"efectivo",factura:"",es_blanco:true,notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
           </div>
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
             <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Ref. Factura</th><th>Modalidad</th><th>Notas</th><th></th></tr></thead>
@@ -2284,11 +2287,21 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal nuevo pago */}
-      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={460}><div style={{padding:22}}>
         <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detProv?.nombre}</h2>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
-          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div><Lbl t="Monto factura ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div><Lbl t="Descuento por pago (%)"/><Inp type="number" step="0.1" min="0" max="100" placeholder="0" value={pagoForm.descuento_pct||""} onChange={(e)=>setPagoForm(f=>({...f,descuento_pct:e.target.value}))}/></div>
+          <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:2}}>
+            {(parseFloat(pagoForm.descuento_pct)||0)>0&&parseFloat(pagoForm.monto)>0
+              ?<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:6,padding:"7px 10px"}}>
+                <div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>MONTO FINAL A PAGAR</div>
+                <div style={{fontSize:16,fontWeight:900,color:"#00cc55"}}>{fmtM(parseFloat(pagoForm.monto)*(1-(parseFloat(pagoForm.descuento_pct)||0)/100))}</div>
+                <div style={{fontSize:9,color:"#00cc55",marginTop:1}}>Ahorro: {fmtM(parseFloat(pagoForm.monto)*(parseFloat(pagoForm.descuento_pct)||0)/100)}</div>
+              </div>
+              :<div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:6,padding:"7px 10px",textAlign:"center",color:"#ffffff",fontSize:11}}>Sin descuento</div>}
+          </div>
           <div><Lbl t="Tipo de pago"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option>efectivo</option><option>transferencia</option><option>cheque</option><option>tarjeta</option></Sel></div>
           <div><Lbl t="Ref. Factura"/><Inp value={pagoForm.factura||""} onChange={(e)=>setPagoForm(f=>({...f,factura:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
