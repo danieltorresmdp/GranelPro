@@ -310,6 +310,8 @@ const[view,setView]=useState("dash");
       {v:"traslados",  icon:"trend",label:"Traslados"},
       {v:"rentab",     icon:"cash", label:"Rentabilidad"},
       {v:"proveedores",icon:"usr",  label:"Proveedores"},
+      {v:"rpt_prov",   icon:"rpt",  label:"Reporte Prov."},
+      {v:"gastos",     icon:"cash", label:"Gastos"},
       {v:"empleados",  icon:"users",label:"Empleados"},
       {v:"localmgt",  icon:"loc",  label:"Locales"},
       {v:"reporte",   icon:"rpt",  label:"Reportes"},
@@ -419,8 +421,10 @@ const[view,setView]=useState("dash");
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
             {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll}/>}
             {isAdmin&&view==="rentab"    &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
-            {isAdmin&&view==="proveedores"&&<Proveedores notify={notify}/>}
-            {isAdmin&&view==="empleados" &&<Empleados notify={notify}/>}
+            {isAdmin&&view==="proveedores" &&<Proveedores notify={notify}/>}
+            {isAdmin&&view==="rpt_prov"    &&<ReporteProveedores sales={sales}/>}
+            {isAdmin&&view==="gastos"      &&<Gastos notify={notify}/>}
+            {isAdmin&&view==="empleados"   &&<Empleados notify={notify}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -2076,6 +2080,7 @@ function Proveedores({notify}) {
   const[factForm,setFactForm]=useState(null);
   const[selectedFacts,setSelectedFacts]=useState([]);
   const[descuentoPct,setDescuentoPct]=useState("");
+  const[tipoPagoPanel,setTipoPagoPanel]=useState("efectivo");
   const[q,setQ]=useState("");
   const[confirmDel,setConfirmDel]=useState(null);
 
@@ -2126,7 +2131,7 @@ function Proveedores({notify}) {
         proveedor_id:detId,
         fecha:pagoForm.fecha,
         monto:montoFinal,
-        tipo:pagoForm.tipo,
+        tipo:tipoPagoPanel,
         factura:refs,
         es_blanco:pagoForm.es_blanco,
         notas:(pagoForm.notas||"")+(descPct>0?` [Desc. ${descPct}% sobre ${fmtM(montoBase)}]`:"")
@@ -2136,7 +2141,7 @@ function Proveedores({notify}) {
         await sb.from("gp_prov_facturas").update({pagada:true}).eq("id",f.id);
       }
       notify(`Pago registrado${descPct>0?` · Ahorro ${fmtM(montoBase-montoFinal)}`:""} · ${selectedFacts.length} factura${selectedFacts.length>1?"s":""} saldada${selectedFacts.length>1?"s":""}`);
-      setPagoModal(false);setSelectedFacts([]);setDescuentoPct("");loadDet(detId);
+      setPagoModal(false);setSelectedFacts([]);setDescuentoPct("");setTipoPagoPanel("efectivo");loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -2246,10 +2251,10 @@ function Proveedores({notify}) {
           {/* Panel de pago integrado cuando hay seleccionadas */}
           {selectedFacts.length>0&&<div style={{background:"#021408",border:"2px solid #00882266",borderRadius:10,padding:"14px 16px",marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginBottom:10}}>💰 Pagar {selectedFacts.length} factura{selectedFacts.length>1?"s":""} seleccionada{selectedFacts.length>1?"s":""}</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:8,alignItems:"end",marginBottom:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,alignItems:"end",marginBottom:8}}>
               <div>
                 <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL SELECCIONADO</div>
-                <div style={{fontSize:18,fontWeight:900,color:"#ff9900"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</div>
+                <div style={{fontSize:16,fontWeight:900,color:"#ff9900"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</div>
               </div>
               <div>
                 <Lbl t="Descuento %"/>
@@ -2257,15 +2262,24 @@ function Proveedores({notify}) {
               </div>
               <div>
                 <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>MONTO FINAL A PAGAR</div>
-                <div style={{fontSize:18,fontWeight:900,color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</div>
+                <div style={{fontSize:16,fontWeight:900,color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</div>
                 {(parseFloat(descuentoPct)||0)>0&&<div style={{fontSize:9,color:"#00cc55"}}>Ahorro: {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</div>}
               </div>
-              <div style={{display:"flex",gap:6}}>
-                <Btn v="g" sx={{padding:"6px 14px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),tipo:"efectivo",es_blanco:true,notas:""});setPagoModal(true);}}>✓ Confirmar Pago</Btn>
-                <Btn v="gh" sx={{padding:"6px 10px",fontSize:10}} onClick={()=>{setSelectedFacts([]);setDescuentoPct("");}}>✕</Btn>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <Btn v="g" sx={{justifyContent:"center",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),tipo:tipoPagoPanel,es_blanco:true,notas:""});setPagoModal(true);}}>✓ Confirmar Pago</Btn>
+                <Btn v="gh" sx={{justifyContent:"center",fontSize:10}} onClick={()=>{setSelectedFacts([]);setDescuentoPct("");}}>✕ Cancelar</Btn>
               </div>
             </div>
-            <div style={{fontSize:10,color:"#ffffff"}}>Facturas: {selectedFacts.map(f=>f.numero||`#${f.id}`).join(" · ")}</div>
+            <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontSize:9,color:"#ffffff",letterSpacing:1,textTransform:"uppercase"}}>Forma de pago:</span>
+              {["efectivo","transferencia"].map(t=>(
+                <label key={t} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+                  <input type="radio" checked={tipoPagoPanel===t} onChange={()=>setTipoPagoPanel(t)} style={{accentColor:"#00cc55"}}/>
+                  <span style={{fontSize:11,color:tipoPagoPanel===t?"#00cc55":"#ffffff",fontWeight:tipoPagoPanel===t?700:400,textTransform:"capitalize"}}>{t}</span>
+                </label>
+              ))}
+              <span style={{fontSize:10,color:"#ffffff",marginLeft:"auto"}}>Facturas: {selectedFacts.map(f=>f.numero||`#${f.id}`).join(" · ")}</span>
+            </div>
           </div>}
 
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
@@ -2287,7 +2301,7 @@ function Proveedores({notify}) {
                   <td style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:f.es_blanco?"#021520":"#0a0800",color:f.es_blanco?"#00d4ff":"#ff9900"}}>{f.es_blanco?"⬜ B":"⬛ N"}</span></td>
                   <td><button onClick={(e)=>{e.stopPropagation();togglePagada(f);}} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",background:f.pagada?"#021408":"#110305",color:f.pagada?"#00cc55":"#ff4444"}}>{f.pagada?"✓ PAGADA":"PENDIENTE"}</button></td>
-                  <td onClick={(e)=>e.stopPropagation()}><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                  <td onClick={(e)=>e.stopPropagation()}><Btn v="r" sx={{padding:"4px 10px",fontSize:10,fontWeight:700}} onClick={async()=>{if(window.confirm(`¿Eliminar factura ${f.numero||"#"+f.id} por ${fmtM(f.monto)}? Esta acción no se puede deshacer.`)){await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}}><Ic n="del" s={12}/>Elim.</Btn></td>
                 </tr>);
               })}
               {facturas.length===0&&<tr><td colSpan={9} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin facturas registradas</td></tr>}
@@ -2353,7 +2367,7 @@ function Proveedores({notify}) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
-          <div><Lbl t="Tipo de pago"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option>efectivo</option><option>transferencia</option><option>cheque</option><option>tarjeta</option></Sel></div>
+          <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:7,padding:"10px 12px"}}><div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>FORMA DE PAGO</div><div style={{fontSize:14,fontWeight:700,color:"#00cc55",textTransform:"capitalize"}}>💳 {tipoPagoPanel}</div></div>
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ BLANCO</span></label>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ NEGRO</span></label>
@@ -2581,6 +2595,217 @@ function Empleados({notify}) {
       </div></Modal>}
 
       {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar empleado?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
+    </div>
+  );
+}
+
+
+// ─── GASTOS GENERALES ──────────────────────────────────────────────────────
+
+const CATEGORIAS_GASTO=["Alquiler","Servicios","Impuestos","Sueldos","Publicidad","Mantenimiento","Transporte","Otros"];
+const CAT_COLORS_G={"Alquiler":"#ff6666","Servicios":"#ff9900","Impuestos":"#ff4444","Sueldos":"#cc44ff","Publicidad":"#3388ff","Mantenimiento":"#ffaa00","Transporte":"#00d4ff","Otros":"#8ab4c8"};
+
+function Gastos({notify}) {
+  const[gastos,setGastos]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(false);
+  const[form,setForm]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const[mesF,setMesF]=useState(new Date().toISOString().slice(0,7));
+  const[confirmDel,setConfirmDel]=useState(null);
+  const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await sb.from("gp_gastos").select("*").gte("fecha",`${mesF}-01`).lte("fecha",`${mesF}-31`).order("fecha",{ascending:false});
+    setGastos(data||[]);setLoading(false);
+  };
+  useEffect(()=>{load();},[mesF]);
+  const openNew=()=>{setForm({fecha:todayStr(),categoria:"Alquiler",descripcion:"",monto:"",tipo_pago:"efectivo",notas:""});setModal(true);};
+  const save=async()=>{
+    if(!form.monto||parseFloat(form.monto)<=0){notify("Monto inválido","err");return;}
+    if(!form.descripcion.trim()){notify("Descripción requerida","err");return;}
+    setSaving(true);
+    try{
+      if(form.id) await sb.from("gp_gastos").update({fecha:form.fecha,categoria:form.categoria,descripcion:form.descripcion,monto:parseFloat(form.monto),tipo_pago:form.tipo_pago,notas:form.notas}).eq("id",form.id);
+      else await sb.from("gp_gastos").insert([{fecha:form.fecha,categoria:form.categoria,descripcion:form.descripcion,monto:parseFloat(form.monto),tipo_pago:form.tipo_pago,notas:form.notas}]);
+      notify(form.id?"Gasto actualizado":"Gasto registrado");setModal(false);load();
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+  const del=async(id)=>{await sb.from("gp_gastos").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
+  const totalMes=gastos.reduce((a,b)=>a+Number(b.monto),0);
+  const porCat=CATEGORIAS_GASTO.map(c=>({cat:c,total:gastos.filter(g=>g.categoria===c).reduce((a,b)=>a+Number(b.monto),0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+  return(
+    <div className="fade">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Gastos Generales</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>EGRESOS · ALQUILERES · SERVICIOS · IMPUESTOS</p></div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Inp type="month" value={mesF} onChange={(e)=>setMesF(e.target.value)} sx={{width:160}}/>
+          <Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Gasto</Btn>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:6}}>TOTAL EGRESOS · {fmtMonth(mesF)}</div>
+          <div style={{fontSize:28,fontWeight:900,color:"#ff4444"}}>{fmtM(totalMes)}</div>
+          <div style={{fontSize:10,color:"#ffffff",marginTop:4}}>{gastos.length} gastos registrados</div>
+        </Card>
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:8}}>POR CATEGORÍA</div>
+          {porCat.slice(0,6).map(c=>(
+            <div key={c.cat} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <span style={{fontSize:11,color:CAT_COLORS_G[c.cat]||"#ffffff"}}>{c.cat}</span>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:60,height:4,background:"#192a38",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:CAT_COLORS_G[c.cat]||"#ffffff",width:`${totalMes>0?c.total/totalMes*100:0}%`,borderRadius:2}}/></div>
+                <span style={{fontSize:11,fontWeight:700,color:CAT_COLORS_G[c.cat]||"#ffffff",minWidth:90,textAlign:"right"}}>{fmtM(c.total)}</span>
+              </div>
+            </div>
+          ))}
+          {porCat.length===0&&<div style={{fontSize:11,color:"#ffffff"}}>Sin gastos este mes</div>}
+        </Card>
+      </div>
+      {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
+      {!loading&&<Card sx={{overflow:"hidden"}}>
+        <table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Pago</th><th>Notas</th><th></th></tr></thead>
+          <tbody>{gastos.map(g=>(
+            <tr key={g.id}>
+              <td style={{fontSize:11}}>{g.fecha}</td>
+              <td><span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"#0b1825",color:CAT_COLORS_G[g.categoria]||"#ffffff",border:`1px solid ${CAT_COLORS_G[g.categoria]||"#ffffff"}33`}}>{g.categoria}</span></td>
+              <td style={{fontWeight:600,color:"#ffffff"}}>{g.descripcion}</td>
+              <td style={{color:"#ff6666",fontWeight:700,fontSize:13}}>{fmtM(g.monto)}</td>
+              <td style={{fontSize:11,color:g.tipo_pago==="efectivo"?"#00cc55":"#3388ff"}}>{g.tipo_pago==="efectivo"?"💵":"🏦"} {g.tipo_pago}</td>
+              <td style={{fontSize:10,color:"#ffffff"}}>{g.notas||"—"}</td>
+              <td><div style={{display:"flex",gap:4}}>
+                <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setForm({...g,monto:String(g.monto)});setModal(true);}}><Ic n="edit" s={11}/></Btn>
+                <Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(g)}><Ic n="del" s={11}/></Btn>
+              </div></td>
+            </tr>
+          ))}
+          {gastos.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin gastos registrados en {fmtMonth(mesF)}</td></tr>}
+          </tbody>
+        </table>
+      </Card>}
+      {modal&&form&&<Modal close={()=>setModal(false)} w={480}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Gasto</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div><Lbl t="Fecha"/><Inp type="date" value={form.fecha} onChange={(e)=>setForm(f=>({...f,fecha:e.target.value}))}/></div>
+          <div><Lbl t="Categoría"/><Sel value={form.categoria} onChange={(e)=>setForm(f=>({...f,categoria:e.target.value}))}>{CATEGORIAS_GASTO.map(c=><option key={c}>{c}</option>)}</Sel></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Descripción"/><Inp value={form.descripcion} onChange={(e)=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="ej: Alquiler Cataluña Julio"/></div>
+          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={form.monto} onChange={(e)=>setForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div><Lbl t="Forma de pago"/>
+            <div style={{display:"flex",gap:16,marginTop:8}}>
+              {["efectivo","transferencia"].map(t=>(
+                <label key={t} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+                  <input type="radio" checked={form.tipo_pago===t} onChange={()=>setForm(f=>({...f,tipo_pago:t}))} style={{accentColor:"#00cc55"}}/>
+                  <span style={{fontSize:12,color:form.tipo_pago===t?"#00cc55":"#ffffff",fontWeight:form.tipo_pago===t?700:400}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={form.notas||""} onChange={(e)=>setForm(f=>({...f,notas:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="r" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar Gasto"}</Btn></div>
+      </div></Modal>}
+      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
+        <h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar gasto?</h2>
+        <p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>{confirmDel.descripcion}</p>
+        <p style={{color:"#ff6666",fontSize:14,fontWeight:700,marginBottom:20}}>{fmtM(confirmDel.monto)}</p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div>
+      </div></Modal>}
+    </div>
+  );
+}
+
+// ─── REPORTE PROVEEDORES ───────────────────────────────────────────────────
+
+function ReporteProveedores({sales}) {
+  const[mes,setMes]=useState(new Date().toISOString().slice(0,7));
+  const[pagos,setPagos]=useState([]);
+  const[gastos,setGastos]=useState([]);
+  const[pagoEmp,setPagoEmp]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const names=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return`${names[parseInt(m)-1]} ${y}`;};
+  useEffect(()=>{
+    const load=async()=>{
+      setLoading(true);
+      const desde=`${mes}-01`;const hasta=`${mes}-31`;
+      const[pg,gs,pe]=await Promise.all([
+        sb.from("gp_prov_pagos").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta).order("fecha",{ascending:false}),
+        sb.from("gp_gastos").select("*").gte("fecha",desde).lte("fecha",hasta),
+        sb.from("gp_emp_pagos").select("*,gp_empleados(nombre)").gte("fecha",desde).lte("fecha",hasta),
+      ]);
+      setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setLoading(false);
+    };
+    load();
+  },[mes]);
+
+  const ventasMes=sales.filter(s=>s.date&&s.date.slice(0,7)===mes);
+  const totalVentas=ventasMes.reduce((a,b)=>a+b.total,0);
+  const ventasEf=ventasMes.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0);
+  const ventasDig=ventasMes.filter(s=>s.pay==="tarjeta"||s.pay==="QR"||s.pay?.includes("+")).reduce((a,b)=>a+b.total,0);
+  const totalProv=pagos.reduce((a,b)=>a+Number(b.monto),0);
+  const totalEmp=pagoEmp.reduce((a,b)=>a+Number(b.monto),0);
+  const totalGastos=gastos.reduce((a,b)=>a+Number(b.monto),0);
+  const totalSalidas=totalProv+totalEmp+totalGastos;
+  const neto=totalVentas-totalSalidas;
+  const provEf=pagos.filter(p=>p.tipo==="efectivo").reduce((a,b)=>a+Number(b.monto),0);
+  const provTr=pagos.filter(p=>p.tipo==="transferencia").reduce((a,b)=>a+Number(b.monto),0);
+  const gastosPorCat={};
+  gastos.forEach(g=>{gastosPorCat[g.categoria]=(gastosPorCat[g.categoria]||0)+Number(g.monto);});
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reporte Mensual · Entradas vs Salidas</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>RESULTADO REAL DEL MES · VENTAS − TODOS LOS GASTOS</p>
+      </div>
+      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16}}>
+        <Inp type="month" value={mes} onChange={(e)=>setMes(e.target.value)} sx={{width:180}}/>
+        <span style={{fontSize:13,fontWeight:700,color:"#00d4ff"}}>{fmtMonth(mes)}</span>
+        {loading&&<span style={{fontSize:11,color:"#ffffff"}}>Cargando...</span>}
+      </div>
+      {/* Resultado grande */}
+      <Card sx={{padding:20,marginBottom:14,background:neto>=0?"#021408":"#110305",border:`2px solid ${neto>=0?"#00882244":"#ff333344"}`}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"center"}}>
+          <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:6}}>TOTAL ENTRADAS</div><div style={{fontSize:24,fontWeight:900,color:"#00cc55"}}>{fmtM(totalVentas)}</div><div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{ventasMes.length} ventas</div></div>
+          <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:6}}>TOTAL SALIDAS</div><div style={{fontSize:24,fontWeight:900,color:"#ff4444"}}>{fmtM(totalSalidas)}</div><div style={{fontSize:10,color:"#ffffff",marginTop:2}}>prov + emp + gastos</div></div>
+          <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:6}}>RESULTADO NETO</div><div style={{fontSize:28,fontWeight:900,color:neto>=0?"#00cc55":"#ff4444"}}>{fmtM(neto)}</div><div style={{fontSize:11,color:neto>=0?"#00cc55":"#ff4444",marginTop:2,fontWeight:700}}>{neto>=0?"✓ POSITIVO":"⚠ NEGATIVO"}</div></div>
+        </div>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#00cc55",marginBottom:12}}>📈 ENTRADAS — {fmtMonth(mes)}</div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>💵 Efectivo</span><span style={{color:"#00cc55",fontWeight:700}}>{fmtM(ventasEf)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>🏦 Digital (QR / Tarjeta)</span><span style={{color:"#3388ff",fontWeight:700}}>{fmtM(ventasDig)}</span></div>
+          {totalVentas-ventasEf-ventasDig>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>Mixtos</span><span style={{color:"#ffffff",fontWeight:700}}>{fmtM(totalVentas-ventasEf-ventasDig)}</span></div>}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalVentas)}</span></div>
+        </Card>
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#ff4444",marginBottom:12}}>📉 SALIDAS — {fmtMonth(mes)}</div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>🏢 Proveedores ({pagos.length})</span><span style={{color:"#ff6666",fontWeight:700}}>{fmtM(totalProv)}</span></div>
+          {provEf>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0 3px 12px"}}><span style={{color:"#ffffff"}}>└ 💵 Efectivo</span><span style={{color:"#ff9900"}}>{fmtM(provEf)}</span></div>}
+          {provTr>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0 3px 12px",borderBottom:"1px solid #192a3820"}}><span style={{color:"#ffffff"}}>└ 🏦 Transferencia</span><span style={{color:"#ff9900"}}>{fmtM(provTr)}</span></div>}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>👥 Empleados ({pagoEmp.length})</span><span style={{color:"#ff6666",fontWeight:700}}>{fmtM(totalEmp)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>📋 Gastos generales ({gastos.length})</span><span style={{color:"#ff6666",fontWeight:700}}>{fmtM(totalGastos)}</span></div>
+          {Object.entries(gastosPorCat).sort((a,b)=>b[1]-a[1]).map(([cat,monto])=>(
+            <div key={cat} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"2px 0 2px 12px"}}><span style={{color:"#ffffff"}}>└ {cat}</span><span style={{color:"#ff9900"}}>{fmtM(monto)}</span></div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#ff4444"}}>{fmtM(totalSalidas)}</span></div>
+        </Card>
+      </div>
+      {pagos.length>0&&<Card sx={{overflow:"hidden",marginBottom:14}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Pagos a Proveedores · {fmtMonth(mes)}</span></div>
+        <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Monto</th><th>Tipo</th><th>Factura</th></tr></thead>
+          <tbody>{pagos.map((p,i)=>(<tr key={i}><td style={{fontSize:11}}>{p.fecha}</td><td style={{fontWeight:700,color:"#ffffff"}}>{p.gp_proveedores?.nombre||"—"}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(p.monto)}</td><td style={{fontSize:11,color:p.tipo==="efectivo"?"#00cc55":"#3388ff"}}>{p.tipo==="efectivo"?"💵":"🏦"} {p.tipo}</td><td style={{fontSize:10,color:"#ffffff"}}>{p.factura||"—"}</td></tr>))}</tbody>
+        </table>
+      </Card>}
+      {gastos.length>0&&<Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Gastos Generales · {fmtMonth(mes)}</span></div>
+        <table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Pago</th></tr></thead>
+          <tbody>{gastos.map((g,i)=>(<tr key={i}><td style={{fontSize:11}}>{g.fecha}</td><td style={{fontSize:10,color:"#ff9900",fontWeight:700}}>{g.categoria}</td><td style={{color:"#ffffff"}}>{g.descripcion}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(g.monto)}</td><td style={{fontSize:11,color:g.tipo_pago==="efectivo"?"#00cc55":"#3388ff"}}>{g.tipo_pago==="efectivo"?"💵":"🏦"} {g.tipo_pago}</td></tr>))}</tbody>
+        </table>
+      </Card>}
     </div>
   );
 }
