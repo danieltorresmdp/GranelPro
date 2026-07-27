@@ -307,8 +307,10 @@ const[view,setView]=useState("dash");
     ...(isAdmin?[
       {v:"prods",     icon:"box",  label:"Productos"},
       {v:"stockmgt",  icon:"stk",  label:"Stock x Local"},
-      {v:"traslados", icon:"trend",label:"Traslados"},
-      {v:"rentab",    icon:"cash", label:"Rentabilidad"},
+      {v:"traslados",  icon:"trend",label:"Traslados"},
+      {v:"rentab",     icon:"cash", label:"Rentabilidad"},
+      {v:"proveedores",icon:"usr",  label:"Proveedores"},
+      {v:"empleados",  icon:"users",label:"Empleados"},
       {v:"localmgt",  icon:"loc",  label:"Locales"},
       {v:"reporte",   icon:"rpt",  label:"Reportes"},
       {v:"usermgt",   icon:"shld", label:"Usuarios"},
@@ -415,8 +417,10 @@ const[view,setView]=useState("dash");
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
-            {isAdmin&&view==="traslados"&&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll}/>}
-            {isAdmin&&view==="rentab"   &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
+            {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll}/>}
+            {isAdmin&&view==="rentab"    &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
+            {isAdmin&&view==="proveedores"&&<Proveedores notify={notify}/>}
+            {isAdmin&&view==="empleados" &&<Empleados notify={notify}/>}
             {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
@@ -2050,6 +2054,390 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
           <strong style={{color:"#00d4ff"}}>Próximo paso:</strong> Cargá el precio de costo en cada producto (Productos → Editar → campo "Costo"). Con más costos cargados, el diagnóstico va a ser más preciso.
         </div>}
       </Card>
+    </div>
+  );
+}
+
+// ─── PROVEEDORES ───────────────────────────────────────────────────────────
+
+function Proveedores({notify}) {
+  const[provs,setProvs]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(false);
+  const[form,setForm]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const[detId,setDetId]=useState(null);
+  const[pagos,setPagos]=useState([]);
+  const[pagoModal,setPagoModal]=useState(false);
+  const[pagoForm,setPagoForm]=useState(null);
+  const[q,setQ]=useState("");
+  const[confirmDel,setConfirmDel]=useState(null);
+
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await sb.from("gp_proveedores").select("*").order("nombre");
+    setProvs(data||[]);
+    setLoading(false);
+  };
+
+  const loadPagos=async(pid)=>{
+    const{data}=await sb.from("gp_prov_pagos").select("*").eq("proveedor_id",pid).order("fecha",{ascending:false});
+    setPagos(data||[]);
+  };
+
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setForm({nombre:"",cuit:"",telefono:"",vendedor:"",email:"",direccion:"",condiciones:"",descuentos:"",dias_plazo:0,notas:"",activo:true});setModal(true);};
+  const openEdit=(p)=>{setForm({...p});setModal(true);};
+
+  const save=async()=>{
+    if(!form.nombre.trim()){notify("Nombre requerido","err");return;}
+    setSaving(true);
+    try{
+      if(form.id) await sb.from("gp_proveedores").update({nombre:form.nombre,cuit:form.cuit,telefono:form.telefono,vendedor:form.vendedor,email:form.email,direccion:form.direccion,condiciones:form.condiciones,descuentos:form.descuentos,dias_plazo:parseInt(form.dias_plazo)||0,notas:form.notas,activo:form.activo}).eq("id",form.id);
+      else await sb.from("gp_proveedores").insert([{nombre:form.nombre,cuit:form.cuit,telefono:form.telefono,vendedor:form.vendedor,email:form.email,direccion:form.direccion,condiciones:form.condiciones,descuentos:form.descuentos,dias_plazo:parseInt(form.dias_plazo)||0,notas:form.notas,activo:form.activo!==false}]);
+      notify(form.id?"Proveedor actualizado":"Proveedor creado");setModal(false);load();
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const del=async(id)=>{await sb.from("gp_proveedores").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
+
+  const openPago=()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"efectivo",factura:"",es_blanco:true,notas:""});setPagoModal(true);};
+
+  const savePago=async()=>{
+    if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
+    setSaving(true);
+    try{
+      await sb.from("gp_prov_pagos").insert([{proveedor_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,factura:pagoForm.factura,es_blanco:pagoForm.es_blanco,notas:pagoForm.notas}]);
+      notify("Pago registrado");setPagoModal(false);loadPagos(detId);
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const delPago=async(id)=>{await sb.from("gp_prov_pagos").delete().eq("id",id);notify("Pago eliminado");loadPagos(detId);};
+
+  const vis=provs.filter(p=>p.nombre.toLowerCase().includes(q.toLowerCase())||(p.vendedor&&p.vendedor.toLowerCase().includes(q.toLowerCase())));
+  const detProv=provs.find(p=>p.id===detId);
+  const totalPagos=pagos.reduce((a,b)=>a+Number(b.monto),0);
+
+  return(
+    <div className="fade">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Proveedores</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{provs.length} REGISTROS</p></div>
+        <Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn>
+      </div>
+      <div style={{position:"relative",marginBottom:12}}><Inp placeholder="Buscar por nombre o vendedor..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={13}/></span></div>
+
+      {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
+      {!loading&&<Card sx={{overflow:"hidden"}}>
+        <table>
+          <thead><tr><th>Proveedor</th><th>CUIT</th><th>Teléfono</th><th>Vendedor</th><th>Plazo</th><th>Estado</th><th></th></tr></thead>
+          <tbody>{vis.map(p=>(<tr key={p.id}>
+            <td style={{fontWeight:700,color:"#ffffff"}}>{p.nombre}</td>
+            <td style={{color:"#ffffff",fontSize:11,fontFamily:"monospace"}}>{p.cuit||"—"}</td>
+            <td style={{color:"#ffffff"}}>{p.telefono||"—"}</td>
+            <td style={{color:"#ffffff"}}>{p.vendedor||"—"}</td>
+            <td style={{color:"#00d4ff",fontWeight:700}}>{p.dias_plazo?`${p.dias_plazo}d`:"—"}</td>
+            <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:p.activo?"#021408":"#130900",color:p.activo?"#00cc55":"#ff9900",border:`1px solid ${p.activo?"#00882233":"#ff990033"}`}}>{p.activo?"ACTIVO":"INACTIVO"}</span></td>
+            <td><div style={{display:"flex",gap:4}}>
+              <Btn v="cy" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setDetId(p.id);loadPagos(p.id);}}><Ic n="cash" s={11}/></Btn>
+              <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn>
+              <Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn>
+            </div></td>
+          </tr>))}
+          {vis.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin proveedores</td></tr>}
+          </tbody>
+        </table>
+      </Card>}
+
+      {/* Modal nuevo/editar proveedor */}
+      {modal&&form&&<Modal close={()=>setModal(false)} w={600}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Proveedor</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Nombre del proveedor"/><Inp value={form.nombre} onChange={(e)=>setForm(f=>({...f,nombre:e.target.value}))}/></div>
+          <div><Lbl t="CUIT"/><Inp value={form.cuit||""} onChange={(e)=>setForm(f=>({...f,cuit:e.target.value}))}/></div>
+          <div><Lbl t="Teléfono"/><Inp value={form.telefono||""} onChange={(e)=>setForm(f=>({...f,telefono:e.target.value}))}/></div>
+          <div><Lbl t="Vendedor"/><Inp value={form.vendedor||""} onChange={(e)=>setForm(f=>({...f,vendedor:e.target.value}))}/></div>
+          <div><Lbl t="Email"/><Inp value={form.email||""} onChange={(e)=>setForm(f=>({...f,email:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Dirección"/><Inp value={form.direccion||""} onChange={(e)=>setForm(f=>({...f,direccion:e.target.value}))}/></div>
+          <div><Lbl t="Días plazo de pago"/><Inp type="number" value={form.dias_plazo||0} onChange={(e)=>setForm(f=>({...f,dias_plazo:e.target.value}))}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:20}}><input type="checkbox" checked={form.activo!==false} onChange={(e)=>setForm(f=>({...f,activo:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#ffffff"}}>Activo</span></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Condiciones de venta (ej: 10+1, bonificaciones)"/><textarea value={form.condiciones||""} onChange={(e)=>setForm(f=>({...f,condiciones:e.target.value}))} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Descuentos extra"/><Inp value={form.descuentos||""} onChange={(e)=>setForm(f=>({...f,descuentos:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas / Comentarios"/><textarea value={form.notas||""} onChange={(e)=>setForm(f=>({...f,notas:e.target.value}))} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div>
+      </div></Modal>}
+
+      {/* Modal cuenta corriente */}
+      {detId&&detProv&&<Modal close={()=>setDetId(null)} w={620}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <h2 style={{margin:0,fontSize:16,fontWeight:800}}>{detProv.nombre}</h2>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>{detProv.telefono&&`📞 ${detProv.telefono}`}{detProv.vendedor&&` · Vendedor: ${detProv.vendedor}`}{detProv.dias_plazo?` · Plazo: ${detProv.dias_plazo}d`:""}</div>
+          </div>
+          <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDetId(null)}><Ic n="x" s={13}/></Btn>
+        </div>
+        {detProv.condiciones&&<div style={{background:"#021520",border:"1px solid #00d4ff33",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#00d4ff"}}>📋 {detProv.condiciones}</div>}
+        {detProv.descuentos&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#00cc55"}}>🎯 {detProv.descuentos}</div>}
+        {detProv.notas&&<div style={{background:"#0a0808",border:"1px solid #ff990033",borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#ff9900"}}>💬 {detProv.notas}</div>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#ffffff"}}>Cuenta Corriente · Total pagado: <span style={{color:"#00cc55"}}>{fmtM(totalPagos)}</span></div>
+          <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={openPago}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+        </div>
+        <Card sx={{overflow:"hidden",maxHeight:320,overflowY:"auto"}}>
+          <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Factura</th><th>Modalidad</th><th>Notas</th><th></th></tr></thead>
+            <tbody>{pagos.map(pg=>(<tr key={pg.id}>
+              <td style={{fontSize:11}}>{pg.fecha}</td>
+              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
+              <td><Chip t={pg.tipo}/></td>
+              <td style={{fontSize:11,color:"#ffffff"}}>{pg.factura||"—"}</td>
+              <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:pg.es_blanco?"#021520":"#0a0800",color:pg.es_blanco?"#00d4ff":"#ff9900",border:`1px solid ${pg.es_blanco?"#00d4ff33":"#ff990033"}`}}>{pg.es_blanco?"⬜ BLANCO":"⬛ NEGRO"}</span></td>
+              <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas||"—"}</td>
+              <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={()=>delPago(pg.id)}><Ic n="del" s={10}/></Btn></td>
+            </tr>))}
+            {pagos.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      </div></Modal>}
+
+      {/* Modal nuevo pago */}
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detProv?.nombre}</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
+          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div><Lbl t="Tipo de pago"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option>efectivo</option><option>transferencia</option><option>cheque</option><option>tarjeta</option></Sel></div>
+          <div><Lbl t="Nº Factura"/><Inp value={pagoForm.factura||""} onChange={(e)=>setPagoForm(f=>({...f,factura:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
+          <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ Factura en BLANCO</span></label>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ En NEGRO (sin factura)</span></label>
+          </div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
+      </div></Modal>}
+
+      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar proveedor?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
+    </div>
+  );
+}
+
+// ─── EMPLEADOS ─────────────────────────────────────────────────────────────
+
+function Empleados({notify}) {
+  const[emps,setEmps]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(false);
+  const[form,setForm]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const[detId,setDetId]=useState(null);
+  const[pagos,setPagos]=useState([]);
+  const[vacs,setVacs]=useState([]);
+  const[pagoModal,setPagoModal]=useState(false);
+  const[vacModal,setVacModal]=useState(false);
+  const[pagoForm,setPagoForm]=useState(null);
+  const[vacForm,setVacForm]=useState(null);
+  const[tab,setTab]=useState("pagos");
+  const[confirmDel,setConfirmDel]=useState(null);
+
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await sb.from("gp_empleados").select("*").order("nombre");
+    setEmps(data||[]);
+    setLoading(false);
+  };
+
+  const loadDet=async(id)=>{
+    const[pg,vc]=await Promise.all([
+      sb.from("gp_emp_pagos").select("*").eq("empleado_id",id).order("fecha",{ascending:false}),
+      sb.from("gp_emp_vacaciones").select("*").eq("empleado_id",id).order("fecha_desde",{ascending:false}),
+    ]);
+    setPagos(pg.data||[]);
+    setVacs(vc.data||[]);
+  };
+
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setForm({nombre:"",dni:"",direccion:"",celular:"",fecha_ingreso:todayStr(),cargo:"",sueldo_base:0,activo:true,notas:""});setModal(true);};
+  const openEdit=(e)=>{setForm({...e});setModal(true);};
+
+  const save=async()=>{
+    if(!form.nombre.trim()){notify("Nombre requerido","err");return;}
+    setSaving(true);
+    try{
+      if(form.id) await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:parseFloat(form.sueldo_base)||0,activo:form.activo,notas:form.notas}).eq("id",form.id);
+      else await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:parseFloat(form.sueldo_base)||0,activo:form.activo!==false,notas:form.notas}]);
+      notify(form.id?"Empleado actualizado":"Empleado creado");setModal(false);load();
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const del=async(id)=>{await sb.from("gp_empleados").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
+
+  const savePago=async()=>{
+    if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
+    setSaving(true);
+    try{
+      await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,notas:pagoForm.notas}]);
+      notify("Pago registrado");setPagoModal(false);loadDet(detId);
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const saveVac=async()=>{
+    if(!vacForm.fecha_desde||!vacForm.fecha_hasta){notify("Fechas requeridas","err");return;}
+    setSaving(true);
+    try{
+      const dias=Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1;
+      await sb.from("gp_emp_vacaciones").insert([{empleado_id:detId,fecha_desde:vacForm.fecha_desde,fecha_hasta:vacForm.fecha_hasta,dias,notas:vacForm.notas}]);
+      notify("Vacaciones registradas");setVacModal(false);loadDet(detId);
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const detEmp=emps.find(e=>e.id===detId);
+  const totalPagos=pagos.reduce((a,b)=>a+Number(b.monto),0);
+  const totalVacDias=vacs.reduce((a,b)=>a+Number(b.dias||0),0);
+  const diasDesdeIngreso=detEmp?.fecha_ingreso?Math.round((new Date()-new Date(detEmp.fecha_ingreso))/(1000*60*60*24)):0;
+
+  return(
+    <div className="fade">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Empleados</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{emps.length} REGISTROS</p></div>
+        <Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn>
+      </div>
+
+      {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
+      {!loading&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+        {emps.map(e=>{
+          const dias=e.fecha_ingreso?Math.round((new Date()-new Date(e.fecha_ingreso))/(1000*60*60*24)):0;
+          const anios=Math.floor(dias/365);
+          const meses=Math.floor((dias%365)/30);
+          return(<Card key={e.id} sx={{padding:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{e.nombre}</div>
+                <div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{e.cargo||"Sin cargo"}</div>
+                <div style={{fontSize:9,color:"#00d4ff",marginTop:2}}>Ingresó: {e.fecha_ingreso} · {anios>0?`${anios}a `:""}{meses>0?`${meses}m`:""} de antigüedad</div>
+              </div>
+              <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:e.activo?"#021408":"#130900",color:e.activo?"#00cc55":"#ff9900",border:`1px solid ${e.activo?"#00882233":"#ff990033"}`}}>{e.activo?"ACTIVO":"INACTIVO"}</span>
+            </div>
+            <div style={{fontSize:11,color:"#ffffff",marginBottom:8}}>
+              {e.dni&&<div>DNI: {e.dni}</div>}
+              {e.celular&&<div>📱 {e.celular}</div>}
+              {e.sueldo_base>0&&<div style={{color:"#00cc55",fontWeight:700}}>Sueldo base: {fmtM(e.sueldo_base)}</div>}
+            </div>
+            <div style={{display:"flex",gap:5}}>
+              <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px"}} onClick={()=>{setDetId(e.id);setTab("pagos");loadDet(e.id);}}><Ic n="cash" s={11}/>Cuenta</Btn>
+              <Btn v="gh" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>openEdit(e)}><Ic n="edit" s={11}/></Btn>
+              <Btn v="r" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>setConfirmDel(e)}><Ic n="del" s={11}/></Btn>
+            </div>
+          </Card>);
+        })}
+        {emps.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay empleados. Creá el primero.</div>}
+      </div>}
+
+      {/* Modal nuevo/editar empleado */}
+      {modal&&form&&<Modal close={()=>setModal(false)} w={580}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Empleado</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Nombre completo"/><Inp value={form.nombre} onChange={(e)=>setForm(f=>({...f,nombre:e.target.value}))}/></div>
+          <div><Lbl t="DNI"/><Inp value={form.dni||""} onChange={(e)=>setForm(f=>({...f,dni:e.target.value}))}/></div>
+          <div><Lbl t="Celular"/><Inp value={form.celular||""} onChange={(e)=>setForm(f=>({...f,celular:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Dirección"/><Inp value={form.direccion||""} onChange={(e)=>setForm(f=>({...f,direccion:e.target.value}))}/></div>
+          <div><Lbl t="Cargo"/><Inp value={form.cargo||""} onChange={(e)=>setForm(f=>({...f,cargo:e.target.value}))} placeholder="ej: Vendedor, Encargado..."/></div>
+          <div><Lbl t="Fecha de ingreso"/><Inp type="date" value={form.fecha_ingreso||""} onChange={(e)=>setForm(f=>({...f,fecha_ingreso:e.target.value}))}/></div>
+          <div><Lbl t="Sueldo base ($)"/><Inp type="number" step=".01" value={form.sueldo_base||0} onChange={(e)=>setForm(f=>({...f,sueldo_base:e.target.value}))}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:20}}><input type="checkbox" checked={form.activo!==false} onChange={(e)=>setForm(f=>({...f,activo:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#ffffff"}}>Activo</span></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><textarea value={form.notas||""} onChange={(e)=>setForm(f=>({...f,notas:e.target.value}))} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div>
+      </div></Modal>}
+
+      {/* Modal cuenta empleado */}
+      {detId&&detEmp&&<Modal close={()=>setDetId(null)} w={640}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <h2 style={{margin:0,fontSize:16,fontWeight:800}}>{detEmp.nombre}</h2>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>{detEmp.cargo} · {detEmp.celular&&`📱 ${detEmp.celular}`} · Antigüedad: {Math.floor(diasDesdeIngreso/365)}a {Math.floor((diasDesdeIngreso%365)/30)}m</div>
+          </div>
+          <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDetId(null)}><Ic n="x" s={13}/></Btn>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+          <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>SUELDO BASE</div><div style={{fontSize:16,fontWeight:800,color:"#00cc55"}}>{fmtM(detEmp.sueldo_base||0)}</div></div>
+          <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>TOTAL PAGADO</div><div style={{fontSize:16,fontWeight:800,color:"#00cc55"}}>{fmtM(totalPagos)}</div></div>
+          <div style={{background:"#021520",border:"1px solid #00d4ff33",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>DÍAS VACACIONES</div><div style={{fontSize:16,fontWeight:800,color:"#00d4ff"}}>{totalVacDias}d</div></div>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <button onClick={()=>setTab("pagos")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="pagos"?"#00cc55":"#192a38"}`,background:tab==="pagos"?"#021408":"transparent",color:tab==="pagos"?"#00cc55":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>💰 Pagos ({pagos.length})</button>
+          <button onClick={()=>setTab("vacaciones")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="vacaciones"?"#00d4ff":"#192a38"}`,background:tab==="vacaciones"?"#021520":"transparent",color:tab==="vacaciones"?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>🏖️ Vacaciones ({vacs.length})</button>
+        </div>
+        {tab==="pagos"&&<>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+          </div>
+          <Card sx={{overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
+            <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
+              <tbody>{pagos.map(pg=>(<tr key={pg.id}>
+                <td style={{fontSize:11}}>{pg.fecha}</td>
+                <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
+                <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:pg.tipo==="sueldo"?"#021408":pg.tipo==="premio"?"#140800":"#030810",color:pg.tipo==="sueldo"?"#00cc55":pg.tipo==="premio"?"#ff9900":"#3388ff",border:"1px solid #19293820"}}>{pg.tipo==="sueldo"?"💼 Sueldo":pg.tipo==="premio"?"🏆 Premio":"💸 "+pg.tipo}</span></td>
+                <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas||"—"}</td>
+                <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",pg.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+              </tr>))}
+              {pagos.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </>}
+        {tab==="vacaciones"&&<>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <Btn v="cy" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setVacForm({fecha_desde:todayStr(),fecha_hasta:todayStr(),notas:""});setVacModal(true);}}><Ic n="plus" s={12}/>Registrar Vacaciones</Btn>
+          </div>
+          <Card sx={{overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
+            <table><thead><tr><th>Desde</th><th>Hasta</th><th>Días</th><th>Notas</th><th></th></tr></thead>
+              <tbody>{vacs.map(v=>(<tr key={v.id}>
+                <td style={{fontSize:11}}>{v.fecha_desde}</td>
+                <td style={{fontSize:11}}>{v.fecha_hasta}</td>
+                <td style={{color:"#00d4ff",fontWeight:700}}>{v.dias}d</td>
+                <td style={{fontSize:10,color:"#ffffff"}}>{v.notas||"—"}</td>
+                <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_vacaciones").delete().eq("id",v.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+              </tr>))}
+              {vacs.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin vacaciones registradas</td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </>}
+      </div></Modal>}
+
+      {/* Modal pago empleado */}
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={400}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detEmp?.nombre}</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
+          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option value="sueldo">💼 Sueldo</option><option value="premio">🏆 Premio / Extra</option><option value="adelanto">💸 Adelanto</option><option value="otro">Otro</option></Sel></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
+      </div></Modal>}
+
+      {/* Modal vacaciones */}
+      {vacModal&&vacForm&&<Modal close={()=>setVacModal(false)} w={400}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Vacaciones — {detEmp?.nombre}</h2>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+          <div><Lbl t="Desde"/><Inp type="date" value={vacForm.fecha_desde} onChange={(e)=>setVacForm(f=>({...f,fecha_desde:e.target.value}))}/></div>
+          <div><Lbl t="Hasta"/><Inp type="date" value={vacForm.fecha_hasta} onChange={(e)=>setVacForm(f=>({...f,fecha_hasta:e.target.value}))}/></div>
+          {vacForm.fecha_desde&&vacForm.fecha_hasta&&<div style={{gridColumn:"1/-1",background:"#021520",border:"1px solid #00d4ff33",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#00d4ff"}}>{Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1} días de vacaciones</div>}
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={vacForm.notas||""} onChange={(e)=>setVacForm(f=>({...f,notas:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setVacModal(false)}>Cancelar</Btn><Btn v="cy" onClick={saveVac} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
+      </div></Modal>}
+
+      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar empleado?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
     </div>
   );
 }
