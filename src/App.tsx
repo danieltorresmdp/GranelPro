@@ -1113,11 +1113,6 @@ useEffect(()=>{fetchAll();},[]);
 
   useEffect(()=>{setVals({});setQ("");setCatF("Todas");},[localF]);
 
-  const getStk=(pid)=>{
-    const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);
-    return r?r.stk:0;
-  };
-
   const saveStk=async(prod)=>{
     const inputVal=vals[prod.id];
     const hasStk=inputVal!==undefined;
