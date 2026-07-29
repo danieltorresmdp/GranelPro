@@ -128,7 +128,7 @@ const Stat = ({label,value,sub,color="#00d4ff",icon}) => (
 
 const mapUser   = (r) => r?({id:r.id,name:r.name,username:r.username,password:r.password,role:r.role,local:r.local||"",active:r.active}):null;
 const mapProd   = (r) => r?({id:r.id,code:r.code||"",name:r.name,cat:r.cat,unit:r.unit,pricePerKg:Number(r.price_per_kg)||0,bulkWeight:Number(r.bulk_weight)||0,bulkPrice:Number(r.bulk_price)||0,unitPrice:Number(r.unit_price)||0,costo:Number(r.costo)||0,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,active:r.active}):null;
-const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0}):null;
+const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,max:Number(r.max_stk)||0}):null;
 const mapClient = (r) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
 const mapSale   = (r) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
 const mapCaja   = (r) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,retiro_efectivo:Number(r.retiro_efectivo)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
@@ -1079,8 +1079,11 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
   const[localF,setLocalF]=useState("");
   const[saving,setSaving]=useState(null);
   const[vals,setVals]=useState({});
+  const[minVals,setMinVals]=useState({});
+  const[maxVals,setMaxVals]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
+  const[soloMinimos,setSoloMinimos]=useState(false);
   const[loading,setLoading]=useState(true);
   const[histProd,setHistProd]=useState(null);
   const[histData,setHistData]=useState([]);
@@ -1117,51 +1120,98 @@ useEffect(()=>{fetchAll();},[]);
 
   const saveStk=async(prod)=>{
     const inputVal=vals[prod.id];
-    if(inputVal===undefined){notify("No hay cambios para guardar","err");return;}
-    const newStk=parseFloat(inputVal);
-    if(isNaN(newStk)||newStk<0){notify("Valor inválido","err");return;}
+    const hasStk=inputVal!==undefined;
+    const hasMin=minVals[prod.id]!==undefined;
+    const hasMax=maxVals[prod.id]!==undefined;
+    if(!hasStk&&!hasMin&&!hasMax){notify("No hay cambios para guardar","err");return;}
     setSaving(prod.id);
     try{
-      // Leer stock real desde Supabase en este momento (puede haber cambiado por ventas)
-      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id,stk").eq("product_id",prod.id).eq("local_name",localF);
+      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id,stk,min_stk,max_stk").eq("product_id",prod.id).eq("local_name",localF);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
-      // Si el stock real es negativo, descontar lo ya vendido del ingreso
-      const finalStk=realStk<0?newStk+realStk:newStk;
+      const newStk=hasStk?parseFloat(inputVal):realStk;
+      if(hasStk&&isNaN(newStk)){notify("Valor inválido","err");setSaving(null);return;}
+      const finalStk=hasStk?(realStk<0?newStk+realStk:newStk):realStk;
+      const newMin=hasMin?parseFloat(minVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].min_stk)||0:0);
+      const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].max_stk)||0:0);
+      const updatePayload={min_stk:newMin,max_stk:newMax,...(hasStk?{stk:finalStk}:{})};
       if(rows&&rows.length>0){
-        const res=await sb.from("gp_stock").update({stk:finalStk}).eq("id",rows[0].id);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        await sb.from("gp_stock").update(updatePayload).eq("id",rows[0].id);
       }else{
-        const res=await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk}]);
-        if(res.error){notify("Error: "+res.error.message,"err");setSaving(null);return;}
+        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk,min_stk:newMin,max_stk:newMax}]);
       }
-      // Registrar movimiento de ingreso
-      await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
+      if(hasStk){
+        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
+      }
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
-        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk}:s);
-        return[...prev,{productId:prod.id,localName:localF,stk:finalStk,min:0}];
+        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk,min:newMin,max:newMax}:s);
+        return[...prev,{productId:prod.id,localName:localF,stk:finalStk,min:newMin,max:newMax}];
       });
-      const msg=realStk<0
-        ?`✓ ${prod.name} → ${fmtW(finalStk)} (descontados ${fmtW(Math.abs(realStk))} vendidos)`
-        :`✓ ${prod.name} → ${prod.unit==="kg"?fmtW(finalStk):`${finalStk} u`}`;
-      notify(msg);
+      notify(`✓ ${prod.name} guardado`);
       setVals(v=>({...v,[prod.id]:undefined}));
+      setMinVals(v=>({...v,[prod.id]:undefined}));
+      setMaxVals(v=>({...v,[prod.id]:undefined}));
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
 
+  const getStk=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.stk:0;};
+  const getMin=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.min:0;};
+  const getMax=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.max:0;};
+
   const filtered=prods.filter((p)=>{
     const matchQ=p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
     const matchCat=catF==="Todas"||p.cat===catF;
-    return matchQ&&matchCat;
+    const matchMin=!soloMinimos||(getMin(p.id)>0&&getStk(p.id)<=getMin(p.id));
+    return matchQ&&matchCat&&matchMin;
   });
+
+  const bajosMinimo=prods.filter(p=>getMin(p.id)>0&&getStk(p.id)<=getMin(p.id));
+
+  const exportPedidoPDF=()=>{
+    const fecha=new Date().toLocaleDateString("es-AR");
+    const lista=soloMinimos?filtered:bajosMinimo;
+    if(lista.length===0){notify("No hay productos bajo el mínimo para exportar","err");return;}
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido — ${localF}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:20px;color:#000;font-size:12px}
+      h1{font-size:18px;margin-bottom:4px;text-align:center}
+      .sub{text-align:center;font-size:10px;color:#555;margin-bottom:20px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1a1a2e;color:#fff;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px}
+      td{padding:7px 10px;border-bottom:1px solid #eee;font-size:11px}
+      tr:nth-child(even) td{background:#fafafa}
+      .bajo{color:#cc0000;font-weight:700}
+      .apedir{color:#006600;font-weight:900}
+      .checkbox{width:18px;height:18px;border:2px solid #000;display:inline-block;border-radius:2px}
+      .footer{margin-top:30px;font-size:9px;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:8px}
+      .no-print{text-align:center;margin-bottom:15px}
+      @media print{.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print"><button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir / PDF</button><button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button></div>
+    <h1>🐾 Masc🐾tas Pet Shop</h1>
+    <div class="sub">Lista de Pedido · 📍 ${localF} · ${fecha} · ${lista.length} productos bajo mínimo</div>
+    <table><thead><tr><th>✓</th><th>Cód.</th><th>Producto</th><th>Cat.</th><th>Stock</th><th>Mínimo</th><th>Máximo</th><th>A pedir</th></tr></thead><tbody>
+    ${lista.map(p=>{
+      const stk=getStk(p.id);const min=getMin(p.id);const max=getMax(p.id);
+      const aPedir=max>0?Math.max(0,max-stk):Math.max(0,min*2-stk);
+      const fQ=(n)=>p.unit==="kg"?fmtW(n):`${Math.round(n)} u`;
+      return`<tr><td><div class="checkbox"></div></td><td style="font-family:monospace;font-size:10px">${p.code||"—"}</td><td><strong>${p.name}</strong></td><td>${p.cat}</td><td class="bajo">${fQ(stk)}</td><td>${fQ(min)}</td><td>${max>0?fQ(max):"—"}</td><td class="apedir">${fQ(aPedir)}</td></tr>`;
+    }).join("")}
+    </tbody></table>
+    <div class="footer">Masc🐾tas Pet Shop · Generado el ${fecha} · Lista de pedido para ${localF}</div>
+    </body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();}
+    else notify("Permitir ventanas emergentes para exportar","err");
+  };
 
   return(
     <div className="fade">
       <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
-        <Btn v="gh" onClick={fetchAll} disabled={loading}><Ic n="spin" s={13} style={loading?{animation:"spin 1s linear infinite"}:{}}/>Actualizar</Btn>
+        <Btn v="gh" onClick={fetchAll} disabled={loading}><Ic n="spin" s={13}/>Actualizar</Btn>
       </div>
 
       {/* Paso 1: Selección de local */}
@@ -1225,34 +1275,62 @@ useEffect(()=>{fetchAll();},[]);
         </div>
 
         <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
-            <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
+              <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                {bajosMinimo.length>0&&<Btn v="cy" sx={{padding:"4px 10px",fontSize:9}} onClick={exportPedidoPDF}><Ic n="prt" s={11}/>PDF Pedido ({bajosMinimo.length})</Btn>}
+                <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+              <Sel value={catF} onChange={(e)=>setCatF(e.target.value)} sx={{width:120,fontSize:10,padding:"4px 8px"}}>
+                <option value="Todas">Todas las cats.</option>
+                {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+              </Sel>
+              <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",background:soloMinimos?"#110305":"transparent",border:`1px solid ${soloMinimos?"#ff444466":"#192a38"}`,borderRadius:6,padding:"4px 10px"}}>
+                <input type="checkbox" checked={soloMinimos} onChange={(e)=>setSoloMinimos(e.target.checked)} style={{accentColor:"#ff4444"}}/>
+                <span style={{fontSize:10,color:soloMinimos?"#ff4444":"#ffffff",fontWeight:soloMinimos?700:400}}>⚠ Solo bajo mínimo</span>
+              </label>
+            </div>
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
           <table>
-            <thead><tr><th>Producto</th><th>Cat.</th><th>Tipo</th><th>Stock Actual</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
+            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
+              const min=getMin(p.id);
+              const max=getMax(p.id);
               const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
               const edited=vals[p.id]!==undefined;
               const inputVal=edited?parseFloat(vals[p.id])||0:0;
               const preview=stk<0&&edited?inputVal+stk:null;
+              const bajMin=min>0&&stk<=min;
               return(
-                <tr key={p.id}>
-                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}</td>
+                <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
+                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍNIMO</span>}</td>
                   <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
-                  <td><Chip t={p.unit==="kg"?"granel":"unidad"}/></td>
-                  <td><span style={{fontWeight:800,color:stk<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
+                  <td><span style={{fontWeight:800,color:bajMin?"#ff4444":stk<0?"#ff6666":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}</span></td>
                   <td>
-                    <input
-                      type="number"
-                      step={p.unit==="kg"?".5":"1"}
+                    <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
+                      placeholder={min>0?(p.unit==="kg"?String(min):`${min}`):"mín"}
+                      value={minVals[p.id]!==undefined?minVals[p.id]:""}
+                      onChange={(e)=>setMinVals(v=>({...v,[p.id]:e.target.value}))}
+                      style={{width:64,fontSize:11,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                  </td>
+                  <td>
+                    <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
+                      placeholder={max>0?(p.unit==="kg"?String(max):`${max}`):"máx"}
+                      value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
+                      onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
+                      style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                  </td>
+                  <td>
+                    <input type="number" step={p.unit==="kg"?".5":"1"}
                       value={edited?vals[p.id]:0}
                       onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                       onFocus={(e)=>e.target.select()}
-                      style={{width:100,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}
-                    />
+                      style={{width:90,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
                   </td>
                   <td>
                     {preview!==null
@@ -2218,7 +2296,7 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal cuenta corriente */}
-      {detId&&detProv&&<Modal close={()=>setDetId(null)} w={700}><div style={{padding:22}}>
+      {detId&&detProv&&<Modal close={()=>{setDetId(null);setSelectedFacts([]);setDescuentoPct("");}} w={960}><div style={{padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div>
             <h2 style={{margin:0,fontSize:16,fontWeight:800}}>{detProv.nombre}</h2>
@@ -2283,7 +2361,7 @@ function Proveedores({notify}) {
           </div>}
 
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
-            <table><thead><tr><th style={{width:32}}></th><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+            <table><thead><tr><th style={{width:32}}></th><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th style={{minWidth:80}}>Eliminar</th></tr></thead>
               <tbody>{facturas.map(f=>{
                 const vencida=f.fecha_vencimiento&&f.fecha_vencimiento<hoy&&!f.pagada;
                 const seleccionada=selectedFacts.some(s=>s.id===f.id);
