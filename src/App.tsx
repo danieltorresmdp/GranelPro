@@ -1129,9 +1129,10 @@ useEffect(()=>{fetchAll();},[]);
       const{data:rows,error:findErr}=await sb.from("gp_stock").select("id,stk,min_stk,max_stk").eq("product_id",prod.id).eq("local_name",localF);
       if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
       const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
-      const newStk=hasStk?parseFloat(inputVal):realStk;
+      const newStk=hasStk?parseFloat(inputVal):0;
       if(hasStk&&isNaN(newStk)){notify("Valor inválido","err");setSaving(null);return;}
-      const finalStk=hasStk?(realStk<0?newStk+realStk:newStk):realStk;
+      // Ingreso SIEMPRE suma al stock actual
+      const finalStk=hasStk?realStk+newStk:realStk;
       const newMin=hasMin?parseFloat(minVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].min_stk)||0:0);
       const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].max_stk)||0:0);
       const updatePayload={min_stk:newMin,max_stk:newMax,...(hasStk?{stk:finalStk}:{})};
@@ -1169,11 +1170,14 @@ useEffect(()=>{fetchAll();},[]);
 
   const bajosMinimo=prods.filter(p=>getMin(p.id)>0&&getStk(p.id)<=getMin(p.id));
 
-  const exportPedidoPDF=()=>{
+  const exportPedidoPDF=(catPDF="Todas")=>{
     const fecha=new Date().toLocaleDateString("es-AR");
-    const lista=soloMinimos?filtered:bajosMinimo;
-    if(lista.length===0){notify("No hay productos bajo el mínimo para exportar","err");return;}
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido — ${localF}</title>
+    const lista=prods.filter(p=>{
+      const matchCat=catPDF==="Todas"||p.cat===catPDF;
+      return matchCat&&getMin(p.id)>0&&getStk(p.id)<=getMin(p.id);
+    });
+    if(lista.length===0){notify(`No hay productos bajo mínimo${catPDF!=="Todas"?` en ${catPDF}`:""}`,"err");return;}
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido ${catPDF} — ${localF}</title>
     <style>
       body{font-family:Arial,sans-serif;padding:20px;color:#000;font-size:12px}
       h1{font-size:18px;margin-bottom:4px;text-align:center}
@@ -1183,7 +1187,7 @@ useEffect(()=>{fetchAll();},[]);
       td{padding:7px 10px;border-bottom:1px solid #eee;font-size:11px}
       tr:nth-child(even) td{background:#fafafa}
       .bajo{color:#cc0000;font-weight:700}
-      .apedir{color:#006600;font-weight:900}
+      .apedir{color:#006600;font-weight:900;font-size:13px}
       .checkbox{width:18px;height:18px;border:2px solid #000;display:inline-block;border-radius:2px}
       .footer{margin-top:30px;font-size:9px;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:8px}
       .no-print{text-align:center;margin-bottom:15px}
@@ -1191,8 +1195,8 @@ useEffect(()=>{fetchAll();},[]);
     </style></head><body>
     <div class="no-print"><button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir / PDF</button><button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button></div>
     <h1>🐾 Masc🐾tas Pet Shop</h1>
-    <div class="sub">Lista de Pedido · 📍 ${localF} · ${fecha} · ${lista.length} productos bajo mínimo</div>
-    <table><thead><tr><th>✓</th><th>Cód.</th><th>Producto</th><th>Cat.</th><th>Stock</th><th>Mínimo</th><th>Máximo</th><th>A pedir</th></tr></thead><tbody>
+    <div class="sub">Lista de Pedido · 📍 ${localF}${catPDF!=="Todas"?` · 🗂 ${catPDF}`:""} · ${fecha} · ${lista.length} productos bajo mínimo</div>
+    <table><thead><tr><th>✓</th><th>Cód.</th><th>Producto</th><th>Cat.</th><th>Stock actual</th><th>Mínimo</th><th>Máximo</th><th>A pedir</th></tr></thead><tbody>
     ${lista.map(p=>{
       const stk=getStk(p.id);const min=getMin(p.id);const max=getMax(p.id);
       const aPedir=max>0?Math.max(0,max-stk):Math.max(0,min*2-stk);
@@ -1200,7 +1204,7 @@ useEffect(()=>{fetchAll();},[]);
       return`<tr><td><div class="checkbox"></div></td><td style="font-family:monospace;font-size:10px">${p.code||"—"}</td><td><strong>${p.name}</strong></td><td>${p.cat}</td><td class="bajo">${fQ(stk)}</td><td>${fQ(min)}</td><td>${max>0?fQ(max):"—"}</td><td class="apedir">${fQ(aPedir)}</td></tr>`;
     }).join("")}
     </tbody></table>
-    <div class="footer">Masc🐾tas Pet Shop · Generado el ${fecha} · Lista de pedido para ${localF}</div>
+    <div class="footer">Masc🐾tas Pet Shop · Generado el ${fecha} · Pedido para ${localF}${catPDF!=="Todas"?` · ${catPDF}`:""}</div>
     </body></html>`;
     const win=window.open("","_blank");
     if(win){win.document.write(html);win.document.close();}
@@ -1278,8 +1282,15 @@ useEffect(()=>{fetchAll();},[]);
           <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
-              <div style={{display:"flex",gap:7,alignItems:"center"}}>
-                {bajosMinimo.length>0&&<Btn v="cy" sx={{padding:"4px 10px",fontSize:9}} onClick={exportPedidoPDF}><Ic n="prt" s={11}/>PDF Pedido ({bajosMinimo.length})</Btn>}
+              <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
+                {bajosMinimo.length>0&&<>
+                  <span style={{fontSize:9,color:"#ff4444",fontWeight:700,letterSpacing:1}}>📄 PDF PEDIDO:</span>
+                  <Btn v="cy" sx={{padding:"4px 9px",fontSize:9}} onClick={()=>exportPedidoPDF("Todas")}>Todos ({bajosMinimo.length})</Btn>
+                  {CATEGORIES.map(cat=>{
+                    const n=bajosMinimo.filter(p=>p.cat===cat).length;
+                    return n>0?<Btn key={cat} v="gh" sx={{padding:"4px 9px",fontSize:9,border:"1px solid #00d4ff44",color:"#00d4ff"}} onClick={()=>exportPedidoPDF(cat)}>{cat} ({n})</Btn>:null;
+                  })}
+                </>}
                 <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
               </div>
             </div>
@@ -1296,15 +1307,15 @@ useEffect(()=>{fetchAll();},[]);
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
           <table>
-            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th>Ingreso</th><th>Quedará</th><th></th></tr></thead>
+            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th style={{color:"#ffcc00"}}>+ Ingreso (suma)</th><th>→ Nuevo Total</th><th></th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
               const min=getMin(p.id);
               const max=getMax(p.id);
               const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-              const edited=vals[p.id]!==undefined;
+              const edited=vals[p.id]!==undefined&&vals[p.id]!=="";
               const inputVal=edited?parseFloat(vals[p.id])||0:0;
-              const preview=stk<0&&edited?inputVal+stk:null;
+              const preview=edited?stk+inputVal:null;
               const bajMin=min>0&&stk<=min;
               return(
                 <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
