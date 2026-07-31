@@ -419,7 +419,7 @@ const[view,setView]=useState("dash");
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
-            {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll}/>}
+            {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll} stockMgt={stockMgt}/>}
             {isAdmin&&view==="rentab"    &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
             {isAdmin&&view==="proveedores" &&<Proveedores notify={notify}/>}
             {isAdmin&&view==="rpt_prov"    &&<ReporteProveedores sales={sales}/>}
@@ -2677,33 +2677,36 @@ function ReporteProveedores({sales}) {
 
 // ─── TRASLADOS ─────────────────────────────────────────────────────────────
 
-function Traslados({prods,localeNames,notify,session,loadAll}) {
+
+// ─── TRASLADOS ─────────────────────────────────────────────────────────────
+
+function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
   const[origen,setOrigen]=useState("DEPOSITO");
   const[destino,setDestino]=useState("");
-  const[items,setItems]=useState([]); // [{prodId, nombre, unit, cantidad}]
+  const[items,setItems]=useState([]);
   const[prodId,setProdId]=useState("");
   const[cantidad,setCantidad]=useState("");
   const[q,setQ]=useState("");
   const[saving,setSaving]=useState(false);
-  const[remitos,setRemitos]=useState([]); // historial agrupado por remito
+  const[remitos,setRemitos]=useState([]);
   const[loadingHist,setLoadingHist]=useState(true);
-  const[detRemito,setDetRemito]=useState(null); // remito abierto para ver detalle
+  const[detRemito,setDetRemito]=useState(null);
+  const[pedidoAuto,setPedidoAuto]=useState(false);
+  const[localAuto,setLocalAuto]=useState("");
+  const[itemsAuto,setItemsAuto]=useState([]);
+
+  const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
 
   const loadHist=async()=>{
     setLoadingHist(true);
-    const{data}=await sb.from("gp_stock_mov")
-      .select("*").eq("tipo","traslado")
-      .order("fecha",{ascending:false}).limit(500);
-    // Agrupar por remito_id (guardamos en usuario como "remito:XXXXX origen→destino")
+    const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(500);
     const grupos={};
     (data||[]).forEach(m=>{
-      // usuario format: "NOMBRE · remito:123456 · ORIGEN → DESTINO"
       const rMatch=m.usuario?.match(/remito:(\d+)/);
       const rId=rMatch?rMatch[1]:m.fecha;
       if(!grupos[rId]) grupos[rId]={id:rId,fecha:m.fecha,usuario:m.usuario,items:[],origen:"",destino:""};
       const arrow=m.usuario?.match(/·\s*(.+?)\s*→\s*(.+)$/);
       if(arrow){grupos[rId].origen=arrow[1].trim();grupos[rId].destino=arrow[2].trim();}
-      // Solo incluir movimientos de entrada (cantidad>0) para el remito del destino
       if(m.cantidad>0) grupos[rId].items.push(m);
     });
     setRemitos(Object.values(grupos).sort((a,b)=>new Date(b.fecha).getTime()-new Date(a.fecha).getTime()));
@@ -2712,7 +2715,49 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
 
   useEffect(()=>{loadHist();},[]);
 
-  const filtProds=prods.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
+  const getStk=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.stk:0;};
+  const getMin=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.min:0;};
+  const getMax=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.max:0;};
+
+  const generarPedidoAuto=()=>{
+    if(!localAuto){notify("Seleccioná un local","err");return;}
+    const sugeridos=prods
+      .filter(p=>{
+        const min=getMin(p.id,localAuto);
+        const max=getMax(p.id,localAuto);
+        const stk=getStk(p.id,localAuto);
+        return min>0&&max>0&&stk<=min; // solo los que tienen min+max Y están bajo mínimo
+      })
+      .map(p=>{
+        const stk=getStk(p.id,localAuto);
+        const max=getMax(p.id,localAuto);
+        return{
+          prodId:p.id,nombre:p.name,code:p.code,unit:p.unit,cat:p.cat,
+          cantidad:Math.max(0,max-stk),
+          stkActual:stk,min:getMin(p.id,localAuto),max,
+          incluir:true
+        };
+      })
+      .filter(p=>p.cantidad>0);
+    if(sugeridos.length===0){notify(`${localAuto} no tiene productos bajo mínimo con máximo configurado`,"err");return;}
+    setItemsAuto(sugeridos);
+    setPedidoAuto(true);
+  };
+
+  const confirmarPedidoAuto=()=>{
+    const seleccionados=itemsAuto.filter(i=>i.incluir&&i.cantidad>0);
+    if(seleccionados.length===0){notify("Seleccioná al menos un producto","err");return;}
+    setDestino(localAuto);
+    setItems(seleccionados.map(i=>({prodId:i.prodId,nombre:i.nombre,code:i.code,unit:i.unit,cat:i.cat,cantidad:i.cantidad})));
+    setPedidoAuto(false);
+    setLocalAuto("");
+    setItemsAuto([]);
+    notify(`${seleccionados.length} productos cargados — revisá y confirmá el traslado`);
+  };
+
+  const filtProds=prods.filter(p=>
+    p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()))
+  );
 
   const agregarItem=()=>{
     if(!prodId){notify("Seleccioná un producto","err");return;}
@@ -2767,14 +2812,15 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
       const prod=prods.find(p=>p.id===(it.prodId||it.product_id));
       const nom=it.nombre||prod?.name||`#${it.prodId||it.product_id}`;
       const cat=it.cat||prod?.cat||"";
+      const em=CAT_EM[cat]||"";
       const unit=it.unit||prod?.unit||"kg";
-      const qty=it.cantidad||Math.abs(it.cantidad)||0;
+      const qty=Math.abs(it.cantidad)||0;
       const qStr=unit==="kg"?fmtW(qty):`${qty} u`;
-      return`<tr><td><div class="check"></div></td><td style="font-family:monospace;font-size:10px">${it.code||prod?.code||"—"}</td><td><strong>${nom}</strong></td><td>${cat}</td><td class="cant">${qStr}</td></tr>`;
+      return`<tr><td><div class="check"></div></td><td style="font-family:monospace;font-size:10px">${it.code||prod?.code||"—"}</td><td><strong>${em} ${nom}</strong></td><td>${em} ${cat}</td><td class="cant">${qStr}</td></tr>`;
     }).join("")}
     </tbody></table>
     <div style="font-size:11px;color:#555;border:1px solid #eee;border-radius:4px;padding:10px;margin-bottom:20px">
-      ⚠ El local destino debe verificar la mercadería recibida y firmar conformidad antes de ingresar al depósito.
+      ⚠ El local destino debe verificar la mercadería recibida y firmar conformidad.
     </div>
     <div class="firma">
       <div class="firma-box">Entregó: ${org}<br><br><br><br>Firma y aclaración</div>
@@ -2795,26 +2841,22 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
     const usuario=`${session?.name||"admin"} · remito:${remitoId} · ${origen} → ${destino}`;
     try{
       for(const it of items){
-        // Leer stock origen
         const{data:sO}=await sb.from("gp_stock").select("*").eq("product_id",it.prodId).eq("local_name",origen).single();
         const stkO=sO?Number(sO.stk)||0:0;
         const nuevoO=stkO-it.cantidad;
         if(sO) await sb.from("gp_stock").update({stk:nuevoO}).eq("id",sO.id);
         else await sb.from("gp_stock").insert([{product_id:it.prodId,local_name:origen,stk:-it.cantidad}]);
-        // Leer stock destino
         const{data:sD}=await sb.from("gp_stock").select("*").eq("product_id",it.prodId).eq("local_name",destino).single();
         const stkD=sD?Number(sD.stk)||0:0;
         const nuevoD=stkD+it.cantidad;
         if(sD) await sb.from("gp_stock").update({stk:nuevoD}).eq("id",sD.id);
         else await sb.from("gp_stock").insert([{product_id:it.prodId,local_name:destino,stk:it.cantidad}]);
-        // Registrar movimientos
         await sb.from("gp_stock_mov").insert([
           {id:Date.now()+it.prodId,product_id:it.prodId,local_name:origen,tipo:"traslado",cantidad:-it.cantidad,stock_antes:stkO,stock_despues:nuevoO,usuario,fecha:now},
           {id:Date.now()+it.prodId+1,product_id:it.prodId,local_name:destino,tipo:"traslado",cantidad:it.cantidad,stock_antes:stkD,stock_despues:nuevoD,usuario,fecha:now},
         ]);
       }
-      notify(`✓ Remito #${remitoId} — ${items.length} producto${items.length>1?"s":""} trasladados de ${origen} → ${destino}`);
-      // Imprimir remito
+      notify(`✓ Remito #${remitoId} — ${items.length} producto${items.length>1?"s":""} trasladados`);
       imprimirRemito(remitoId,origen,destino,now,items);
       setItems([]);setProdId("");setCantidad("");
       loadHist();loadAll();
@@ -2829,8 +2871,23 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
         <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>MOVIMIENTO INTERNO ENTRE LOCALES · NO AFECTA VENTAS</p>
       </div>
 
+      {/* Pedido automático */}
+      <Card sx={{padding:16,marginBottom:14,background:"#021520",border:"1px solid #00d4ff33"}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{fontSize:12,fontWeight:800,color:"#00d4ff",flexShrink:0}}>⚡ Pedido Automático por Local</div>
+          <Sel value={localAuto} onChange={(e)=>setLocalAuto(e.target.value)} sx={{flex:1,minWidth:160}}>
+            <option value="">— Seleccioná local —</option>
+            {localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")).map(l=><option key={l}>{l}</option>)}
+          </Sel>
+          <Btn v="cy" sx={{padding:"8px 16px",fontSize:11,flexShrink:0}} onClick={generarPedidoAuto} disabled={!localAuto}>
+            <Ic n="trend" s={13}/>Generar pedido
+          </Btn>
+          <div style={{fontSize:10,color:"#ffffff",flexShrink:0}}>Solo productos con mín. y máx. configurados bajo mínimo actual</div>
+        </div>
+      </Card>
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        {/* Panel izquierdo — armar orden */}
+        {/* Panel izquierdo — armar orden manual */}
         <Card sx={{padding:18}}>
           <div style={{fontSize:12,fontWeight:800,color:"#ffffff",marginBottom:14}}>📦 Nueva Orden de Traslado</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
@@ -2838,11 +2895,11 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
             <div><Lbl t="Destino"/><Sel value={destino} onChange={(e)=>setDestino(e.target.value)}><option value="">— Seleccioná —</option>{localeNames.filter(l=>l!==origen).map(l=><option key={l}>{l}</option>)}</Sel></div>
           </div>
           <div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:8,padding:12,marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#00d4ff",marginBottom:8}}>Agregar producto a la orden:</div>
+            <div style={{fontSize:11,fontWeight:700,color:"#00d4ff",marginBottom:8}}>Agregar producto:</div>
             <div style={{position:"relative",marginBottom:8}}><Inp placeholder="Buscar producto..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:28}}/><span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={12}/></span></div>
             <Sel value={prodId} onChange={(e)=>setProdId(e.target.value)} sx={{marginBottom:8}}>
               <option value="">— Seleccioná producto —</option>
-              {filtProds.map(p=><option key={p.id} value={p.id}>{p.name}{p.code?` #${p.code}`:""}</option>)}
+              {filtProds.map(p=><option key={p.id} value={p.id}>{CAT_EM[p.cat]||""} {p.name}{p.code?` #${p.code}`:""}</option>)}
             </Sel>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <Inp type="number" min="0.5" step="0.5" placeholder="Cantidad..." value={cantidad} onChange={(e)=>setCantidad(e.target.value)} sx={{flex:1}} onKeyDown={(e)=>e.key==="Enter"&&agregarItem()}/>
@@ -2850,15 +2907,13 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
               <Btn v="cy" sx={{padding:"6px 14px",fontSize:10,flexShrink:0}} onClick={agregarItem}>+ Agregar</Btn>
             </div>
           </div>
-
-          {/* Lista de items agregados */}
           {items.length>0&&<>
             <div style={{fontSize:10,fontWeight:700,color:"#ffffff",marginBottom:6,letterSpacing:1}}>PRODUCTOS EN ESTA ORDEN ({items.length}):</div>
             <div style={{maxHeight:200,overflowY:"auto",marginBottom:12}}>
               {items.map((it,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"#060f1a",border:"1px solid #192a38",borderRadius:6,marginBottom:5}}>
                   <div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{it.nombre}{it.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{it.code}</span>}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{CAT_EM[it.cat]||""} {it.nombre}{it.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{it.code}</span>}</div>
                     <div style={{fontSize:9,color:"#ffffff"}}>{it.cat}</div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -2869,33 +2924,31 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
               ))}
             </div>
             {destino&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:7,padding:"10px 12px",marginBottom:12,fontSize:11}}>
-              <div style={{color:"#00cc55",fontWeight:700,marginBottom:2}}>📋 Resumen:</div>
-              <div style={{color:"#ffffff"}}>{items.length} producto{items.length>1?"s":""} · {origen} → {destino}</div>
+              <div style={{color:"#00cc55",fontWeight:700,marginBottom:2}}>📋 {origen} → {destino} · {items.length} producto{items.length>1?"s":""}</div>
             </div>}
             <Btn v="g" sx={{width:"100%",justifyContent:"center",fontSize:12}} onClick={confirmarTraslado} disabled={saving||!destino}>
               {saving?<><Ic n="spin" s={14}/>Procesando...</>:<><Ic n="prt" s={14}/>Confirmar y Generar Remito</>}
             </Btn>
           </>}
-          {items.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#ffffff",fontSize:11}}>Agregá productos para armar la orden</div>}
+          {items.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:"#ffffff",fontSize:11}}>Agregá productos manualmente o usá el pedido automático ↑</div>}
         </Card>
 
-        {/* Panel derecho — instrucciones */}
+        {/* Panel instrucciones */}
         <Card sx={{padding:18}}>
           <div style={{fontSize:12,fontWeight:700,color:"#ffffff",marginBottom:12}}>ℹ️ ¿Cómo funciona?</div>
           <div style={{fontSize:12,color:"#ffffff",lineHeight:1.8}}>
-            <div style={{marginBottom:8}}>📥 <strong>1.</strong> Seleccioná origen y destino</div>
-            <div style={{marginBottom:8}}>📦 <strong>2.</strong> Agregá todos los productos que van en este traslado</div>
-            <div style={{marginBottom:8}}>✅ <strong>3.</strong> Confirmá — el stock se actualiza automáticamente</div>
-            <div style={{marginBottom:8}}>🖨️ <strong>4.</strong> Se imprime el remito con número único</div>
-            <div style={{marginBottom:8}}>📋 <strong>5.</strong> El remito queda guardado — podés reimprimir cuando quieras</div>
+            <div style={{marginBottom:6}}>⚡ <strong>Pedido automático:</strong> elegís el local y el sistema detecta qué necesita reposición según los mínimos y máximos</div>
+            <div style={{marginBottom:6}}>📦 <strong>Manual:</strong> agregás productos uno por uno con su cantidad</div>
+            <div style={{marginBottom:6}}>✅ Confirmás → stock actualizado automáticamente</div>
+            <div style={{marginBottom:6}}>🖨️ Remito generado con número único → podés reimprimir cuando quieras</div>
           </div>
           <div style={{padding:"10px 14px",background:"#130900",border:"1px solid #ff990033",borderRadius:8,color:"#ff9900",fontSize:11,marginTop:8}}>
-            ⚠ Los traslados no afectan los reportes de ventas ni el cálculo de rentabilidad
+            ⚠ Los traslados no afectan ventas ni rentabilidad. El depósito puede quedar negativo — eso es normal.
           </div>
         </Card>
       </div>
 
-      {/* Historial de remitos */}
+      {/* Historial remitos */}
       <Card sx={{overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial de Remitos</span>
@@ -2923,7 +2976,7 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
       </Card>
 
       {/* Modal detalle remito */}
-      {detRemito&&<Modal close={()=>setDetRemito(null)} w={620}><div style={{padding:22}}>
+      {detRemito&&<Modal close={()=>setDetRemito(null)} w={640}><div style={{padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div>
             <h2 style={{margin:0,fontSize:16,fontWeight:800}}>Remito #{detRemito.id}</h2>
@@ -2939,11 +2992,12 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
           <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 14px",flex:1,textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>DESTINO</div><div style={{fontSize:15,fontWeight:800,color:"#00cc55"}}>📍 {detRemito.destino}</div></div>
         </div>
         <Card sx={{overflow:"hidden"}}>
-          <table><thead><tr><th>Producto</th><th>Cantidad trasladada</th><th>Stock antes</th><th>Stock después</th></tr></thead>
+          <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Stock antes</th><th>Stock después</th></tr></thead>
             <tbody>{detRemito.items.map((m,i)=>{
               const prod=prods.find(p=>p.id===m.product_id);
+              const em=CAT_EM[prod?.cat||""]||"";
               return(<tr key={i}>
-                <td style={{fontWeight:700,color:"#ffffff"}}>{prod?.name||`#${m.product_id}`}{prod?.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{prod.code}</span>}</td>
+                <td style={{fontWeight:700,color:"#ffffff"}}>{em} {prod?.name||`#${m.product_id}`}{prod?.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{prod.code}</span>}</td>
                 <td style={{color:"#00cc55",fontWeight:800,fontSize:13}}>{prod?.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`}</td>
                 <td style={{color:"#ffffff",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`}</td>
                 <td style={{color:"#00cc55",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`}</td>
@@ -2951,6 +3005,50 @@ function Traslados({prods,localeNames,notify,session,loadAll}) {
             })}</tbody>
           </table>
         </Card>
+      </div></Modal>}
+
+      {/* Modal pedido automático */}
+      {pedidoAuto&&<Modal close={()=>setPedidoAuto(false)} w={700}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <h2 style={{margin:0,fontSize:16,fontWeight:800}}>⚡ Pedido Automático — {localAuto}</h2>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>Depósito → {localAuto} · {itemsAuto.filter(i=>i.incluir).length} productos seleccionados</div>
+          </div>
+          <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setPedidoAuto(false)}><Ic n="x" s={13}/></Btn>
+        </div>
+        <div style={{marginBottom:12,fontSize:11,color:"#ff9900",background:"#140800",border:"1px solid #ff990033",borderRadius:7,padding:"8px 12px"}}>
+          Revisá las cantidades y tildá los productos que vas a trasladar. Podés modificar cantidades antes de confirmar.
+        </div>
+        <Card sx={{overflow:"hidden",maxHeight:400,overflowY:"auto",marginBottom:14}}>
+          <table><thead><tr>
+            <th style={{width:32}}><input type="checkbox" checked={itemsAuto.every(i=>i.incluir)} onChange={(e)=>setItemsAuto(prev=>prev.map(i=>({...i,incluir:e.target.checked})))} style={{accentColor:"#00cc55"}}/></th>
+            <th>Producto</th><th>Stock actual</th><th>Mínimo</th><th>Máximo</th><th>Cantidad a trasladar</th>
+          </tr></thead>
+            <tbody>{itemsAuto.map((it,i)=>(
+              <tr key={i} style={{background:it.incluir?"transparent":"#0a0808",opacity:it.incluir?1:0.5}}>
+                <td><input type="checkbox" checked={it.incluir} onChange={(e)=>setItemsAuto(prev=>prev.map((x,xi)=>xi===i?{...x,incluir:e.target.checked}:x))} style={{accentColor:"#00cc55"}}/></td>
+                <td style={{fontWeight:700,color:"#ffffff"}}>{CAT_EM[it.cat]||""} {it.nombre}{it.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{it.code}</span>}</td>
+                <td style={{color:"#ff4444",fontWeight:700}}>{it.unit==="kg"?fmtW(it.stkActual):`${it.stkActual} u`}</td>
+                <td style={{color:"#ffffff",fontSize:11}}>{it.unit==="kg"?fmtW(it.min):`${it.min} u`}</td>
+                <td style={{color:"#ffffff",fontSize:11}}>{it.unit==="kg"?fmtW(it.max):`${it.max} u`}</td>
+                <td>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input type="number" step={it.unit==="kg"?".5":"1"} min="0" value={it.cantidad}
+                      onChange={(e)=>setItemsAuto(prev=>prev.map((x,xi)=>xi===i?{...x,cantidad:parseFloat(e.target.value)||0}:x))}
+                      style={{width:80,fontSize:12,background:"#060f1a",border:"1px solid #00882255",color:"#00cc55",padding:"4px 8px",borderRadius:5,fontFamily:"inherit",outline:"none",fontWeight:700,textAlign:"center"}}/>
+                    <span style={{fontSize:10,color:"#ffffff"}}>{it.unit==="kg"?"kg":"u"}</span>
+                  </div>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </Card>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <Btn v="gh" onClick={()=>setPedidoAuto(false)}>Cancelar</Btn>
+          <Btn v="g" sx={{padding:"8px 20px",fontSize:12}} onClick={confirmarPedidoAuto}>
+            <Ic n="ok" s={14}/>Cargar en orden de traslado ({itemsAuto.filter(i=>i.incluir).length} productos)
+          </Btn>
+        </div>
       </div></Modal>}
     </div>
   );
