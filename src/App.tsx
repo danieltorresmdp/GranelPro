@@ -1761,225 +1761,6 @@ function AdminProfile({session,setSession,notify,loadAll}) {
   );
 }
 
-function Traslados({prods,localeNames,notify,session,loadAll}) {
-  const[prodId,setProdId]=useState("");
-  const[origen,setOrigen]=useState("DEPOSITO");
-  const[destino,setDestino]=useState("");
-  const[cantidad,setCantidad]=useState("");
-  const[saving,setSaving]=useState(false);
-  const[hist,setHist]=useState([]);
-  const[loadingHist,setLoadingHist]=useState(true);
-  const[q,setQ]=useState("");
-
-  const imprimirRemito=(prod,qty,org,dest,ts)=>{
-    const fecha=new Date(ts).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remito de Traslado</title>
-    <style>
-      body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:600px;margin:0 auto}
-      h1{font-size:20px;margin-bottom:4px;text-align:center}
-      .sub{text-align:center;font-size:11px;color:#555;margin-bottom:20px}
-      .remito-num{text-align:center;font-size:13px;font-weight:700;background:#f0f0f0;padding:6px;border-radius:4px;margin-bottom:20px}
-      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
-      .field{border:1px solid #ccc;border-radius:4px;padding:8px 12px}
-      .field label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#888;display:block;margin-bottom:2px}
-      .field span{font-size:14px;font-weight:700}
-      .producto{border:2px solid #1a1a2e;border-radius:6px;padding:12px 16px;margin-bottom:20px}
-      .producto .nombre{font-size:16px;font-weight:700;margin-bottom:4px}
-      .producto .cant{font-size:24px;font-weight:900;color:#006600}
-      .firma{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px}
-      .firma-box{border-top:1px solid #000;padding-top:6px;text-align:center;font-size:10px;color:#555}
-      .no-print{text-align:center;margin-bottom:20px}
-      @media print{.no-print{display:none}}
-    </style></head><body>
-    <div class="no-print">
-      <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir Remito</button>
-      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
-    </div>
-    <h1>🐾 Masc🐾tas Pet Shop</h1>
-    <div class="sub">Remito de Traslado Interno</div>
-    <div class="remito-num">Nº ${String(ts).slice(-8)} · ${fecha}</div>
-    <div class="grid">
-      <div class="field"><label>Origen</label><span>📦 ${org}</span></div>
-      <div class="field"><label>Destino</label><span>📍 ${dest}</span></div>
-      <div class="field"><label>Responsable</label><span>${session?.name||"Admin"}</span></div>
-      <div class="field"><label>Fecha y hora</label><span>${fecha}</span></div>
-    </div>
-    <div class="producto">
-      <div class="nombre">${prod.name}${prod.code?` — Código #${prod.code}`:""}</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px">${prod.cat} · ${prod.unit==="kg"?"Granel":"Unidad"}</div>
-      <div class="cant">${prod.unit==="kg"?fmtW(qty):`${qty} unidades`}</div>
-    </div>
-    <div style="font-size:11px;color:#555;border:1px solid #eee;border-radius:4px;padding:10px;margin-bottom:20px">
-      ⚠ Este remito es un documento interno. El local destino debe verificar la mercadería recibida y firmar conformidad.
-    </div>
-    <div class="firma">
-      <div class="firma-box">Entregó: ${org}<br><br><br>Firma y aclaración</div>
-      <div class="firma-box">Recibió: ${dest}<br><br><br>Firma y aclaración</div>
-    </div>
-    </body></html>`;
-    const win=window.open("","_blank");
-    if(win){win.document.write(html);win.document.close();}
-  };
-
-  useEffect(()=>{
-    const load=async()=>{
-      setLoadingHist(true);
-      const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(100);
-      setHist(data||[]);
-      setLoadingHist(false);
-    };
-    load();
-  },[]);
-
-  const confirmar=async()=>{
-    if(!prodId){notify("Seleccioná un producto","err");return;}
-    if(!destino){notify("Seleccioná local destino","err");return;}
-    if(origen===destino){notify("Origen y destino no pueden ser iguales","err");return;}
-    const qty=parseFloat(cantidad);
-    if(!qty||qty<=0){notify("Ingresá una cantidad válida","err");return;}
-    setSaving(true);
-    try{
-      const prod=prods.find(p=>p.id===parseInt(prodId));
-      if(!prod){notify("Producto no encontrado","err");setSaving(false);return;}
-
-      // Leer stock actual del origen
-      const{data:stkOrigen}=await sb.from("gp_stock").select("*").eq("product_id",prod.id).eq("local_name",origen).single();
-      const stkActualOrigen=stkOrigen?Number(stkOrigen.stk)||0:0;
-      const nuevoOrigen=stkActualOrigen-qty;
-
-      // Actualizar origen
-      if(stkOrigen){
-        await sb.from("gp_stock").update({stk:nuevoOrigen}).eq("id",stkOrigen.id);
-      } else {
-        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:origen,stk:-qty}]);
-      }
-
-      // Leer stock actual del destino
-      const{data:stkDestino}=await sb.from("gp_stock").select("*").eq("product_id",prod.id).eq("local_name",destino).single();
-      const stkActualDestino=stkDestino?Number(stkDestino.stk)||0:0;
-      const nuevoDestino=stkActualDestino+qty;
-
-      // Actualizar destino
-      if(stkDestino){
-        await sb.from("gp_stock").update({stk:nuevoDestino}).eq("id",stkDestino.id);
-      } else {
-        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:destino,stk:qty}]);
-      }
-
-      // Registrar movimiento como traslado (dos entradas: salida y entrada)
-      const now=new Date().toISOString();
-      const ts=Date.now();
-      await sb.from("gp_stock_mov").insert([
-        {id:ts,product_id:prod.id,local_name:origen,tipo:"traslado",cantidad:-qty,stock_antes:stkActualOrigen,stock_despues:nuevoOrigen,usuario:`${session?.name||"admin"} → ${destino}`,fecha:now},
-        {id:ts+1,product_id:prod.id,local_name:destino,tipo:"traslado",cantidad:qty,stock_antes:stkActualDestino,stock_despues:nuevoDestino,usuario:`${session?.name||"admin"} desde ${origen}`,fecha:now},
-      ]);
-
-      notify(`✓ Traslado: ${fmtW(qty)} de ${origen} → ${destino}`);
-      imprimirRemito(prod,qty,origen,destino,ts);
-      setProdId("");setCantidad("");
-      // Reload hist
-      const{data}=await sb.from("gp_stock_mov").select("*").eq("tipo","traslado").order("fecha",{ascending:false}).limit(100);
-      setHist(data||[]);
-      loadAll();
-    }catch(e){notify("Error al trasladar: "+e.message,"err");}
-    setSaving(false);
-  };
-
-  const filtProds=prods.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
-  const destOptions=localeNames.filter(l=>l!==origen);
-
-  return(
-    <div className="fade">
-      <div style={{marginBottom:16}}>
-        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Traslados de Stock</h1>
-        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>MOVIMIENTO INTERNO ENTRE LOCALES · NO AFECTA VENTAS</p>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        <Card sx={{padding:20}}>
-          <h2 style={{fontSize:14,fontWeight:800,margin:"0 0 14px"}}>Nuevo Traslado</h2>
-          <div style={{marginBottom:11}}>
-            <Lbl t="Origen"/>
-            <Sel value={origen} onChange={(e)=>setOrigen(e.target.value)}>
-              {localeNames.map(l=><option key={l}>{l}</option>)}
-            </Sel>
-          </div>
-          <div style={{marginBottom:11}}>
-            <Lbl t="Destino"/>
-            <Sel value={destino} onChange={(e)=>setDestino(e.target.value)}>
-              <option value="">— Seleccioná —</option>
-              {destOptions.map(l=><option key={l}>{l}</option>)}
-            </Sel>
-          </div>
-          <div style={{marginBottom:11}}>
-            <Lbl t="Producto"/>
-            <div style={{position:"relative",marginBottom:6}}>
-              <Inp placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:28}}/>
-              <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={12}/></span>
-            </div>
-            <Sel value={prodId} onChange={(e)=>setProdId(e.target.value)}>
-              <option value="">— Seleccioná producto —</option>
-              {filtProds.map(p=><option key={p.id} value={p.id}>{p.name}{p.code?` #${p.code}`:""}</option>)}
-            </Sel>
-          </div>
-          <div style={{marginBottom:14}}>
-            <Lbl t="Cantidad"/>
-            <div style={{display:"flex",gap:7,alignItems:"center"}}>
-              <Inp type="number" min="0" step="0.5" placeholder="ej: 25" value={cantidad} onChange={(e)=>setCantidad(e.target.value)} sx={{flex:1}}/>
-              <span style={{fontSize:11,color:"#ffffff"}}>kg/u</span>
-            </div>
-          </div>
-          {prodId&&cantidad&&destino&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:11}}>
-            <div style={{color:"#00cc55",fontWeight:700}}>📦 Resumen del traslado:</div>
-            <div style={{marginTop:4,color:"#ffffff"}}>{prods.find(p=>p.id===parseInt(prodId))?.name}</div>
-            <div style={{color:"#ffffff",marginTop:2}}>{fmtW(parseFloat(cantidad)||0)} · {origen} → {destino}</div>
-          </div>}
-          <Btn v="g" sx={{width:"100%",justifyContent:"center"}} onClick={confirmar} disabled={saving}>
-            {saving?<><Ic n="spin" s={14}/>Trasladando...</>:<><Ic n="trend" s={14}/>Confirmar Traslado</>}
-          </Btn>
-        </Card>
-
-        <Card sx={{padding:20}}>
-          <h2 style={{fontSize:14,fontWeight:800,margin:"0 0 14px"}}>ℹ️ ¿Cómo funciona?</h2>
-          <div style={{fontSize:12,color:"#ffffff",lineHeight:1.7}}>
-            <div style={{marginBottom:8}}>📥 <strong>Recibís mercadería en Depósito</strong> → cargás el stock en <em>Stock x Local → DEPOSITO</em></div>
-            <div style={{marginBottom:8}}>🚚 <strong>Movés al local</strong> → usás este módulo para registrar el traslado</div>
-            <div style={{marginBottom:8}}>✅ El stock baja del origen y sube en el destino automáticamente</div>
-            <div style={{marginBottom:8}}>📊 El movimiento queda registrado como "traslado" (no como venta ni compra)</div>
-            <div style={{padding:"8px 12px",background:"#140800",border:"1px solid #ff990033",borderRadius:6,color:"#ff9900",fontSize:11}}>
-              ⚠️ Los traslados no afectan los reportes de ventas ni el cálculo de rentabilidad
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Card sx={{overflow:"hidden"}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
-          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial de Traslados · últimos 100</span>
-        </div>
-        {loadingHist&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
-        {!loadingHist&&hist.length===0&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Sin traslados registrados</div>}
-        {!loadingHist&&hist.length>0&&<table>
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Local</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
-          <tbody>{hist.map((m,i)=>{
-            const prod=prods.find(p=>p.id===m.product_id);
-            const isEntrada=m.cantidad>0;
-            return(<tr key={i}>
-              <td style={{fontSize:10}}>{new Date(m.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</td>
-              <td style={{fontWeight:700,color:"#ffffff"}}>{prod?.name||`#${m.product_id}`}</td>
-              <td style={{color:"#00d4ff"}}>{m.local_name}</td>
-              <td style={{color:isEntrada?"#00cc55":"#ff9900",fontWeight:700}}>{isEntrada?"+":""}{prod?.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`}</td>
-              <td style={{color:"#ffffff",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`}</td>
-              <td style={{color:"#00cc55",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`}</td>
-              <td style={{color:"#ffffff",fontSize:10}}>{m.usuario}</td>
-            </tr>);
-          })}</tbody>
-        </table>}
-      </Card>
-    </div>
-  );
-}
-
 function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const[periodo,setPeriodo]=useState(30);
   const[iibb,setIibb]=useState(3);
@@ -2890,6 +2671,287 @@ function ReporteProveedores({sales}) {
           <tbody>{gastos.map((g,i)=>(<tr key={i}><td style={{fontSize:11}}>{g.fecha}</td><td style={{fontSize:10,color:"#ff9900",fontWeight:700}}>{g.categoria}</td><td style={{color:"#ffffff"}}>{g.descripcion}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(g.monto)}</td><td style={{fontSize:11,color:g.tipo_pago==="efectivo"?"#00cc55":"#3388ff"}}>{g.tipo_pago==="efectivo"?"💵":"🏦"} {g.tipo_pago}</td></tr>))}</tbody>
         </table>
       </Card>}
+    </div>
+  );
+}
+
+// ─── TRASLADOS ─────────────────────────────────────────────────────────────
+
+function Traslados({prods,localeNames,notify,session,loadAll}) {
+  const[origen,setOrigen]=useState("DEPOSITO");
+  const[destino,setDestino]=useState("");
+  const[items,setItems]=useState([]); // [{prodId, nombre, unit, cantidad}]
+  const[prodId,setProdId]=useState("");
+  const[cantidad,setCantidad]=useState("");
+  const[q,setQ]=useState("");
+  const[saving,setSaving]=useState(false);
+  const[remitos,setRemitos]=useState([]); // historial agrupado por remito
+  const[loadingHist,setLoadingHist]=useState(true);
+  const[detRemito,setDetRemito]=useState(null); // remito abierto para ver detalle
+
+  const loadHist=async()=>{
+    setLoadingHist(true);
+    const{data}=await sb.from("gp_stock_mov")
+      .select("*").eq("tipo","traslado")
+      .order("fecha",{ascending:false}).limit(500);
+    // Agrupar por remito_id (guardamos en usuario como "remito:XXXXX origen→destino")
+    const grupos={};
+    (data||[]).forEach(m=>{
+      // usuario format: "NOMBRE · remito:123456 · ORIGEN → DESTINO"
+      const rMatch=m.usuario?.match(/remito:(\d+)/);
+      const rId=rMatch?rMatch[1]:m.fecha;
+      if(!grupos[rId]) grupos[rId]={id:rId,fecha:m.fecha,usuario:m.usuario,items:[],origen:"",destino:""};
+      const arrow=m.usuario?.match(/·\s*(.+?)\s*→\s*(.+)$/);
+      if(arrow){grupos[rId].origen=arrow[1].trim();grupos[rId].destino=arrow[2].trim();}
+      // Solo incluir movimientos de entrada (cantidad>0) para el remito del destino
+      if(m.cantidad>0) grupos[rId].items.push(m);
+    });
+    setRemitos(Object.values(grupos).sort((a,b)=>new Date(b.fecha).getTime()-new Date(a.fecha).getTime()));
+    setLoadingHist(false);
+  };
+
+  useEffect(()=>{loadHist();},[]);
+
+  const filtProds=prods.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
+
+  const agregarItem=()=>{
+    if(!prodId){notify("Seleccioná un producto","err");return;}
+    const qty=parseFloat(cantidad);
+    if(!qty||qty<=0){notify("Ingresá una cantidad válida","err");return;}
+    const prod=prods.find(p=>p.id===parseInt(prodId));
+    if(!prod) return;
+    if(items.find(i=>i.prodId===prod.id)){notify("Ese producto ya está en la lista","err");return;}
+    setItems(prev=>[...prev,{prodId:prod.id,nombre:prod.name,code:prod.code,unit:prod.unit,cat:prod.cat,cantidad:qty}]);
+    setProdId("");setCantidad("");setQ("");
+  };
+
+  const quitarItem=(pid)=>setItems(prev=>prev.filter(i=>i.prodId!==pid));
+
+  const imprimirRemito=(remitoId,org,dest,fecha,itemsList)=>{
+    const fechaStr=new Date(fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remito #${remitoId}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:700px;margin:0 auto}
+      h1{font-size:20px;margin-bottom:4px;text-align:center}
+      .sub{text-align:center;font-size:11px;color:#555;margin-bottom:16px}
+      .remito-num{text-align:center;font-size:15px;font-weight:700;background:#f0f0f0;padding:8px;border-radius:4px;margin-bottom:16px}
+      .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+      .field{border:1px solid #ccc;border-radius:4px;padding:8px 12px}
+      .field label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#888;display:block;margin-bottom:2px}
+      .field span{font-size:13px;font-weight:700}
+      table{width:100%;border-collapse:collapse;margin-bottom:20px}
+      th{background:#1a1a2e;color:#fff;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase}
+      td{padding:8px 10px;border-bottom:1px solid #eee;font-size:12px}
+      tr:nth-child(even) td{background:#fafafa}
+      .cant{font-weight:900;color:#006600;font-size:14px}
+      .check{width:18px;height:18px;border:2px solid #000;display:inline-block;border-radius:2px}
+      .firma{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}
+      .firma-box{border-top:2px solid #000;padding-top:8px;text-align:center;font-size:10px;color:#555}
+      .no-print{text-align:center;margin-bottom:16px}
+      @media print{.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print">
+      <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir Remito</button>
+      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    <h1>🐾 Masc🐾tas Pet Shop</h1>
+    <div class="sub">Remito de Traslado Interno</div>
+    <div class="remito-num">Remito Nº ${remitoId} · ${fechaStr}</div>
+    <div class="grid">
+      <div class="field"><label>Origen</label><span>📦 ${org}</span></div>
+      <div class="field"><label>Destino</label><span>📍 ${dest}</span></div>
+      <div class="field"><label>Responsable</label><span>${session?.name||"Admin"}</span></div>
+    </div>
+    <table><thead><tr><th>✓</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Cantidad</th></tr></thead><tbody>
+    ${itemsList.map(it=>{
+      const prod=prods.find(p=>p.id===(it.prodId||it.product_id));
+      const nom=it.nombre||prod?.name||`#${it.prodId||it.product_id}`;
+      const cat=it.cat||prod?.cat||"";
+      const unit=it.unit||prod?.unit||"kg";
+      const qty=it.cantidad||Math.abs(it.cantidad)||0;
+      const qStr=unit==="kg"?fmtW(qty):`${qty} u`;
+      return`<tr><td><div class="check"></div></td><td style="font-family:monospace;font-size:10px">${it.code||prod?.code||"—"}</td><td><strong>${nom}</strong></td><td>${cat}</td><td class="cant">${qStr}</td></tr>`;
+    }).join("")}
+    </tbody></table>
+    <div style="font-size:11px;color:#555;border:1px solid #eee;border-radius:4px;padding:10px;margin-bottom:20px">
+      ⚠ El local destino debe verificar la mercadería recibida y firmar conformidad antes de ingresar al depósito.
+    </div>
+    <div class="firma">
+      <div class="firma-box">Entregó: ${org}<br><br><br><br>Firma y aclaración</div>
+      <div class="firma-box">Recibió: ${dest}<br><br><br><br>Firma y aclaración</div>
+    </div>
+    </body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();}
+  };
+
+  const confirmarTraslado=async()=>{
+    if(!destino){notify("Seleccioná local destino","err");return;}
+    if(origen===destino){notify("Origen y destino no pueden ser iguales","err");return;}
+    if(items.length===0){notify("Agregá al menos un producto","err");return;}
+    setSaving(true);
+    const remitoId=Date.now().toString().slice(-8);
+    const now=new Date().toISOString();
+    const usuario=`${session?.name||"admin"} · remito:${remitoId} · ${origen} → ${destino}`;
+    try{
+      for(const it of items){
+        // Leer stock origen
+        const{data:sO}=await sb.from("gp_stock").select("*").eq("product_id",it.prodId).eq("local_name",origen).single();
+        const stkO=sO?Number(sO.stk)||0:0;
+        const nuevoO=stkO-it.cantidad;
+        if(sO) await sb.from("gp_stock").update({stk:nuevoO}).eq("id",sO.id);
+        else await sb.from("gp_stock").insert([{product_id:it.prodId,local_name:origen,stk:-it.cantidad}]);
+        // Leer stock destino
+        const{data:sD}=await sb.from("gp_stock").select("*").eq("product_id",it.prodId).eq("local_name",destino).single();
+        const stkD=sD?Number(sD.stk)||0:0;
+        const nuevoD=stkD+it.cantidad;
+        if(sD) await sb.from("gp_stock").update({stk:nuevoD}).eq("id",sD.id);
+        else await sb.from("gp_stock").insert([{product_id:it.prodId,local_name:destino,stk:it.cantidad}]);
+        // Registrar movimientos
+        await sb.from("gp_stock_mov").insert([
+          {id:Date.now()+it.prodId,product_id:it.prodId,local_name:origen,tipo:"traslado",cantidad:-it.cantidad,stock_antes:stkO,stock_despues:nuevoO,usuario,fecha:now},
+          {id:Date.now()+it.prodId+1,product_id:it.prodId,local_name:destino,tipo:"traslado",cantidad:it.cantidad,stock_antes:stkD,stock_despues:nuevoD,usuario,fecha:now},
+        ]);
+      }
+      notify(`✓ Remito #${remitoId} — ${items.length} producto${items.length>1?"s":""} trasladados de ${origen} → ${destino}`);
+      // Imprimir remito
+      imprimirRemito(remitoId,origen,destino,now,items);
+      setItems([]);setProdId("");setCantidad("");
+      loadHist();loadAll();
+    }catch(e){notify("Error: "+e.message,"err");}
+    setSaving(false);
+  };
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Traslados de Stock</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>MOVIMIENTO INTERNO ENTRE LOCALES · NO AFECTA VENTAS</p>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        {/* Panel izquierdo — armar orden */}
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:12,fontWeight:800,color:"#ffffff",marginBottom:14}}>📦 Nueva Orden de Traslado</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <div><Lbl t="Origen"/><Sel value={origen} onChange={(e)=>setOrigen(e.target.value)}>{localeNames.map(l=><option key={l}>{l}</option>)}</Sel></div>
+            <div><Lbl t="Destino"/><Sel value={destino} onChange={(e)=>setDestino(e.target.value)}><option value="">— Seleccioná —</option>{localeNames.filter(l=>l!==origen).map(l=><option key={l}>{l}</option>)}</Sel></div>
+          </div>
+          <div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:8,padding:12,marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#00d4ff",marginBottom:8}}>Agregar producto a la orden:</div>
+            <div style={{position:"relative",marginBottom:8}}><Inp placeholder="Buscar producto..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:28}}/><span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={12}/></span></div>
+            <Sel value={prodId} onChange={(e)=>setProdId(e.target.value)} sx={{marginBottom:8}}>
+              <option value="">— Seleccioná producto —</option>
+              {filtProds.map(p=><option key={p.id} value={p.id}>{p.name}{p.code?` #${p.code}`:""}</option>)}
+            </Sel>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <Inp type="number" min="0.5" step="0.5" placeholder="Cantidad..." value={cantidad} onChange={(e)=>setCantidad(e.target.value)} sx={{flex:1}} onKeyDown={(e)=>e.key==="Enter"&&agregarItem()}/>
+              <span style={{fontSize:11,color:"#ffffff",flexShrink:0}}>{prods.find(p=>p.id===parseInt(prodId))?.unit==="kg"?"kg":"u"}</span>
+              <Btn v="cy" sx={{padding:"6px 14px",fontSize:10,flexShrink:0}} onClick={agregarItem}>+ Agregar</Btn>
+            </div>
+          </div>
+
+          {/* Lista de items agregados */}
+          {items.length>0&&<>
+            <div style={{fontSize:10,fontWeight:700,color:"#ffffff",marginBottom:6,letterSpacing:1}}>PRODUCTOS EN ESTA ORDEN ({items.length}):</div>
+            <div style={{maxHeight:200,overflowY:"auto",marginBottom:12}}>
+              {items.map((it,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"#060f1a",border:"1px solid #192a38",borderRadius:6,marginBottom:5}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{it.nombre}{it.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{it.code}</span>}</div>
+                    <div style={{fontSize:9,color:"#ffffff"}}>{it.cat}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontWeight:900,color:"#00cc55",fontSize:14}}>{it.unit==="kg"?fmtW(it.cantidad):`${it.cantidad} u`}</span>
+                    <button onClick={()=>quitarItem(it.prodId)} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {destino&&<div style={{background:"#021408",border:"1px solid #00882233",borderRadius:7,padding:"10px 12px",marginBottom:12,fontSize:11}}>
+              <div style={{color:"#00cc55",fontWeight:700,marginBottom:2}}>📋 Resumen:</div>
+              <div style={{color:"#ffffff"}}>{items.length} producto{items.length>1?"s":""} · {origen} → {destino}</div>
+            </div>}
+            <Btn v="g" sx={{width:"100%",justifyContent:"center",fontSize:12}} onClick={confirmarTraslado} disabled={saving||!destino}>
+              {saving?<><Ic n="spin" s={14}/>Procesando...</>:<><Ic n="prt" s={14}/>Confirmar y Generar Remito</>}
+            </Btn>
+          </>}
+          {items.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#ffffff",fontSize:11}}>Agregá productos para armar la orden</div>}
+        </Card>
+
+        {/* Panel derecho — instrucciones */}
+        <Card sx={{padding:18}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#ffffff",marginBottom:12}}>ℹ️ ¿Cómo funciona?</div>
+          <div style={{fontSize:12,color:"#ffffff",lineHeight:1.8}}>
+            <div style={{marginBottom:8}}>📥 <strong>1.</strong> Seleccioná origen y destino</div>
+            <div style={{marginBottom:8}}>📦 <strong>2.</strong> Agregá todos los productos que van en este traslado</div>
+            <div style={{marginBottom:8}}>✅ <strong>3.</strong> Confirmá — el stock se actualiza automáticamente</div>
+            <div style={{marginBottom:8}}>🖨️ <strong>4.</strong> Se imprime el remito con número único</div>
+            <div style={{marginBottom:8}}>📋 <strong>5.</strong> El remito queda guardado — podés reimprimir cuando quieras</div>
+          </div>
+          <div style={{padding:"10px 14px",background:"#130900",border:"1px solid #ff990033",borderRadius:8,color:"#ff9900",fontSize:11,marginTop:8}}>
+            ⚠ Los traslados no afectan los reportes de ventas ni el cálculo de rentabilidad
+          </div>
+        </Card>
+      </div>
+
+      {/* Historial de remitos */}
+      <Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial de Remitos</span>
+        </div>
+        {loadingHist&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
+        {!loadingHist&&remitos.length===0&&<div style={{padding:20,textAlign:"center",color:"#ffffff",fontSize:12}}>Sin traslados registrados</div>}
+        {!loadingHist&&remitos.length>0&&<table>
+          <thead><tr><th>Nº Remito</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Productos</th><th>Responsable</th><th></th></tr></thead>
+          <tbody>{remitos.map((r)=>{
+            const nombreResp=r.usuario?.split("·")[0]?.trim()||"—";
+            return(<tr key={r.id} style={{cursor:"pointer"}} onClick={()=>setDetRemito(r)}>
+              <td style={{fontWeight:800,color:"#00d4ff",fontFamily:"monospace"}}>#{r.id}</td>
+              <td style={{fontSize:11}}>{new Date(r.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</td>
+              <td style={{color:"#ff9900",fontWeight:700}}>{r.origen||"—"}</td>
+              <td style={{color:"#00cc55",fontWeight:700}}>{r.destino||"—"}</td>
+              <td style={{color:"#ffffff"}}>{r.items.length} producto{r.items.length!==1?"s":""}</td>
+              <td style={{color:"#ffffff",fontSize:11}}>{nombreResp}</td>
+              <td><div style={{display:"flex",gap:4}}>
+                <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={(e)=>{e.stopPropagation();setDetRemito(r);}}><Ic n="eye" s={11}/>Ver</Btn>
+                <Btn v="cy" sx={{padding:"3px 8px",fontSize:9}} onClick={(e)=>{e.stopPropagation();imprimirRemito(r.id,r.origen,r.destino,r.fecha,r.items.map(m=>({prodId:m.product_id,cantidad:Math.abs(m.cantidad)})));}}><Ic n="prt" s={11}/>PDF</Btn>
+              </div></td>
+            </tr>);
+          })}</tbody>
+        </table>}
+      </Card>
+
+      {/* Modal detalle remito */}
+      {detRemito&&<Modal close={()=>setDetRemito(null)} w={620}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <h2 style={{margin:0,fontSize:16,fontWeight:800}}>Remito #{detRemito.id}</h2>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>{new Date(detRemito.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})} · {detRemito.origen} → {detRemito.destino}</div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn v="cy" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>imprimirRemito(detRemito.id,detRemito.origen,detRemito.destino,detRemito.fecha,detRemito.items.map(m=>({prodId:m.product_id,cantidad:Math.abs(m.cantidad)})))}><Ic n="prt" s={12}/>Reimprimir</Btn>
+            <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDetRemito(null)}><Ic n="x" s={13}/></Btn>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:12,marginBottom:14}}>
+          <div style={{background:"#140800",border:"1px solid #ff990033",borderRadius:8,padding:"10px 14px",flex:1,textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>ORIGEN</div><div style={{fontSize:15,fontWeight:800,color:"#ff9900"}}>📦 {detRemito.origen}</div></div>
+          <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 14px",flex:1,textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>DESTINO</div><div style={{fontSize:15,fontWeight:800,color:"#00cc55"}}>📍 {detRemito.destino}</div></div>
+        </div>
+        <Card sx={{overflow:"hidden"}}>
+          <table><thead><tr><th>Producto</th><th>Cantidad trasladada</th><th>Stock antes</th><th>Stock después</th></tr></thead>
+            <tbody>{detRemito.items.map((m,i)=>{
+              const prod=prods.find(p=>p.id===m.product_id);
+              return(<tr key={i}>
+                <td style={{fontWeight:700,color:"#ffffff"}}>{prod?.name||`#${m.product_id}`}{prod?.code&&<span style={{fontSize:9,color:"#00d4ff",marginLeft:6}}>#{prod.code}</span>}</td>
+                <td style={{color:"#00cc55",fontWeight:800,fontSize:13}}>{prod?.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`}</td>
+                <td style={{color:"#ffffff",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`}</td>
+                <td style={{color:"#00cc55",fontSize:11}}>{prod?.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`}</td>
+              </tr>);
+            })}</tbody>
+          </table>
+        </Card>
+      </div></Modal>}
     </div>
   );
 }
