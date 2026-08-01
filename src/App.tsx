@@ -250,7 +250,7 @@ const[view,setView]=useState("dash");
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
         sb.from("gp_stock").select("*").range(0,4999),
-        sb.from("gp_caja").select("*").order("id"),
+        sb.from("gp_caja").select("*").order("id").limit(5000),
         sb.from("gp_locales").select("*").order("id"),
         loadClients(),
         loadSales(),
@@ -1305,8 +1305,9 @@ useEffect(()=>{fetchAll();},[]);
             </div>
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
-          <table>
-            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th>Modo</th><th style={{color:"#ffcc00"}}>Cantidad</th><th>→ Resultado</th><th></th></tr></thead>
+          <div style={{overflowX:"auto"}}>
+          <table style={{minWidth:900}}>
+            <thead><tr><th style={{minWidth:220}}>Producto</th><th>Cat.</th><th style={{minWidth:90}}>Stock Actual</th><th style={{color:"#00cc55",minWidth:80}}>Mín.</th><th style={{color:"#00d4ff",minWidth:80}}>Máx.</th><th style={{minWidth:90}}>Modo</th><th style={{color:"#ffcc00",minWidth:110}}>Cantidad</th><th style={{minWidth:100}}>→ Resultado</th><th style={{minWidth:110}}>Acciones</th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
               const min=getMin(p.id);
@@ -1372,7 +1373,8 @@ useEffect(()=>{fetchAll();},[]);
               );
             })}
             </tbody>
-          </table>}
+          </table>
+          </div>}
         </Card>
       </>}
 
@@ -2318,7 +2320,7 @@ function Empleados({notify}) {
     if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
     setSaving(true);
     try{
-      await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,notas:pagoForm.notas}]);
+      await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,notas:(pagoForm.notas||"")+(pagoForm.forma_pago?` [${pagoForm.forma_pago}]`:"")}]);
       notify("Pago registrado");setPagoModal(false);loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
@@ -2414,15 +2416,16 @@ function Empleados({notify}) {
         </div>
         {tab==="pagos"&&<>
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
+            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",forma_pago:"efectivo",notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
           </div>
           <Card sx={{overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
-            <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
+            <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Forma pago</th><th>Notas</th><th></th></tr></thead>
               <tbody>{pagos.map(pg=>(<tr key={pg.id}>
                 <td style={{fontSize:11}}>{pg.fecha}</td>
                 <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
                 <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:pg.tipo==="sueldo"?"#021408":pg.tipo==="premio"?"#140800":"#030810",color:pg.tipo==="sueldo"?"#00cc55":pg.tipo==="premio"?"#ff9900":"#3388ff",border:"1px solid #19293820"}}>{pg.tipo==="sueldo"?"💼 Sueldo":pg.tipo==="premio"?"🏆 Premio":"💸 "+pg.tipo}</span></td>
-                <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas||"—"}</td>
+                <td style={{fontSize:11,color:pg.notas?.includes("transferencia")?"#3388ff":"#00cc55"}}>{pg.notas?.includes("transferencia")?"🏦 Transf.":"💵 Efectivo"}</td>
+                <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas?.replace(/\[.*?\]/g,"").trim()||"—"}</td>
                 <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",pg.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
               </tr>))}
               {pagos.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
@@ -2451,12 +2454,23 @@ function Empleados({notify}) {
       </div></Modal>}
 
       {/* Modal pago empleado */}
-      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={400}><div style={{padding:22}}>
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
         <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detEmp?.nombre}</h2>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
           <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option value="sueldo">💼 Sueldo</option><option value="premio">🏆 Premio / Extra</option><option value="adelanto">💸 Adelanto</option><option value="otro">Otro</option></Sel></div>
+          <div style={{gridColumn:"1/-1"}}>
+            <Lbl t="Forma de pago"/>
+            <div style={{display:"flex",gap:16,marginTop:6}}>
+              {["efectivo","transferencia"].map(t=>(
+                <label key={t} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+                  <input type="radio" checked={pagoForm.forma_pago===t} onChange={()=>setPagoForm(f=>({...f,forma_pago:t}))} style={{accentColor:"#00cc55"}}/>
+                  <span style={{fontSize:12,color:pagoForm.forma_pago===t?"#00cc55":"#ffffff",fontWeight:pagoForm.forma_pago===t?700:400}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
         <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
