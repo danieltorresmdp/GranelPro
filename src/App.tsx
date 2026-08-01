@@ -1081,6 +1081,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
   const[vals,setVals]=useState({});
   const[minVals,setMinVals]=useState({});
   const[maxVals,setMaxVals]=useState({});
+  const[modoAjuste,setModoAjuste]=useState({});
   const[q,setQ]=useState("");
   const[catF,setCatF]=useState("Todas");
   const[soloMinimos,setSoloMinimos]=useState(false);
@@ -1126,8 +1127,10 @@ useEffect(()=>{fetchAll();},[]);
       const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
       const newStk=hasStk?parseFloat(inputVal):0;
       if(hasStk&&isNaN(newStk)){notify("Valor inválido","err");setSaving(null);return;}
-      // Ingreso SIEMPRE suma al stock actual
-      const finalStk=hasStk?realStk+newStk:realStk;
+      const esAjuste=modoAjuste[prod.id]===true;
+      // Ingreso SUMA, Ajuste REEMPLAZA
+      const finalStk=hasStk?(esAjuste?newStk:realStk+newStk):realStk;
+      const tipoMov=esAjuste?"ajuste":"ingreso";
       const newMin=hasMin?parseFloat(minVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].min_stk)||0:0);
       const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].max_stk)||0:0);
       const updatePayload={min_stk:newMin,max_stk:newMax,...(hasStk?{stk:finalStk}:{})};
@@ -1137,7 +1140,7 @@ useEffect(()=>{fetchAll();},[]);
         await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk,min_stk:newMin,max_stk:newMax}]);
       }
       if(hasStk){
-        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
+        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:tipoMov,cantidad:esAjuste?newStk-realStk:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
       }
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
@@ -1148,6 +1151,7 @@ useEffect(()=>{fetchAll();},[]);
       setVals(v=>({...v,[prod.id]:undefined}));
       setMinVals(v=>({...v,[prod.id]:undefined}));
       setMaxVals(v=>({...v,[prod.id]:undefined}));
+      setModoAjuste(v=>({...v,[prod.id]:false}));
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
@@ -1302,7 +1306,7 @@ useEffect(()=>{fetchAll();},[]);
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
           <table>
-            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th style={{color:"#ffcc00"}}>+ Ingreso (suma)</th><th>→ Nuevo Total</th><th></th></tr></thead>
+            <thead><tr><th>Producto</th><th>Cat.</th><th>Stock Actual</th><th style={{color:"#00cc55"}}>Mín.</th><th style={{color:"#00d4ff"}}>Máx.</th><th>Modo</th><th style={{color:"#ffcc00"}}>Cantidad</th><th>→ Resultado</th><th></th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
               const min=getMin(p.id);
@@ -1310,37 +1314,48 @@ useEffect(()=>{fetchAll();},[]);
               const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
               const edited=vals[p.id]!==undefined&&vals[p.id]!=="";
               const inputVal=edited?parseFloat(vals[p.id])||0:0;
-              const preview=edited?stk+inputVal:null;
+              const esAjuste=modoAjuste[p.id]===true;
+              const preview=edited?(esAjuste?inputVal:stk+inputVal):null;
               const bajMin=min>0&&stk<=min;
               return(
                 <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
-                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍNIMO</span>}</td>
+                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
                   <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
                   <td><span style={{fontWeight:800,color:bajMin?"#ff4444":stk<0?"#ff6666":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}</span></td>
                   <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
-                      placeholder={min>0?(p.unit==="kg"?String(min):`${min}`):"mín"}
+                      placeholder={min>0?String(min):"mín"}
                       value={minVals[p.id]!==undefined?minVals[p.id]:""}
                       onChange={(e)=>setMinVals(v=>({...v,[p.id]:e.target.value}))}
                       style={{width:64,fontSize:11,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
-                      placeholder={max>0?(p.unit==="kg"?String(max):`${max}`):"máx"}
+                      placeholder={max>0?String(max):"máx"}
                       value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
                       onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
                       style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
+                    <button onClick={()=>setModoAjuste(v=>({...v,[p.id]:!esAjuste}))}
+                      style={{fontSize:9,fontWeight:800,padding:"4px 8px",borderRadius:6,border:`1px solid ${esAjuste?"#ff990066":"#00882266"}`,background:esAjuste?"#140800":"#021408",color:esAjuste?"#ff9900":"#00cc55",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {esAjuste?"= Ajuste":"+ Ingreso"}
+                    </button>
+                  </td>
+                  <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"}
-                      value={edited?vals[p.id]:0}
+                      value={edited?vals[p.id]:""}
+                      placeholder={esAjuste?"Stock real...":"Cantidad..."}
                       onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                       onFocus={(e)=>e.target.select()}
-                      style={{width:90,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
+                      style={{width:90,fontSize:12,background:edited?(esAjuste?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(esAjuste?"#ff990055":"#00cc5555"):"#192a38"}`,color:esAjuste?"#ff9900":"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
                   </td>
                   <td>
                     {preview!==null
-                      ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
+                      ?<div>
+                        <span style={{fontWeight:800,fontSize:12,color:preview<min&&min>0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
+                        {esAjuste&&edited&&<div style={{fontSize:9,color:inputVal>stk?"#00cc55":"#ff6666"}}>{inputVal>stk?"+":""}{p.unit==="kg"?fmtW(inputVal-stk):`${Math.round(inputVal-stk)} u`}</div>}
+                      </div>
                       :<span style={{color:"#ffffff",fontSize:11}}>—</span>}
                   </td>
                   <td>
