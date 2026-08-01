@@ -246,22 +246,34 @@ const[view,setView]=useState("dash");
           return data||[];
         }
       };
-      const[u,p,sk,cj,lc,c,s]=await Promise.all([
+      // Cargar caja con paginación
+      const loadCaja=async()=>{
+        let all=[];let from=0;const size=1000;
+        while(true){
+          const{data,error}=await sb.from("gp_caja").select("*").order("id").range(from,from+size-1);
+          if(error||!data||data.length===0) break;
+          all=[...all,...data];
+          if(data.length<size) break;
+          from+=size;
+        }
+        return all;
+      };
+      const[u,p,sk,lc,c,s,cj]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
         sb.from("gp_products").select("*").order("id"),
         sb.from("gp_stock").select("*").range(0,4999),
-        sb.from("gp_caja").select("*").order("id").limit(5000),
         sb.from("gp_locales").select("*").order("id"),
         loadClients(),
         loadSales(),
+        loadCaja(),
       ]);
       if(!u.error) setUsers((u.data||[]).map(mapUser));
       if(!p.error) setProds((p.data||[]).map(mapProd));
       if(!sk.error) setStock((sk.data||[]).map(mapStock));
+      if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
       setClients((c||[]).map(mapClient));
       setSales((s||[]).map(mapSale));
-      if(!cj.error) setCaja((cj.data||[]).map(mapCaja));
-      if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
+      setCaja((cj||[]).map(mapCaja));
     }catch(e){notify("Error cargando datos","err");}
   },[session]);
 
@@ -1277,7 +1289,7 @@ useEffect(()=>{fetchAll();},[]);
           </div>
         </div>
 
-        <Card sx={{overflow:"hidden"}}>
+        <Card sx={{overflow:"auto"}}>
           <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
