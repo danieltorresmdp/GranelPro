@@ -11,7 +11,7 @@ const POINTS_DENOM = 500;
 const MAX_DISC_PCT = 0.30;
 const PAY_OPTS     = ["efectivo","tarjeta","QR"];
 const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
-const todayStr     = () => new Date().toISOString().split("T")[0];
+const todayStr     = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"})).toISOString().split("T")[0];
 
 const CAT_STYLE = {
   "Perro":      ["#060f1a","#4488ff22","#5599ff","🐶"],
