@@ -377,7 +377,7 @@ const[view,setView]=useState("dash");
         </div>
       )}
       <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-        <aside className="sidebar-nav" style={{width:192,background:"#060f1a",borderRight:"1px solid #192a38",display:"flex",flexDirection:"column",flexShrink:0}}>
+        <aside className="sidebar-nav" style={{width:172,background:"#060f1a",borderRight:"1px solid #192a38",display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"16px 14px",borderBottom:"1px solid #192a38"}}>
             <div style={{display:"flex",alignItems:"center",gap:9}}>
               <div style={{fontSize:22}}>🐾</div>
@@ -417,7 +417,7 @@ const[view,setView]=useState("dash");
             </button>
           </div>
         </aside>
-        <main style={{flex:1,overflow:"auto",padding:22}}>
+        <main style={{flex:1,overflow:"auto",padding:"16px 14px"}}>
           {loading?(
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:14,color:"#ffffff"}}>
               <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth={2} strokeLinecap="round" style={{animation:"spin 1s linear infinite"}}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -1318,8 +1318,8 @@ useEffect(()=>{fetchAll();},[]);
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
           <div style={{overflowX:"auto"}}>
-          <table style={{minWidth:900}}>
-            <thead><tr><th style={{minWidth:220}}>Producto</th><th>Cat.</th><th style={{minWidth:90}}>Stock Actual</th><th style={{color:"#00cc55",minWidth:80}}>Mín.</th><th style={{color:"#00d4ff",minWidth:80}}>Máx.</th><th style={{minWidth:90}}>Modo</th><th style={{color:"#ffcc00",minWidth:110}}>Cantidad</th><th style={{minWidth:100}}>→ Resultado</th><th style={{minWidth:110}}>Acciones</th></tr></thead>
+          <table style={{minWidth:820}}>
+            <thead><tr><th style={{minWidth:180}}>Producto</th><th style={{minWidth:60}}>Cat.</th><th style={{minWidth:80}}>Stock</th><th style={{color:"#00cc55",minWidth:70}}>Mín.</th><th style={{color:"#00d4ff",minWidth:70}}>Máx.</th><th style={{minWidth:80}}>Modo</th><th style={{color:"#ffcc00",minWidth:100}}>Cantidad</th><th style={{minWidth:90}}>Resultado</th><th style={{minWidth:100}}>Acciones</th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
               const min=getMin(p.id);
