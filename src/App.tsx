@@ -1318,8 +1318,8 @@ useEffect(()=>{fetchAll();},[]);
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
           <div style={{overflowX:"auto"}}>
-          <table style={{minWidth:820}}>
-            <thead><tr><th style={{minWidth:180}}>Producto</th><th style={{minWidth:60}}>Cat.</th><th style={{minWidth:80}}>Stock</th><th style={{color:"#00cc55",minWidth:70}}>Mín.</th><th style={{color:"#00d4ff",minWidth:70}}>Máx.</th><th style={{minWidth:80}}>Modo</th><th style={{color:"#ffcc00",minWidth:100}}>Cantidad</th><th style={{minWidth:90}}>Resultado</th><th style={{minWidth:100}}>Acciones</th></tr></thead>
+          <table style={{minWidth:720}}>
+            <thead><tr><th style={{minWidth:160}}>Producto</th><th style={{minWidth:50,fontSize:9}}>Cat.</th><th style={{minWidth:70}}>Stock</th><th style={{color:"#00cc55",minWidth:58}}>Mín.</th><th style={{color:"#00d4ff",minWidth:58}}>Máx.</th><th style={{minWidth:72}}>Modo</th><th style={{color:"#ffcc00",minWidth:90}}>Cantidad</th><th style={{minWidth:75}}>Result.</th><th style={{minWidth:85}}>Acc.</th></tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
               const min=getMin(p.id);
@@ -1340,17 +1340,17 @@ useEffect(()=>{fetchAll();},[]);
                       placeholder={min>0?String(min):"mín"}
                       value={minVals[p.id]!==undefined?minVals[p.id]:""}
                       onChange={(e)=>setMinVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:64,fontSize:11,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                      style={{width:54,fontSize:10,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
                       placeholder={max>0?String(max):"máx"}                      value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
                       onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                      style={{width:54,fontSize:10,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
                     <button onClick={()=>setModoAjuste(v=>({...v,[p.id]:!esAjuste}))}
-                      style={{fontSize:9,fontWeight:800,padding:"4px 8px",borderRadius:6,border:`1px solid ${esAjuste?"#ff990066":"#00882266"}`,background:esAjuste?"#140800":"#021408",color:esAjuste?"#ff9900":"#00cc55",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      style={{fontSize:8,fontWeight:800,padding:"3px 6px",borderRadius:6,border:`1px solid ${esAjuste?"#ff990066":"#00882266"}`,background:esAjuste?"#140800":"#021408",color:esAjuste?"#ff9900":"#00cc55",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                       {esAjuste?"= Ajuste":"+ Ingreso"}
                     </button>
                   </td>
@@ -1360,7 +1360,7 @@ useEffect(()=>{fetchAll();},[]);
                       placeholder={esAjuste?"Stock real...":"Cantidad..."}
                       onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                       onFocus={(e)=>e.target.select()}
-                      style={{width:90,fontSize:12,background:edited?(esAjuste?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(esAjuste?"#ff990055":"#00cc5555"):"#192a38"}`,color:esAjuste?"#ff9900":"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
+                      style={{width:82,fontSize:11,background:edited?(esAjuste?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(esAjuste?"#ff990055":"#00cc5555"):"#192a38"}`,color:esAjuste?"#ff9900":"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
                   </td>
                   <td>
                     {preview!==null
@@ -1372,10 +1372,10 @@ useEffect(()=>{fetchAll();},[]);
                   </td>
                   <td>
                     <div style={{display:"flex",gap:5}}>
-                      <Btn v="g" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
+                      <Btn v="g" sx={{padding:"3px 7px",fontSize:8}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
                         {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
                       </Btn>
-                      <Btn v="gh" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>openHist(p)} title="Ver historial">
+                      <Btn v="gh" sx={{padding:"3px 6px",fontSize:8}} onClick={()=>openHist(p)} title="Ver historial">
                         <Ic n="hist" s={11}/>
                       </Btn>
                     </div>
