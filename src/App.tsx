@@ -899,7 +899,7 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
   const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[vendF,setVendF]=useState("todos");const[localF,setLocalF]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
   const loginAt=session?.loginAt?new Date(session.loginAt):null;
   const mySales=isAdmin?sales:sales.filter((s)=>{
-    if(s.uid!==session?.id) return false;
+    if(String(s.uid)!==String(session?.id)) return false;
     if(s.date!==todayStr()) return false;
     return true;
   });
@@ -1501,9 +1501,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[retiro,setRetiro]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const[filtLocal,setFiltLocal]=useState("todos");
   const[filtUser,setFiltUser]=useState("todos");
-  const myCaja=isAdmin?caja:caja.filter((d)=>d.closedBy===session?.id);
+  const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
   const closedIds=caja.flatMap((d)=>d.saleIds||[]);
-  const mySales=isAdmin?sales:sales.filter((s)=>s.uid===session?.id);
+  const mySales=isAdmin?sales:sales.filter((s)=>String(s.uid)===String(session?.id));
   const unclosed=mySales.filter((s)=>!closedIds.includes(s.id));
   const byPay=PAY_OPTS.reduce((acc,m)=>{
     acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);
