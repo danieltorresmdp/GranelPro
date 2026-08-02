@@ -1112,7 +1112,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
       if(data.length<size) break;
       from+=size;
     }
-    setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0})));
+    setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,max:Number(r.max_stk)||0})));
     setLoading(false);
   };
 
@@ -1344,8 +1344,7 @@ useEffect(()=>{fetchAll();},[]);
                   </td>
                   <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
-                      placeholder={max>0?String(max):"máx"}
-                      value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
+                      placeholder={max>0?String(max):"máx"}                      value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
                       onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
                       style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
