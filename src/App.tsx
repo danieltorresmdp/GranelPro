@@ -897,6 +897,22 @@ function ProdCardInline({p,onAdd}) {
 
 function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
   const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[vendF,setVendF]=useState("todos");const[localF,setLocalF]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
+  const[editPay,setEditPay]=useState(null); // {saleId, currentPay}
+  const[newPay,setNewPay]=useState("");
+  const[savingPay,setSavingPay]=useState(false);
+
+  const doEditPay=async()=>{
+    if(!newPay||newPay===editPay?.currentPay){notify("Seleccioná un medio de pago diferente","err");return;}
+    setSavingPay(true);
+    try{
+      await sb.from("gp_sales").update({pay:newPay}).eq("id",editPay.saleId);
+      notify("Medio de pago actualizado");
+      setEditPay(null);setNewPay("");
+      if(det) setDet(prev=>({...prev,pay:newPay}));
+      loadAll();
+    }catch(e){notify("Error","err");}
+    setSavingPay(false);
+  };
   const loginAt=session?.loginAt?new Date(session.loginAt):null;
   const mySales=isAdmin?sales:sales.filter((s)=>{
     if(String(s.uid)!==String(session?.id)) return false;
@@ -933,12 +949,33 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
           </div></td>
         </tr>);})}</tbody>
       </table></Card>
-      {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2><Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div>
+      {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2><div style={{display:"flex",gap:6}}>{isAdmin&&<Btn v="or" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setEditPay({saleId:det.id,currentPay:det.pay});setNewPay(det.pay);}}><Ic n="edit" s={11}/>Editar pago</Btn>}<Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div></div>
         <div style={{fontSize:10,color:"#ffffff",marginBottom:12}}>{det.date}{new Date(det.id).toString()!=="Invalid Date"&&<span style={{color:"#00d4ff",marginLeft:6}}>{new Date(det.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span>} · <Chip t={det.pay}/> {det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}</div>
         {det.items?.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><div><div style={{fontSize:12,color:"#ffffff",fontWeight:600}}>{it.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>{fmtM(it.sub)}</span></div>))}
         <div style={{background:"#040c16",borderRadius:8,padding:"11px 13px",marginTop:11}}>{det.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,color:"#ff9900"}}><span>Desc.</span><span>−{fmtM(det.disc)}</span></div>}<div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:14}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(det.total)}</span></div></div>
       </div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar venta?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:8}}>Venta <strong style={{color:"#ffffff"}}>#{String(confirmDel.id).slice(-6)}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ El stock no se repondrá automáticamente</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delSale(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+      {editPay&&<Modal close={()=>setEditPay(null)} w={380}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Editar Medio de Pago</h2>
+        <div style={{background:"#040c16",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:11}}>
+          <div style={{color:"#ffffff",marginBottom:4}}>Venta #{String(editPay.saleId).slice(-6)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>Pago actual: <Chip t={editPay.currentPay}/></div>
+        </div>
+        <Lbl t="Nuevo medio de pago"/>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,marginBottom:16}}>
+          {PAY_OPTS.map(opt=>(
+            <label key={opt} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 12px",borderRadius:7,background:newPay===opt?"#021408":"#060f1a",border:`1px solid ${newPay===opt?"#00cc55":"#192a38"}`}}>
+              <input type="radio" checked={newPay===opt} onChange={()=>setNewPay(opt)} style={{accentColor:"#00cc55"}}/>
+              <Chip t={opt}/>
+              <span style={{fontSize:12,color:"#ffffff"}}>{opt}</span>
+            </label>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
+          <Btn v="gh" onClick={()=>setEditPay(null)}>Cancelar</Btn>
+          <Btn v="or" onClick={doEditPay} disabled={savingPay||!newPay||newPay===editPay.currentPay}>{savingPay?"Guardando...":"Confirmar cambio"}</Btn>
+        </div>
+      </div></Modal>}
     </div>
   );
 }
@@ -1974,6 +2011,8 @@ function Proveedores({notify}) {
   const[selectedFacts,setSelectedFacts]=useState([]);
   const[descuentoPct,setDescuentoPct]=useState("");
   const[tipoPagoPanel,setTipoPagoPanel]=useState("efectivo");
+  const[mixedPago,setMixedPago]=useState(false);
+  const[montoEfectivo,setMontoEfectivo]=useState("");
   const[q,setQ]=useState("");
   const[confirmDel,setConfirmDel]=useState(null);
 
@@ -2012,29 +2051,34 @@ function Proveedores({notify}) {
   const del=async(id)=>{await sb.from("gp_proveedores").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
 
   const savePago=async()=>{
-    const montoBase=selectedFacts.reduce((a,b)=>a+Number(b.monto),0);
-    if(montoBase<=0){notify("Seleccioná al menos una factura","err");return;}
+    const esPagoACuenta=selectedFacts.length===0;
+    const montoBase=esPagoACuenta
+      ?parseFloat(pagoForm?.monto||"0")
+      :selectedFacts.reduce((a,b)=>a+Number(b.monto),0);
+    if(montoBase<=0){notify(esPagoACuenta?"Ingresá un monto":"Seleccioná facturas o ingresá monto","err");return;}
     const descPct=parseFloat(descuentoPct)||0;
-    const montoFinal=montoBase*(1-descPct/100);
+    const montoFinal=esPagoACuenta?montoBase:montoBase*(1-descPct/100);
+    const efVal=mixedPago?parseFloat(montoEfectivo)||0:0;
+    const trVal=mixedPago?Math.max(0,montoFinal-efVal):0;
+    const tipoStr=mixedPago?`efectivo + transferencia`:tipoPagoPanel;
     const refs=selectedFacts.map(f=>f.numero||`#${f.id}`).join(", ");
     setSaving(true);
     try{
-      // Registrar el pago
+      const notas=(pagoForm?.notas||"")
+        +(descPct>0?` [Desc. ${descPct}% sobre ${fmtM(montoBase)}]`:"")
+        +(mixedPago?` [Ef: ${fmtM(efVal)} / Transf: ${fmtM(trVal)}]`:"")
+        +(esPagoACuenta?" [PAGO A CUENTA]":"");
       await sb.from("gp_prov_pagos").insert([{
-        proveedor_id:detId,
-        fecha:pagoForm.fecha,
-        monto:montoFinal,
-        tipo:tipoPagoPanel,
-        factura:refs,
-        es_blanco:pagoForm.es_blanco,
-        notas:(pagoForm.notas||"")+(descPct>0?` [Desc. ${descPct}% sobre ${fmtM(montoBase)}]`:"")
+        proveedor_id:detId,fecha:pagoForm.fecha,monto:montoFinal,
+        tipo:tipoStr,factura:refs||"",es_blanco:pagoForm.es_blanco,notas
       }]);
-      // Marcar facturas seleccionadas como pagadas
-      for(const f of selectedFacts){
-        await sb.from("gp_prov_facturas").update({pagada:true}).eq("id",f.id);
+      if(!esPagoACuenta){
+        for(const f of selectedFacts){
+          await sb.from("gp_prov_facturas").update({pagada:true}).eq("id",f.id);
+        }
       }
-      notify(`Pago registrado${descPct>0?` · Ahorro ${fmtM(montoBase-montoFinal)}`:""} · ${selectedFacts.length} factura${selectedFacts.length>1?"s":""} saldada${selectedFacts.length>1?"s":""}`);
-      setPagoModal(false);setSelectedFacts([]);setDescuentoPct("");setTipoPagoPanel("efectivo");loadDet(detId);
+      notify(esPagoACuenta?`Pago a cuenta registrado: ${fmtM(montoFinal)}`:`Pago registrado${descPct>0?` · Ahorro ${fmtM(montoBase-montoFinal)}`:""}`);
+      setPagoModal(false);setSelectedFacts([]);setDescuentoPct("");setTipoPagoPanel("efectivo");setMixedPago(false);setMontoEfectivo("");loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -2059,6 +2103,8 @@ function Proveedores({notify}) {
   const totalPagos=pagos.reduce((a,b)=>a+Number(b.monto),0);
   const totalFacturado=facturas.reduce((a,b)=>a+Number(b.monto),0);
   const totalPendiente=facturas.filter(f=>!f.pagada).reduce((a,b)=>a+Number(b.monto),0);
+  const saldoFavor=Math.max(0,totalPagos-totalFacturado);
+  const saldoReal=Math.max(0,totalPendiente-saldoFavor);
   const hoy=todayStr();
 
   return(
@@ -2124,10 +2170,13 @@ function Proveedores({notify}) {
         {detProv.notas&&<div style={{background:"#0a0808",border:"1px solid #ff990033",borderRadius:7,padding:"7px 12px",marginBottom:8,fontSize:11,color:"#ff9900"}}>💬 {detProv.notas}</div>}
 
         {/* Resumen cuenta corriente */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:12}}>
           <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL FACTURADO</div><div style={{fontSize:15,fontWeight:800,color:"#ff9900"}}>{fmtM(totalFacturado)}</div></div>
           <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL PAGADO</div><div style={{fontSize:15,fontWeight:800,color:"#00cc55"}}>{fmtM(totalPagos)}</div></div>
-          <div style={{background:totalPendiente>0?"#110305":"#030810",border:`1px solid ${totalPendiente>0?"#ff333333":"#192a38"}`,borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>SALDO PENDIENTE</div><div style={{fontSize:15,fontWeight:800,color:totalPendiente>0?"#ff4444":"#00cc55"}}>{fmtM(totalPendiente)}</div></div>
+          {saldoFavor>0
+            ?<div style={{background:"#021520",border:"1px solid #00d4ff44",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#00d4ff",letterSpacing:1,marginBottom:3}}>SALDO A FAVOR</div><div style={{fontSize:15,fontWeight:800,color:"#00d4ff"}}>{fmtM(saldoFavor)}</div></div>
+            :<div style={{background:totalPendiente>0?"#110305":"#030810",border:`1px solid ${totalPendiente>0?"#ff333333":"#192a38"}`,borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>SALDO PENDIENTE</div><div style={{fontSize:15,fontWeight:800,color:totalPendiente>0?"#ff4444":"#00cc55"}}>{fmtM(totalPendiente)}</div></div>}
+          <div style={{background:saldoReal>0?"#110305":"#021408",border:`1px solid ${saldoReal>0?"#ff333333":"#00882233"}`,borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>DEUDA REAL</div><div style={{fontSize:15,fontWeight:800,color:saldoReal>0?"#ff4444":"#00cc55"}}>{fmtM(saldoReal)}</div></div>
         </div>
 
         {/* Tabs */}
@@ -2145,34 +2194,45 @@ function Proveedores({notify}) {
           {selectedFacts.length>0&&<div style={{background:"#021408",border:"2px solid #00882266",borderRadius:10,padding:"14px 16px",marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginBottom:10}}>💰 Pagar {selectedFacts.length} factura{selectedFacts.length>1?"s":""} seleccionada{selectedFacts.length>1?"s":""}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,alignItems:"end",marginBottom:8}}>
-              <div>
-                <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL SELECCIONADO</div>
-                <div style={{fontSize:16,fontWeight:900,color:"#ff9900"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</div>
-              </div>
-              <div>
-                <Lbl t="Descuento %"/>
-                <Inp type="number" step="0.1" min="0" max="100" placeholder="0" value={descuentoPct} onChange={(e)=>setDescuentoPct(e.target.value)} sx={{fontSize:13}}/>
-              </div>
-              <div>
-                <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>MONTO FINAL A PAGAR</div>
-                <div style={{fontSize:16,fontWeight:900,color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</div>
-                {(parseFloat(descuentoPct)||0)>0&&<div style={{fontSize:9,color:"#00cc55"}}>Ahorro: {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</div>}
-              </div>
+              <div><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>TOTAL SELECCIONADO</div><div style={{fontSize:16,fontWeight:900,color:"#ff9900"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</div></div>
+              <div><Lbl t="Descuento %"/><Inp type="number" step="0.1" min="0" max="100" placeholder="0" value={descuentoPct} onChange={(e)=>setDescuentoPct(e.target.value)} sx={{fontSize:13}}/></div>
+              <div><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:3}}>MONTO FINAL</div><div style={{fontSize:16,fontWeight:900,color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</div>{(parseFloat(descuentoPct)||0)>0&&<div style={{fontSize:9,color:"#00cc55"}}>Ahorro: {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</div>}</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 <Btn v="g" sx={{justifyContent:"center",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),tipo:tipoPagoPanel,es_blanco:true,notas:""});setPagoModal(true);}}>✓ Confirmar Pago</Btn>
                 <Btn v="gh" sx={{justifyContent:"center",fontSize:10}} onClick={()=>{setSelectedFacts([]);setDescuentoPct("");}}>✕ Cancelar</Btn>
               </div>
             </div>
-            <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+            {/* Forma de pago + mixed */}
+            <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
               <span style={{fontSize:9,color:"#ffffff",letterSpacing:1,textTransform:"uppercase"}}>Forma de pago:</span>
               {["efectivo","transferencia"].map(t=>(
                 <label key={t} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
-                  <input type="radio" checked={tipoPagoPanel===t} onChange={()=>setTipoPagoPanel(t)} style={{accentColor:"#00cc55"}}/>
-                  <span style={{fontSize:11,color:tipoPagoPanel===t?"#00cc55":"#ffffff",fontWeight:tipoPagoPanel===t?700:400,textTransform:"capitalize"}}>{t}</span>
+                  <input type="radio" checked={!mixedPago&&tipoPagoPanel===t} onChange={()=>{setTipoPagoPanel(t);setMixedPago(false);}} style={{accentColor:"#00cc55"}}/>
+                  <span style={{fontSize:11,color:!mixedPago&&tipoPagoPanel===t?"#00cc55":"#ffffff",fontWeight:!mixedPago&&tipoPagoPanel===t?700:400}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span>
                 </label>
               ))}
-              <span style={{fontSize:10,color:"#ffffff",marginLeft:"auto"}}>Facturas: {selectedFacts.map(f=>f.numero||`#${f.id}`).join(" · ")}</span>
+              <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+                <input type="radio" checked={mixedPago} onChange={()=>setMixedPago(true)} style={{accentColor:"#ff9900"}}/>
+                <span style={{fontSize:11,color:mixedPago?"#ff9900":"#ffffff",fontWeight:mixedPago?700:400}}>💱 Mixto</span>
+              </label>
             </div>
+            {mixedPago&&<div style={{display:"flex",gap:10,alignItems:"center",background:"#060f1a",borderRadius:7,padding:"8px 10px"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>💵 Efectivo ($)</div>
+                <Inp type="number" step=".01" placeholder="0.00" value={montoEfectivo} onChange={(e)=>setMontoEfectivo(e.target.value)} sx={{fontSize:12}}/>
+              </div>
+              <div style={{fontSize:12,color:"#ffffff",marginTop:16}}>+</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>🏦 Transferencia ($)</div>
+                <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:6,padding:"9px 12px",fontSize:12,color:"#3388ff",fontWeight:700}}>{fmtM(Math.max(0,selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100)-(parseFloat(montoEfectivo)||0)))}</div>
+              </div>
+            </div>}
+            <div style={{fontSize:10,color:"#ffffff",marginTop:6}}>Facturas: {selectedFacts.map(f=>f.numero||`#${f.id}`).join(" · ")}</div>
+          </div>}
+          {/* Botón pago a cuenta independiente */}
+          {selectedFacts.length===0&&<div style={{background:"#03080f",border:"1px solid #3388ff33",borderRadius:8,padding:"10px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:11,color:"#3388ff"}}>💸 Registrar pago a cuenta (sin asignar a facturas)</div>
+            <Btn v="b" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"efectivo",es_blanco:true,notas:""});setPagoModal(true);}}>+ Pago a cuenta</Btn>
           </div>}
 
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
@@ -2244,30 +2304,24 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal nuevo pago */}
-      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={440}><div style={{padding:22}}>
-        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Confirmar Pago — {detProv?.nombre}</h2>
-        <div style={{background:"#040c16",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-          <div style={{fontSize:11,color:"#ffffff",marginBottom:6}}>Facturas a saldar:</div>
-          {selectedFacts.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:"1px solid #192a3820"}}><span style={{color:"#ffffff"}}>{f.numero||`Fact. #${f.id}`}{f.concepto?` · ${f.concepto}`:""}</span><span style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</span></div>)}
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,marginTop:4,borderTop:"1px solid #192a38"}}>
-            <span style={{color:"#ffffff",fontWeight:700}}>Subtotal</span>
-            <span style={{color:"#ff9900",fontWeight:700}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0))}</span>
-          </div>
-          {(parseFloat(descuentoPct)||0)>0&&<>
-            <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,fontSize:11}}><span style={{color:"#00cc55"}}>Descuento {descuentoPct}%</span><span style={{color:"#00cc55"}}>- {fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(parseFloat(descuentoPct)||0)/100)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,fontWeight:900,fontSize:15,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL A PAGAR</span><span style={{color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</span></div>
-          </>}
-        </div>
+      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={480}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>{selectedFacts.length===0?"💸 Pago a Cuenta":"Confirmar Pago"} — {detProv?.nombre}</h2>
+        {selectedFacts.length>0&&<div style={{background:"#040c16",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+          {selectedFacts.map(f=><div key={f.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:"1px solid #192a3820"}}><span style={{color:"#ffffff"}}>{f.numero||`Fact. #${f.id}`}</span><span style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:900,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>A pagar</span><span style={{color:"#00cc55"}}>{fmtM(selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100))}</span></div>
+          {mixedPago&&<div style={{marginTop:6,fontSize:10}}><span style={{color:"#00cc55"}}>💵 Ef: {fmtM(parseFloat(montoEfectivo)||0)}</span><span style={{color:"#3388ff",marginLeft:12}}>🏦 Transf: {fmtM(Math.max(0,selectedFacts.reduce((a,b)=>a+Number(b.monto),0)*(1-(parseFloat(descuentoPct)||0)/100)-(parseFloat(montoEfectivo)||0)))}</span></div>}
+        </div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
-          <div style={{background:"#030810",border:"1px solid #192a38",borderRadius:7,padding:"10px 12px"}}><div style={{fontSize:9,color:"#ffffff",marginBottom:3}}>FORMA DE PAGO</div><div style={{fontSize:14,fontWeight:700,color:"#00cc55",textTransform:"capitalize"}}>💳 {tipoPagoPanel}</div></div>
+          {selectedFacts.length===0&&<div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto||""} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>}
+          {selectedFacts.length===0&&<div style={{gridColumn:"1/-1"}}><Lbl t="Forma de pago"/><div style={{display:"flex",gap:12,marginTop:6}}>{["efectivo","transferencia"].map(t=>(<label key={t} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="radio" checked={pagoForm.tipo===t} onChange={()=>setPagoForm(f=>({...f,tipo:t}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:pagoForm.tipo===t?"#00cc55":"#ffffff"}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span></label>))}</div></div>}
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ BLANCO</span></label>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ NEGRO</span></label>
           </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"✓ Registrar Pago"}</Btn></div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"✓ Registrar"}</Btn></div>
       </div></Modal>}
 
       {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar proveedor?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
