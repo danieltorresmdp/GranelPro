@@ -1749,12 +1749,12 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
         </div>
 
-        {/* Resumen ventas */}
-        <div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
+        {/* Resumen ventas — solo admin */}
+        {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
           <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
           {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
-        </div>
+        </div>}
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
           <div><Lbl t="Caja Total ($)"/><Inp type="number" step=".01" placeholder="Efectivo físico" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
@@ -1763,7 +1763,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>
 
         {/* Otros gastos */}
-        <div style={{marginBottom:12}}>
+        <div style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <Lbl t="Otros gastos"/>
             <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
@@ -1778,7 +1778,6 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
         </div>
 
-        <div style={{marginBottom:14}}><Lbl t="Notas adicionales"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:50,outline:"none",boxSizing:"border-box"}}/></div>
         <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
           <Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn>
           <Btn v="g" onClick={doClose} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
