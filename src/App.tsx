@@ -3316,7 +3316,7 @@ function Estadisticas({prods,sales,localeNames}) {
 
   // Ventas de este producto
   const ventasProd=prodSel?salesSinDepo.filter(s=>
-    s.items&&s.items.some(it=>it.id===parseInt(prodSel))
+    s.items&&s.items.some(it=>it.pid===parseInt(prodSel))
   ):[];
 
   // Por mes — cantidad y monto
@@ -3324,14 +3324,14 @@ function Estadisticas({prods,sales,localeNames}) {
   ventasProd.forEach(s=>{
     const ym=s.date?.slice(0,7)||"";
     if(!ym) return;
-    const item=s.items.find(it=>it.id===parseInt(prodSel));
+    const item=s.items.find(it=>it.pid===parseInt(prodSel));
     if(!item) return;
     const loc=s.localName||"";
     if(localSel!=="todos"&&loc!==localSel) return;
     if(!byMes[ym]) byMes[ym]={count:0,qty:0,monto:0,porLocal:{}};
     byMes[ym].count++;
     byMes[ym].qty+=(item.qty||1);
-    byMes[ym].monto+=item.subtotal||(item.price*(item.qty||1));
+    byMes[ym].monto+=item.sub||0;
     if(!byMes[ym].porLocal[loc]) byMes[ym].porLocal[loc]={count:0,qty:0};
     byMes[ym].porLocal[loc].count++;
     byMes[ym].porLocal[loc].qty+=(item.qty||1);
