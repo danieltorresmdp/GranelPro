@@ -321,6 +321,7 @@ const[view,setView]=useState("dash");
       {v:"stockmgt",  icon:"stk",  label:"Stock x Local"},
       {v:"traslados",  icon:"trend",label:"Traslados"},
       {v:"rentab",     icon:"cash", label:"Rentabilidad"},
+      {v:"estadisticas",icon:"trend",label:"Estadísticas"},
       {v:"proveedores",icon:"usr",  label:"Proveedores"},
       {v:"rpt_prov",   icon:"rpt",  label:"Reporte Prov."},
       {v:"gastos",     icon:"cash", label:"Gastos"},
@@ -432,7 +433,8 @@ const[view,setView]=useState("dash");
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
             {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll} stockMgt={stockMgt}/>}
-            {isAdmin&&view==="rentab"    &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
+            {isAdmin&&view==="rentab"        &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
+            {isAdmin&&view==="estadisticas"  &&<Estadisticas prods={prods} sales={sales} localeNames={localeNames}/>}
             {isAdmin&&view==="proveedores" &&<Proveedores notify={notify}/>}
             {isAdmin&&view==="rpt_prov"    &&<ReporteProveedores sales={sales}/>}
             {isAdmin&&view==="gastos"      &&<Gastos notify={notify}/>}
@@ -1559,59 +1561,126 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
 }
 
 function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
-  const[closing,setClosing]=useState(false);const[openAmt,setOpenAmt]=useState("");const[retiro,setRetiro]=useState("");const[notes,setNotes]=useState("");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[closing,setClosing]=useState(false);
+  const[turno,setTurno]=useState("");
+  const[cajaTotal,setCajaTotal]=useState("");
+  const[fondo,setFondo]=useState("");
+  const[retiro,setRetiro]=useState("");
+  const[otros,setOtros]=useState([{desc:"",monto:""}]);
+  const[notes,setNotes]=useState("");
+  const[saving,setSaving]=useState(false);
+  const[confirmDel,setConfirmDel]=useState(null);
   const[filtLocal,setFiltLocal]=useState("todos");
   const[filtUser,setFiltUser]=useState("todos");
+
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
   const closedIds=caja.flatMap((d)=>d.saleIds||[]);
   const mySales=isAdmin?sales:sales.filter((s)=>String(s.uid)===String(session?.id));
   const unclosed=mySales.filter((s)=>!closedIds.includes(s.id));
   const byPay=PAY_OPTS.reduce((acc,m)=>{
     acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);
-    // Sumar ventas mixtas que incluyen este medio
     unclosed.filter((s)=>s.pay&&s.pay.includes(" + ")).forEach((s)=>{
       const parts=s.pay.split(" + ");
-      if(m==="efectivo"&&parts[0]==="efectivo"){
-        // El efectivo es el cashAmount guardado — usamos total proporcional si no hay dato
-        acc[m]+=(s.cashAmount||0);
-      } else if((m==="tarjeta"||m==="QR")&&parts[1]===m){
-        acc[m]+=(s.cash2||0);
-      }
+      if(m==="efectivo"&&parts[0]==="efectivo") acc[m]+=(s.cashAmount||0);
+      else if((m==="tarjeta"||m==="QR")&&parts[1]===m) acc[m]+=(s.cash2||0);
     });
     return acc;
   },{});
-  const totalEf=byPay["efectivo"]||0;const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
+  const totalEf=byPay["efectivo"]||0;
+  const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);
+  const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=myCaja[myCaja.length-1];
   const lastByLocal=[...caja].reverse().find((d)=>d.localName===(session?.local||""));
-
-  // Filtered historial
   const filteredCaja=[...myCaja].reverse().filter((d)=>{
     const matchLocal=filtLocal==="todos"||d.localName===filtLocal;
     const matchUser=filtUser==="todos"||String(d.closedBy)===filtUser;
     return matchLocal&&matchUser;
   });
+  const cajaLocales=[...new Set(myCaja.map(d=>d.localName).filter(Boolean))];
+  const cajaUsers=[...new Set(myCaja.map(d=>({id:String(d.closedBy),name:d.closedByName})).map(u=>JSON.stringify(u)))].map(s=>JSON.parse(s));
+
+  const totalOtros=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
+
+  const imprimirCierre=(data)=>{
+    const {turno,cajaTotal,fondo,retiro,otros,totalEf,totalDig,totalAll,local,nombre,fecha}=data;
+    const totalOtrosP=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre de Caja</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:20px;max-width:380px;margin:0 auto;color:#000;font-size:13px}
+      h1{text-align:center;font-size:16px;margin-bottom:2px}
+      .sub{text-align:center;color:#555;font-size:10px;margin-bottom:16px}
+      .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+      .label{color:#555;font-size:12px}
+      .value{font-weight:700;font-size:13px}
+      .total{display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #000;margin-top:4px;font-size:15px;font-weight:900}
+      .otros{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:8px;margin:8px 0}
+      .otros-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
+      .no-print{text-align:center;margin-bottom:12px}
+      .firma{border-top:1px solid #000;margin-top:40px;padding-top:6px;text-align:center;font-size:10px;color:#555}
+      @media print{.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print">
+      <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir</button>
+      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    <h1>🐾 Masc🐾tas Pet Shop</h1>
+    <div class="sub">Cierre de Caja</div>
+    <div class="row"><span class="label">Fecha</span><span class="value">${fecha}</span></div>
+    <div class="row"><span class="label">Local</span><span class="value">${local}</span></div>
+    <div class="row"><span class="label">Turno</span><span class="value">${turno}</span></div>
+    <div class="row"><span class="label">Vendedor</span><span class="value">${nombre}</span></div>
+    <div class="row"><span class="label">Ventas efectivo</span><span class="value">$${totalEf.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Ventas digital</span><span class="value">$${totalDig.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Total ventas</span><span class="value">$${totalAll.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Caja total (efectivo físico)</span><span class="value">$${(parseFloat(cajaTotal)||0).toLocaleString("es-AR")}</span></div>
+    ${totalOtrosP>0?`<div class="otros"><div style="font-weight:700;margin-bottom:4px;font-size:11px">OTROS GASTOS</div>${otros.filter(o=>o.desc||o.monto).map(o=>`<div class="otros-row"><span>${o.desc||"—"}</span><span>$${(parseFloat(o.monto)||0).toLocaleString("es-AR")}</span></div>`).join("")}<div class="otros-row" style="font-weight:700;border-top:1px solid #ccc;margin-top:4px;padding-top:4px"><span>Total otros</span><span>$${totalOtrosP.toLocaleString("es-AR")}</span></div></div>`:""}
+    <div class="row"><span class="label">Fondo (queda en caja)</span><span class="value" style="color:#006600">$${(parseFloat(fondo)||0).toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Retiro</span><span class="value" style="color:#cc0000">$${(parseFloat(retiro)||0).toLocaleString("es-AR")}</span></div>
+    <div class="firma">Firma y aclaración: ___________________</div>
+    </body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();}
+  };
 
   const doClose=async()=>{
+    if(!turno){notify("Seleccioná el turno antes de cerrar","err");return;}
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     setSaving(true);
+    const otrosStr=otros.filter(o=>o.desc||o.monto).map(o=>`${o.desc}: $${o.monto}`).join(" | ");
     try{
-      await sb.from("gp_caja").insert([{id:Date.now(),closed_by:session.id,closed_by_name:session.name,sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,total_ef:totalEf,total_dig:totalDig,total_all:totalAll,opening_amount:parseFloat(openAmt)||0,retiro_efectivo:parseFloat(retiro)||0,notes,sales_count:unclosed.length,local_name:session.local||""}]);
-      notify(`Caja cerrada. ${fmtM(totalAll)}`);setClosing(false);setOpenAmt("");setRetiro("");setNotes("");loadAll();
+      await sb.from("gp_caja").insert([{
+        id:Date.now(),closed_by:session.id,closed_by_name:session.name,
+        sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,
+        total_ef:totalEf,total_dig:totalDig,total_all:totalAll,
+        opening_amount:parseFloat(fondo)||0,
+        retiro_efectivo:parseFloat(retiro)||0,
+        notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [Otros: ${otrosStr||"—"}] ${notes}`,
+        sales_count:unclosed.length,local_name:session.local||""
+      }]);
+      notify(`Caja cerrada · Turno ${turno} · ${fmtM(totalAll)}`);
+      // Imprimir comprobante automáticamente
+      imprimirCierre({
+        turno,cajaTotal,fondo,retiro,otros,
+        totalEf,totalDig,totalAll,
+        local:session.local||"",nombre:session.name,
+        fecha:new Date().toLocaleString("es-AR")
+      });
+      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);setNotes("");loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
+
   const delCierre=async(id)=>{
     await sb.from("gp_caja").delete().eq("id",id);
     notify("Cierre eliminado");setConfirmDel(null);loadAll();
   };
 
-  // Unique locals and users that have cierres
-  const cajaLocales=[...new Set(myCaja.map(d=>d.localName).filter(Boolean))];
-  const cajaUsers=[...new Set(myCaja.map(d=>({id:String(d.closedBy),name:d.closedByName})).map(u=>JSON.stringify(u)))].map(s=>JSON.parse(s));
-
   return(
     <div className="fade">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div><Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div>
+        <Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn>
+      </div>
       {lastByLocal&&<Card sx={{padding:"12px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,background:"#03120a",border:"1px solid #00882233"}}>
         <Ic n="cash" s={20} c="#00cc55"/>
         <div>
@@ -1630,12 +1699,10 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
           <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
-            {/* Filtro por local */}
             <Sel value={filtLocal} onChange={(e)=>setFiltLocal(e.target.value)} sx={{width:130,fontSize:10,padding:"4px 8px"}}>
               <option value="todos">📍 Todos los locales</option>
               {cajaLocales.map(l=><option key={l} value={l}>{l}</option>)}
             </Sel>
-            {/* Filtro por vendedor */}
             <Sel value={filtUser} onChange={(e)=>setFiltUser(e.target.value)} sx={{width:150,fontSize:10,padding:"4px 8px"}}>
               <option value="todos">👤 Todos los vendedores</option>
               {cajaUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
@@ -1643,29 +1710,86 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
           </div>
         </div>
-        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th></th></tr></thead>
-          <tbody>{filteredCaja.map((d)=>(<tr key={d.id}><td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td><td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td><td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td><td>{d.salesCount}</td><td style={{color:"#00cc55",fontWeight:700}}>{fmtM((d.totalEf||0))}</td><td style={{color:"#3388ff",fontWeight:700}}>{fmtM((d.totalDig||0))}</td><td style={{fontWeight:800,color:"#00cc55"}}>{fmtM((d.totalAll||0))}</td><td style={{color:"#00cc55",fontSize:11}}>{fmtM((d.openingAmount||0))}</td><td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?`${fmtM((d.retiro_efectivo))}`:"—"}</td><td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td></tr>))}
-          {filteredCaja.length===0&&<tr><td colSpan={10} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
+        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th></th></tr></thead>
+          <tbody>{filteredCaja.map((d)=>{
+            const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
+            return(<tr key={d.id}>
+              <td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td>
+              <td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td>
+              <td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td>
+              <td style={{fontSize:10,fontWeight:700,color:turnoNote==="Mañana"?"#ff9900":turnoNote==="Tarde"?"#cc44ff":"#ffffff"}}>{turnoNote}</td>
+              <td>{d.salesCount}</td>
+              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM((d.totalEf||0))}</td>
+              <td style={{color:"#3388ff",fontWeight:700}}>{fmtM((d.totalDig||0))}</td>
+              <td style={{fontWeight:800,color:"#00cc55"}}>{fmtM((d.totalAll||0))}</td>
+              <td style={{color:"#00cc55",fontSize:11}}>{fmtM((d.openingAmount||0))}</td>
+              <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?fmtM((d.retiro_efectivo)):"—"}</td>
+              <td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>
+            </tr>);
+          })}
+          {filteredCaja.length===0&&<tr><td colSpan={11} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
           </tbody>
         </table>
       </Card>}
-      {closing&&(<Modal close={()=>setClosing(false)} w={420}><div style={{padding:24}}>
-        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Confirmar Cierre</h2>
+
+      {/* Modal cierre */}
+      {closing&&(<Modal close={()=>setClosing(false)} w={500}><div style={{padding:24}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Cerrar Caja · {session?.local}</h2>
+
+        {/* Selector turno — OBLIGATORIO */}
+        <div style={{marginBottom:14}}>
+          <Lbl t="Turno *"/>
+          <div style={{display:"flex",gap:10,marginTop:6}}>
+            {["Mañana","Tarde"].map(t=>(
+              <button key={t} onClick={()=>setTurno(t)} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#192a38"}`,background:turno===t?(t==="Mañana"?"#140800":"#100a1a"):"transparent",color:turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+                {t==="Mañana"?"🌅 Mañana":"🌙 Tarde"}
+              </button>
+            ))}
+          </div>
+          {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
+        </div>
+
+        {/* Resumen ventas */}
         <div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
-          {isAdmin&&PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
-          {isAdmin&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>}
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
+          {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:isAdmin?"1fr 1fr":"1fr",gap:11,marginBottom:11}}>
-          <div><Lbl t="Fondo que dejás ($)"/><Inp type="number" step=".01" placeholder="0.00" value={openAmt} onChange={(e)=>setOpenAmt(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:3}}>Lo verá el próximo turno</div></div>
-          <div><Lbl t="Retiro en efectivo ($)"/><Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:3}}>Solo visible para admin</div></div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+          <div><Lbl t="Caja Total ($)"/><Inp type="number" step=".01" placeholder="Efectivo físico" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
+          <div><Lbl t="Fondo ($)"/><Inp type="number" step=".01" placeholder="0.00" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
+          <div><Lbl t="Retiro ($)"/><Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
         </div>
-        <div style={{marginBottom:14}}><Lbl t="Notas"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
-        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn><Btn v="g" onClick={doClose} disabled={saving}>{saving?"Cerrando...":"Confirmar"}</Btn></div>
+
+        {/* Otros gastos */}
+        <div style={{marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <Lbl t="Otros gastos"/>
+            <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
+          </div>
+          {otros.map((o,i)=>(
+            <div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"center"}}>
+              <Inp placeholder="Descripción..." value={o.desc} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2}}/>
+              <Inp type="number" step=".01" placeholder="$0" value={o.monto} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1}}/>
+              {otros.length>1&&<button onClick={()=>setOtros(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16}}>×</button>}
+            </div>
+          ))}
+          {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
+        </div>
+
+        <div style={{marginBottom:14}}><Lbl t="Notas adicionales"/><textarea value={notes} onChange={(e)=>setNotes(e.target.value)} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:50,outline:"none",boxSizing:"border-box"}}/></div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
+          <Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn>
+          <Btn v="g" onClick={doClose} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
+        </div>
       </div></Modal>)}
+
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#ffffff"}}>{new Date(confirmDel.closedAt).toLocaleString("es-AR")}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
 }
+
 
 function Products({prods,notify,loadAll}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
@@ -3169,6 +3293,143 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
           </Btn>
         </div>
       </div></Modal>}
+    </div>
+  );
+}
+
+// ─── ESTADÍSTICAS DE VENTA ─────────────────────────────────────────────────
+
+function Estadisticas({prods,sales,localeNames}) {
+  const[prodSel,setProdSel]=useState("");
+  const[q,setQ]=useState("");
+  const[localSel,setLocalSel]=useState("todos");
+
+  const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
+
+  // Locales sin depósito
+  const localesSinDepo=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
+
+  // Ventas filtradas sin depósito
+  const salesSinDepo=sales.filter(s=>!s.localName?.toUpperCase().includes("DEPOSIT"));
+
+  const prod=prods.find(p=>p.id===parseInt(prodSel));
+
+  // Ventas de este producto
+  const ventasProd=prodSel?salesSinDepo.filter(s=>
+    s.items&&s.items.some(it=>it.id===parseInt(prodSel))
+  ):[];
+
+  // Por mes — cantidad y monto
+  const byMes={};
+  ventasProd.forEach(s=>{
+    const ym=s.date?.slice(0,7)||"";
+    if(!ym) return;
+    const item=s.items.find(it=>it.id===parseInt(prodSel));
+    if(!item) return;
+    const loc=s.localName||"";
+    if(localSel!=="todos"&&loc!==localSel) return;
+    if(!byMes[ym]) byMes[ym]={count:0,qty:0,monto:0,porLocal:{}};
+    byMes[ym].count++;
+    byMes[ym].qty+=(item.qty||1);
+    byMes[ym].monto+=item.subtotal||(item.price*(item.qty||1));
+    if(!byMes[ym].porLocal[loc]) byMes[ym].porLocal[loc]={count:0,qty:0};
+    byMes[ym].porLocal[loc].count++;
+    byMes[ym].porLocal[loc].qty+=(item.qty||1);
+  });
+
+  const meses=Object.keys(byMes).sort((a,b)=>b.localeCompare(a));
+  const promQty=meses.length>0?meses.reduce((a,m)=>a+byMes[m].qty,0)/meses.length:0;
+  const promMonto=meses.length>0?meses.reduce((a,m)=>a+byMes[m].monto,0)/meses.length:0;
+  const maxQty=meses.length>0?Math.max(...meses.map(m=>byMes[m].qty)):1;
+
+  const filtProds=prods.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase())));
+
+  const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Estadísticas de Venta</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>CONSUMO MENSUAL POR PRODUCTO · SIN DEPÓSITO</p>
+      </div>
+
+      <Card sx={{padding:18,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:12,alignItems:"end"}}>
+          <div>
+            <Lbl t="Buscar producto"/>
+            <Inp placeholder="Nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)}/>
+          </div>
+          <div>
+            <Lbl t="Producto"/>
+            <Sel value={prodSel} onChange={(e)=>setProdSel(e.target.value)}>
+              <option value="">— Seleccioná un producto —</option>
+              {filtProds.map(p=><option key={p.id} value={p.id}>{CAT_EM[p.cat]||""} {p.name}{p.code?` #${p.code}`:""}</option>)}
+            </Sel>
+          </div>
+          <div>
+            <Lbl t="Local"/>
+            <Sel value={localSel} onChange={(e)=>setLocalSel(e.target.value)}>
+              <option value="todos">Todos los locales</option>
+              {localesSinDepo.map(l=><option key={l}>{l}</option>)}
+            </Sel>
+          </div>
+        </div>
+      </Card>
+
+      {!prodSel&&<div style={{textAlign:"center",padding:40,color:"#ffffff",fontSize:13}}>Seleccioná un producto para ver sus estadísticas</div>}
+
+      {prod&&prodSel&&<>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+          <Stat label="Meses con ventas" value={meses.length} sub="registros" color="#00d4ff" icon="hist"/>
+          <Stat label="Promedio mensual" value={prod.unit==="kg"?`${promQty.toFixed(1)} kg`:`${Math.round(promQty)} u`} sub="cantidad" color="#00cc55" icon="trend"/>
+          <Stat label="Ingreso promedio" value={fmtM(promMonto)} sub="por mes" color="#ff9900" icon="cash"/>
+          <Stat label="Total vendido" value={prod.unit==="kg"?`${meses.reduce((a,m)=>a+byMes[m].qty,0).toFixed(1)} kg`:`${meses.reduce((a,m)=>a+byMes[m].qty,0)} u`} sub="histórico" color="#cc44ff" icon="star"/>
+        </div>
+
+        <Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
+            <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>{CAT_EM[prod.cat]||""} {prod.name} · {localSel==="todos"?"Todos los locales":localSel}</span>
+          </div>
+          {meses.length===0&&<div style={{padding:24,textAlign:"center",color:"#ffffff",fontSize:12}}>Sin ventas registradas para este producto{localSel!=="todos"?` en ${localSel}`:""}</div>}
+          {meses.map(ym=>{
+            const d=byMes[ym];
+            const barW=maxQty>0?(d.qty/maxQty*100):0;
+            return(
+              <div key={ym} style={{padding:"12px 16px",borderBottom:"1px solid #192a3814"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:13,fontWeight:800,color:"#ffffff",minWidth:80}}>{fmtMonth(ym)}</span>
+                  <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff"}}>CANTIDAD</div><div style={{fontSize:14,fontWeight:800,color:"#00cc55"}}>{prod.unit==="kg"?`${d.qty.toFixed(1)} kg`:`${d.qty} u`}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff"}}>VENTAS</div><div style={{fontSize:14,fontWeight:800,color:"#00d4ff"}}>{d.count}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff"}}>INGRESO</div><div style={{fontSize:14,fontWeight:800,color:"#ff9900"}}>{fmtM(d.monto)}</div></div>
+                  </div>
+                </div>
+                <div style={{height:6,background:"#192a38",borderRadius:3,overflow:"hidden",marginBottom:localSel==="todos"?5:0}}>
+                  <div style={{height:"100%",background:"#00cc55",width:`${barW}%`,borderRadius:3,transition:"width .4s"}}/>
+                </div>
+                {localSel==="todos"&&<div style={{paddingLeft:4}}>
+                  {localesSinDepo.map((l,li)=>{
+                    const ld=d.porLocal?.[l];
+                    if(!ld||ld.qty===0) return null;
+                    const lColors=["#00cc55","#3388ff","#cc44ff","#ff9900","#00d4ff","#ff4444"];
+                    const lBarW=maxQty>0?(ld.qty/maxQty*100):0;
+                    return(
+                      <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}>
+                        <span style={{fontSize:9,color:lColors[li%6],minWidth:80}}>📍 {l}</span>
+                        <div style={{flex:1,height:3,background:"#192a38",borderRadius:2,overflow:"hidden"}}>
+                          <div style={{height:"100%",background:lColors[li%6],width:`${lBarW}%`,borderRadius:2,opacity:.7}}/>
+                        </div>
+                        <span style={{fontSize:10,color:lColors[li%6],fontWeight:700,minWidth:60,textAlign:"right"}}>{prod.unit==="kg"?`${ld.qty.toFixed(1)} kg`:`${ld.qty} u`}</span>
+                        <span style={{fontSize:9,color:"#ffffff",minWidth:30}}>{ld.count}v</span>
+                      </div>
+                    );
+                  })}
+                </div>}
+              </div>
+            );
+          })}
+        </Card>
+      </>}
     </div>
   );
 }
