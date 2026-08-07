@@ -999,7 +999,7 @@ function Reportes({sales,users,localeNames}) {
   [currentYm,prev1,prev2].forEach(ym=>{ if(!allSalesMonths.includes(ym)) allSalesMonths.push(ym); });
   const allMonths=allSalesMonths.sort((a,b)=>b.localeCompare(a));
 
-  // Por mes y local: { ym -> { localName -> {count, total} } }
+  // Por mes y local: { ym -> { localName -> {count, total, ef, dig} } }
   const byMonthLocal=()=>{
     const map={};
     sales.forEach((s)=>{
@@ -1007,13 +1007,18 @@ function Reportes({sales,users,localeNames}) {
       if(!ym) return;
       if(!map[ym]) map[ym]={};
       const loc=s.localName||"Sin local";
-      if(!map[ym][loc]) map[ym][loc]={count:0,total:0};
+      if(!map[ym][loc]) map[ym][loc]={count:0,total:0,ef:0,dig:0};
       map[ym][loc].count++;
       map[ym][loc].total+=s.total;
+      if(s.pay==="efectivo") map[ym][loc].ef+=s.total;
+      else map[ym][loc].dig+=s.total;
     });
     return map;
   };
   const monthLocalMap=byMonthLocal();
+
+  const efByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.ef||0),0);
+  const digByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.dig||0),0);
 
   // Locales a mostrar según filtro
   const localesVis=localSel==="todos"?[...new Set(sales.map(s=>s.localName||"Sin local"))]:[ localSel ];
@@ -1035,7 +1040,14 @@ function Reportes({sales,users,localeNames}) {
     <div className="fade">
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reportes</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>VENTAS TOTALES · {sales.length} OPERACIONES</p></div>
       <Card sx={{padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General</div><div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{fmtM(totalGeneral)}</div></div>
+        <div>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General</div>
+          <div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{fmtM(totalGeneral)}</div>
+          <div style={{display:"flex",gap:14,marginTop:4}}>
+            <span style={{fontSize:10,color:"#00cc55"}}>💵 Efectivo: <strong>{fmtM(sales.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0))}</strong></span>
+            <span style={{fontSize:10,color:"#3388ff"}}>🏦 Digital: <strong>{fmtM(sales.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0))}</strong></span>
+          </div>
+        </div>
         <div style={{display:"flex",gap:8}}>
           <Btn v={tab==="mensual"?"cy":"gh"} onClick={()=>setTab("mensual")}><Ic n="trend" s={13}/>Mensual</Btn>
           <Btn v={tab==="local"?"cy":"gh"} onClick={()=>setTab("local")}><Ic n="loc" s={13}/>Por Local</Btn>
@@ -1080,6 +1092,19 @@ function Reportes({sales,users,localeNames}) {
                       <div style={{fontSize:14,fontWeight:800,color:"#00cc55"}}>{fmtM(total)}</div>
                       <div style={{fontSize:9,color:"#ffffff"}}>{count} ventas</div>
                     </div>
+                  </div>
+                </div>
+                {/* Desglose efectivo / digital */}
+                <div style={{display:"flex",gap:16,marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{fontSize:9,color:"#00cc55"}}>💵 Efectivo:</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#00cc55"}}>{fmtM(efByMonth(ym))}</span>
+                    {total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(efByMonth(ym)/total*100).toFixed(0)}%)</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{fontSize:9,color:"#3388ff"}}>🏦 Digital:</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#3388ff"}}>{fmtM(digByMonth(ym))}</span>
+                    {total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(digByMonth(ym)/total*100).toFixed(0)}%)</span>}
                   </div>
                 </div>
                 {/* Barra global */}
