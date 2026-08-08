@@ -1629,9 +1629,6 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     <div class="row"><span class="label">Local</span><span class="value">${local}</span></div>
     <div class="row"><span class="label">Turno</span><span class="value">${turno}</span></div>
     <div class="row"><span class="label">Vendedor</span><span class="value">${nombre}</span></div>
-    <div class="row"><span class="label">Ventas efectivo</span><span class="value">$${totalEf.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Ventas digital</span><span class="value">$${totalDig.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Total ventas</span><span class="value">$${totalAll.toLocaleString("es-AR")}</span></div>
     <div class="row"><span class="label">Caja total (efectivo físico)</span><span class="value">$${(parseFloat(cajaTotal)||0).toLocaleString("es-AR")}</span></div>
     ${totalOtrosP>0?`<div class="otros"><div style="font-weight:700;margin-bottom:4px;font-size:11px">OTROS GASTOS</div>${otros.filter(o=>o.desc||o.monto).map(o=>`<div class="otros-row"><span>${o.desc||"—"}</span><span>$${(parseFloat(o.monto)||0).toLocaleString("es-AR")}</span></div>`).join("")}<div class="otros-row" style="font-weight:700;border-top:1px solid #ccc;margin-top:4px;padding-top:4px"><span>Total otros</span><span>$${totalOtrosP.toLocaleString("es-AR")}</span></div></div>`:""}
     <div class="row"><span class="label">Fondo (queda en caja)</span><span class="value" style="color:#006600">$${(parseFloat(fondo)||0).toLocaleString("es-AR")}</span></div>
