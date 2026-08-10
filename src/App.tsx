@@ -9,7 +9,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const POINT_VALUE  = 1.00;
 const POINTS_DENOM = 500;
 const MAX_DISC_PCT = 0.30;
-const PAY_OPTS     = ["efectivo","tarjeta","QR"];
+const PAY_OPTS     = ["efectivo","debito","credito","QR"];
 const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
 const todayStr     = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"})).toISOString().split("T")[0];
 
@@ -23,6 +23,8 @@ const CAT_STYLE = {
 const PAY_STYLE = {
   "efectivo":["#031508","#00994422","#00bb55"],
   "tarjeta": ["#030d1a","#2266ee22","#3388ff"],
+  "debito":  ["#030d1a","#2266ee22","#3388ff"],
+  "credito": ["#0a030d","#882266ee","#cc44ff"],
   "QR":      ["#0a0a03","#aacc0022","#ccee00"],
   "admin":   ["#12040e","#dd44aa22","#ff66cc"],
   "vendedor":["#031212","#00bbbb22","#00dddd"],
@@ -111,6 +113,7 @@ const Btn = ({v="g",children,sx,...p}) => {
     r:{bg:"#180505",fg:"#ff5555",hv:"#200808",bd:"1px solid #300a0a"},
     or:{bg:"#140800",fg:"#ff9900",hv:"#1c1000",bd:"1px solid #301800"},
     cy:{bg:"#011518",fg:"#00d4ff",hv:"#021c20",bd:"1px solid #003a44"},
+    pu:{bg:"#0d0518",fg:"#cc44ff",hv:"#140a22",bd:"1px solid #551166"},
     pu:{bg:"#0e040f",fg:"#cc44ff",hv:"#14061a",bd:"1px solid #2a0a30"},
   }[v]||{};
   return <button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 16px",borderRadius:7,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",border:vs.bd||"none",background:vs.bg,color:vs.fg,transition:"all .15s",...sx}}
@@ -179,6 +182,7 @@ export default function App() {
   const[sales,setSales]=useState([]);
 const[caja,setCaja]=useState([]);
 const[locales,setLocales]=useState([]);
+  const[cuotasConfig,setCuotasConfig]=useState({interes:{"2":0,"3":0,"4":0,"5":0,"6":0},minLocal:{}});
 const[stockMgt,setStockMgt]=useState([]);
 const[loading,setLoading]=useState(true);
 const[view,setView]=useState("dash");
@@ -271,6 +275,16 @@ const[view,setView]=useState("dash");
       if(!p.error) setProds((p.data||[]).map(mapProd));
       if(!sk.error) setStock((sk.data||[]).map(mapStock));
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
+      // Load cuotas config
+      const{data:cfgData}=await sb.from("gp_config").select("*");
+      if(cfgData){
+        const intRow=cfgData.find(r=>r.key==="cuotas_interes");
+        const minRow=cfgData.find(r=>r.key==="cuotas_min_local");
+        setCuotasConfig({
+          interes:intRow?.value||{"2":0,"3":0,"4":0,"5":0,"6":0},
+          minLocal:minRow?.value||{}
+        });
+      }
       setClients((c||[]).map(mapClient));
       setSales((s||[]).map(mapSale));
       setCaja((cj||[]).map(mapCaja));
@@ -426,7 +440,7 @@ const[view,setView]=useState("dash");
             </div>
           ):<>
             {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView} stock={stock} localeNames={localeNames}/>}
-            {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll} isAdmin={isAdmin} persistCart={persistCart} setPersistCart={setPersistCart} persistCid={persistCid} setPersistCid={setPersistCid} persistCliQ={persistCliQ} setPersistCliQ={setPersistCliQ} persistPay={persistPay} setPersistPay={setPersistPay}/>}
+            {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll} isAdmin={isAdmin} persistCart={persistCart} setPersistCart={setPersistCart} persistCid={persistCid} setPersistCid={setPersistCid} persistCliQ={persistCliQ} setPersistCliQ={setPersistCliQ} persistPay={persistPay} setPersistPay={setPersistPay} cuotasConfig={cuotasConfig} setCuotasConfig={setCuotasConfig}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll} session={session}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
@@ -439,7 +453,7 @@ const[view,setView]=useState("dash");
             {isAdmin&&view==="rpt_prov"    &&<ReporteProveedores sales={sales}/>}
             {isAdmin&&view==="gastos"      &&<Gastos notify={notify}/>}
             {isAdmin&&view==="empleados"   &&<Empleados notify={notify}/>}
-            {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll}/>}
+            {isAdmin&&view==="localmgt" &&<LocalMgt locales={locales} notify={notify} loadAll={loadAll} cuotasConfig={cuotasConfig} setCuotasConfig={setCuotasConfig}/>}
             {isAdmin&&view==="reporte"  &&<Reportes sales={sales} users={users} localeNames={localeNames}/>}
             {isAdmin&&view==="usermgt"  &&<UserMgmt users={users} notify={notify} session={session} loadAll={loadAll} localeNames={localeNames}/>}
             {isAdmin&&view==="perfil"   &&<AdminProfile session={session} setSession={setSession} notify={notify} loadAll={loadAll}/>}
@@ -526,7 +540,7 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
   );
 }
 
-function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart,setPersistCart,persistCid,setPersistCid,persistCliQ,setPersistCliQ,persistPay,setPersistPay}) {
+function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart,setPersistCart,persistCid,setPersistCid,persistCliQ,setPersistCliQ,persistPay,setPersistPay,cuotasConfig,setCuotasConfig}) {
   const[cart,setCart_]=useState(persistCart||[]);
   const setCart=(fn)=>{setCart_(prev=>{const next=typeof fn==="function"?fn(prev):fn;setPersistCart(next);return next;});};
   const[cid,setCid_]=useState(persistCid||"");
@@ -534,10 +548,11 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
   const[cliQ,setCliQ_]=useState(persistCliQ||"");
   const setCliQ=(v)=>{setCliQ_(v);setPersistCliQ(v);};
   const[pay,setPay_]=useState(persistPay||"");
-  const setPay=(v)=>{setPay_(v);setPersistPay(v);};
+  const setPay=(v)=>{setPay_(v);setPersistPay(v);if(v!=="credito"){setCuotas("");}};
   const[pay2,setPay2]=useState("");
   const[mixedMode,setMixedMode]=useState(false);
   const[cashAmount,setCashAmount]=useState("");
+  const[cuotas,setCuotas]=useState("");
   const[date,setDate]=useState(todayStr());
   const[usePts,setUsePts]=useState(false);
   const[ptsIn,setPtsIn]=useState(0);
@@ -566,10 +581,14 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
   const sub=cart.reduce((a,b)=>a+b.sub,0);
   const ptsUs=usePts?Math.min(parseInt(String(ptsIn))||0,client?.pts||0):0;
   const disc=Math.min(ptsUs*POINT_VALUE,sub*MAX_DISC_PCT);
-  const total=Math.max(0,sub-disc);
+  const subtotalSinInteres=Math.max(0,sub-disc);
+  const interesPct=pay==="credito"&&cuotas?(parseFloat(cuotasConfig?.interes?.[cuotas])||0):0;
+  const montoInteres=Math.round(subtotalSinInteres*interesPct/100);
+  const total=subtotalSinInteres+montoInteres;
+  const valorCuota=pay==="credito"&&cuotas&&total>0?Math.ceil(total/parseInt(cuotas)):0;
   const hasEfectivo=pay==="efectivo"&&!mixedMode;
   const ptsMultiplier=hasEfectivo?2:1;
-  const ptsE=Math.floor(total/POINTS_DENOM)*ptsMultiplier;
+  const ptsE=Math.floor(subtotalSinInteres/POINTS_DENOM)*ptsMultiplier;
   const cash2=mixedMode?Math.max(0,total-parseFloat(cashAmount||"0")):0;
   const payLabel=mixedMode&&pay2?`efectivo + ${pay2}`:(pay||"");
 
@@ -596,6 +615,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
     if(!pay){notify("Seleccioná un medio de pago","err");return;}
     if(mixedMode&&!pay2){notify("Seleccioná el segundo medio de pago","err");return;}
     if(mixedMode&&(parseFloat(cashAmount||"0")<=0||parseFloat(cashAmount||"0")>=total)){notify("Ingresá un monto válido en efectivo","err");return;}
+    if(pay==="credito"&&!cuotas){notify("Seleccioná la cantidad de cuotas","err");return;}
     if(!cart.length){notify("Carrito vacío","err");return;}
     if(total<=0){notify("El total no puede ser $0,00","err");return;}
     setSaving(true);
@@ -603,7 +623,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
       const saleId=Date.now();
       const cartSnapshot=[...cart];
       const clientSnapshot={...client};
-      const finalPay=mixedMode?`efectivo + ${pay2}`:pay;
+      const finalPay=mixedMode?`efectivo + ${pay2}`:pay==="credito"?`credito ${cuotas}c`:pay;
       await sb.from("gp_sales").insert([{id:saleId,date,cid:parseInt(cid),items:cartSnapshot,sub,disc,total,pay:finalPay,pts_e:ptsE,pts_s:ptsUs,uid:session.id,local_name:session.local||""}]);
 
       for(const it of cartSnapshot){
@@ -622,7 +642,7 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
       }
 
       if(clientSnapshot) await sb.from("gp_clients").update({pts:clientSnapshot.pts-ptsUs+ptsE}).eq("id",clientSnapshot.id);
-      const receiptData={sale:{id:saleId,date,pay:finalPay,total,disc,items:cartSnapshot,cashAmount:mixedMode?parseFloat(cashAmount||"0"):null,cash2:mixedMode?cash2:null,pay2:mixedMode?pay2:null},clientName:clientSnapshot?.name,clientDni:clientSnapshot?.dni||"",clientPts:(clientSnapshot?.pts||0)-ptsUs+ptsE,ptsE,ptsUs,local:session.local};
+      const receiptData={sale:{id:saleId,date,pay:finalPay,total,disc,items:cartSnapshot,cashAmount:mixedMode?parseFloat(cashAmount||"0"):null,cash2:mixedMode?cash2:null,pay2:mixedMode?pay2:null,cuotas:pay==="credito"?cuotas:null,interesPct:pay==="credito"?interesPct:0,interesMonto:pay==="credito"?montoInteres:0},clientName:clientSnapshot?.name,clientDni:clientSnapshot?.dni||"",clientPts:(clientSnapshot?.pts||0)-ptsUs+ptsE,ptsE,ptsUs,local:session.local};
       setCart([]);setCid("");setCliQ("");setUsePts(false);setPtsIn(0);
       setSaving(false);setReceipt(receiptData);loadAll();
     }catch(e){notify("Error al guardar venta","err");setSaving(false);}
@@ -644,7 +664,9 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
         <div style={{fontSize:11,marginBottom:4,color:"#000"}}>Cliente: {receipt.clientName}{receipt.clientDni&&` · DNI: ${receipt.clientDni}`}</div>
         {receipt.sale.items.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3,color:"#000"}}><span>{it.name} ({it.unitDisplay})</span><span>{fmtM(it.sub)}</span></div>))}
         {receipt.sale.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Desc.</span><span>-{fmtM(receipt.sale.disc)}</span></div>}
+        {receipt.sale.pay?.startsWith("credito")&&receipt.sale.interesMonto>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#000"}}><span>Interés ({receipt.sale.interesPct}%):</span><span>+{fmtM(receipt.sale.interesMonto)}</span></div>}
         <div style={{borderTop:"2px dashed #000",paddingTop:6,display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14,color:"#000"}}><span>TOTAL</span><span>{fmtM(receipt.sale.total)}</span></div>
+        {receipt.sale.pay?.startsWith("credito")&&receipt.sale.cuotas&&<div style={{marginTop:4,fontSize:11,fontWeight:700,color:"#000",textAlign:"center",borderTop:"1px dashed #000",paddingTop:5}}>{receipt.sale.cuotas} cuota{parseInt(receipt.sale.cuotas)>1?"s":""} de {fmtM(Math.ceil(receipt.sale.total/parseInt(receipt.sale.cuotas)))}</div>}
         {receipt.sale.cashAmount&&<div style={{marginTop:4,fontSize:10,color:"#000"}}>
           <div>Efectivo: {fmtM(receipt.sale.cashAmount)}</div>
           <div>{receipt.sale.pay2}: {fmtM(receipt.sale.cash2)}</div>
@@ -723,14 +745,43 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
             <div style={{display:"flex",gap:5,marginBottom:5}}>
               <Sel value={pay} onChange={(e)=>{setPay(e.target.value);if(e.target.value!=="efectivo"){setMixedMode(false);setCashAmount("");}}} sx={{flex:1,border:"2px solid #ff2222"}}>
                 <option value="" disabled>— Seleccioná —</option>
-                {PAY_OPTS.map(m=><option key={m}>{m}</option>)}
+                <option value="efectivo">💵 Efectivo</option>
+                <option value="debito">💳 Tarjeta Débito</option>
+                <option value="credito">💳 Tarjeta Crédito</option>
+                <option value="QR">📱 QR</option>
               </Sel>
               {pay==="efectivo"&&<button onClick={()=>{setMixedMode(!mixedMode);setCashAmount("");setPay2("");}} style={{background:mixedMode?"#082244":"transparent",border:`1px solid ${mixedMode?"#3388ff":"#192a38"}`,color:mixedMode?"#3388ff":"#2a3d50",borderRadius:6,padding:"0 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700,whiteSpace:"nowrap"}}>+ 2do medio</button>}
             </div>
+            {/* Selector de cuotas para crédito */}
+            {pay==="credito"&&<>
+              <div style={{display:"flex",gap:5,marginBottom:4,flexWrap:"wrap"}}>
+                {[...Array(6)].map((_,i)=>{
+                  const n=String(i+1);
+                  const minCuotas=parseInt(cuotasConfig?.minLocal?.[session?.local||""]||"2");
+                  if(i+1<minCuotas) return null;
+                  const pct=parseFloat(cuotasConfig?.interes?.[n])||0;
+                  const sel=cuotas===n;
+                  return(
+                    <button key={n} onClick={()=>setCuotas(n)}
+                      style={{padding:"5px 10px",borderRadius:6,border:`2px solid ${sel?"#cc44ff":"#192a38"}`,background:sel?"#100a1a":"transparent",color:sel?"#cc44ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:sel?800:400}}>
+                      {n}c{pct>0?` +${pct}%`:" sin int."}
+                    </button>
+                  );
+                })}
+              </div>
+              {cuotas&&subtotalSinInteres>0&&<div style={{background:"#100a1a",border:"1px solid #cc44ff44",borderRadius:7,padding:"8px 10px",marginBottom:4,fontSize:11}}>
+                <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#ffffff"}}>Subtotal:</span><span style={{color:"#ffffff"}}>{fmtM(subtotalSinInteres)}</span></div>
+                {montoInteres>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#ff9900"}}>Interés ({interesPct}%):</span><span style={{color:"#ff9900"}}>+{fmtM(montoInteres)}</span></div>}
+                <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,borderTop:"1px solid #cc44ff33",marginTop:4,paddingTop:4}}><span style={{color:"#ffffff"}}>TOTAL:</span><span style={{color:"#cc44ff",fontSize:14}}>{fmtM(total)}</span></div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}><span style={{color:"#ffffff"}}>{cuotas} cuota{parseInt(cuotas)>1?"s":""} de:</span><span style={{color:"#cc44ff",fontWeight:800}}>{fmtM(valorCuota)}</span></div>
+              </div>}
+              {!cuotas&&<div style={{fontSize:9,color:"#ff6666",marginBottom:3}}>Seleccioná la cantidad de cuotas</div>}
+            </>}
             {mixedMode&&pay==="efectivo"&&<div style={{display:"flex",gap:5,marginBottom:4}}>
               <Sel value={pay2} onChange={(e)=>setPay2(e.target.value)} sx={{flex:1,fontSize:11}}>
                 <option value="" disabled>2do medio...</option>
-                {PAY_OPTS.filter(m=>m!=="efectivo").map(m=><option key={m}>{m}</option>)}
+                <option value="debito">💳 Débito</option>
+                <option value="QR">📱 QR</option>
               </Sel>
               <Inp type="number" placeholder="$ efectivo" value={cashAmount} onChange={(e)=>setCashAmount(e.target.value)} sx={{width:90,fontSize:11}}/>
             </div>}
@@ -1491,8 +1542,12 @@ useEffect(()=>{fetchAll();},[]);
   );
 }
 
-function LocalMgt({locales,notify,loadAll}) {
+function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[savingCuotas,setSavingCuotas]=useState(false);
+  const[localInteres,setLocalInteres]=useState({...cuotasConfig?.interes});
+  const[localMinCuota,setLocalMinCuota]=useState({...cuotasConfig?.minLocal});
+
   const openNew=()=>{setForm({name:""});setModal(true);};
   const openEdit=(l)=>{setForm({...l});setModal(true);};
   const save=async()=>{
@@ -1506,13 +1561,74 @@ function LocalMgt({locales,notify,loadAll}) {
     setSaving(false);
   };
   const del=async(id)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
+
+  const saveCuotas=async()=>{
+    setSavingCuotas(true);
+    try{
+      await sb.from("gp_config").upsert([{key:"cuotas_interes",value:localInteres,updated_at:new Date().toISOString()}]);
+      await sb.from("gp_config").upsert([{key:"cuotas_min_local",value:localMinCuota,updated_at:new Date().toISOString()}]);
+      setCuotasConfig({interes:localInteres,minLocal:localMinCuota});
+      notify("Configuración de cuotas guardada");
+    }catch(e){notify("Error","err");}
+    setSavingCuotas(false);
+  };
+
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Locales</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>PUNTOS DE VENTA</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Local</Btn></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:20}}>
         {locales.map((l)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
         {locales.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay locales. Creá el primero.</div>}
       </div>
+
+      {/* Configuración de cuotas */}
+      <Card sx={{padding:20,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#cc44ff",marginBottom:16}}>💳 Configuración de Cuotas — Tarjeta Crédito</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+          {/* Intereses por cuota */}
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10,letterSpacing:1}}>INTERÉS POR CANTIDAD DE CUOTAS (global)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {["1","2","3","4","5","6"].map(n=>(
+                <div key={n} style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"10px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"#cc44ff",fontWeight:700,marginBottom:4}}>{n} cuota{parseInt(n)>1?"s":""}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
+                    <input type="number" min="0" max="100" step="0.1"
+                      value={localInteres[n]??0}
+                      onChange={(e)=>setLocalInteres(prev=>({...prev,[n]:parseFloat(e.target.value)||0}))}
+                      style={{width:52,background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,textAlign:"center",outline:"none"}}/>
+                    <span style={{fontSize:10,color:"#ffffff"}}>%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Cuota mínima por local */}
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10,letterSpacing:1}}>CUOTA MÍNIMA POR LOCAL</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>(
+                <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"8px 12px"}}>
+                  <span style={{fontSize:12,color:"#ffffff",fontWeight:700}}>📍 {l.name}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,color:"#ffffff"}}>desde</span>
+                    <select value={localMinCuota[l.name]||"1"}
+                      onChange={(e)=>setLocalMinCuota(prev=>({...prev,[l.name]:e.target.value}))}
+                      style={{background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 8px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,outline:"none",cursor:"pointer"}}>
+                      {["1","2","3"].map(n=><option key={n} value={n}>{n} cuota{parseInt(n)>1?"s":""}</option>)}
+                    </select>
+                    <span style={{fontSize:10,color:"#ffffff"}}>hasta 6</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
+          <Btn v="pu" onClick={saveCuotas} disabled={savingCuotas}>{savingCuotas?"Guardando...":"💾 Guardar Configuración"}</Btn>
+        </div>
+      </Card>
+
       {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar local?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong style={{color:"#ffffff"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
