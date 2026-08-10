@@ -310,8 +310,8 @@ const[view,setView]=useState("dash");
     return()=>{sb.removeChannel(ch);};
   },[session,loadFirst,loadAll]);
 
-  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setView(u.role==="admin"?"dash":"sale");try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
-  const handleLogout=()=>{setSession(null);try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
+  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");setView(u.role==="admin"?"dash":"sale");try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
+  const handleLogout=()=>{setSession(null);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
 
   const localeNames=locales.length>0?locales.map((l)=>l.name):["Centro","Norte","Sur"];
   const getStk=(pid,loc)=>{const s=stock.find(s=>s.productId===pid&&s.localName===loc);return s?s.stk:0;};
@@ -588,7 +588,8 @@ function NewSale({prods,clients,notify,session,stock,loadAll,isAdmin,persistCart
   const valorCuota=pay==="credito"&&cuotas&&total>0?Math.ceil(total/parseInt(cuotas)):0;
   const hasEfectivo=pay==="efectivo"&&!mixedMode;
   const ptsMultiplier=hasEfectivo?2:1;
-  const ptsE=Math.floor(subtotalSinInteres/POINTS_DENOM)*ptsMultiplier;
+  const isConsumidorFinal=client?.name?.toUpperCase().includes("CONSUMIDOR FINAL");
+  const ptsE=isConsumidorFinal?0:Math.floor(subtotalSinInteres/POINTS_DENOM)*ptsMultiplier;
   const cash2=mixedMode?Math.max(0,total-parseFloat(cashAmount||"0")):0;
   const payLabel=mixedMode&&pay2?`efectivo + ${pay2}`:(pay||"");
 
@@ -1547,6 +1548,8 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
   const[savingCuotas,setSavingCuotas]=useState(false);
   const[localInteres,setLocalInteres]=useState({...cuotasConfig?.interes});
   const[localMinCuota,setLocalMinCuota]=useState({...cuotasConfig?.minLocal});
+  // Sync when cuotasConfig loads from Supabase
+  useEffect(()=>{setLocalInteres({...cuotasConfig?.interes});setLocalMinCuota({...cuotasConfig?.minLocal});},[JSON.stringify(cuotasConfig)]);
 
   const openNew=()=>{setForm({name:""});setModal(true);};
   const openEdit=(l)=>{setForm({...l});setModal(true);};
