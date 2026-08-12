@@ -12,6 +12,8 @@ const MAX_DISC_PCT = 0.30;
 const PAY_OPTS     = ["efectivo","debito","credito","QR"];
 const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
 const todayStr     = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"})).toISOString().split("T")[0];
+const nowAR        = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
+const currentYmAR  = () => nowAR().toISOString().slice(0,7);
 
 const CAT_STYLE = {
   "Perro":      ["#060f1a","#4488ff22","#5599ff","🐶"],
@@ -273,7 +275,10 @@ const[view,setView]=useState("dash");
       ]);
       if(!u.error) setUsers((u.data||[]).map(mapUser));
       if(!p.error) setProds((p.data||[]).map(mapProd));
-      if(!sk.error) setStock((sk.data||[]).map(mapStock));
+      if(!sk.error){
+        setStock((sk.data||[]).map(mapStock));
+        setStockMgt((sk.data||[]).map(mapStock));
+      }
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
       // Load cuotas config
       const{data:cfgData}=await sb.from("gp_config").select("*");
@@ -1047,9 +1052,9 @@ function Reportes({sales,users,localeNames}) {
 
   // Todos los meses únicos ordenados desc — garantizar al menos mes actual + 2 anteriores
   const allSalesMonths=[...new Set(sales.map(s=>s.date?s.date.slice(0,7):"").filter(Boolean))];
-  const currentYm=new Date().toISOString().slice(0,7);
-  const prev1=new Date(new Date().setMonth(new Date().getMonth()-1)).toISOString().slice(0,7);
-  const prev2=new Date(new Date().setMonth(new Date().getMonth()-2)).toISOString().slice(0,7);
+  const currentYm=currentYmAR();
+  const prev1=new Date(nowAR().setMonth(nowAR().getMonth()-1)).toISOString().slice(0,7);
+  const prev2=new Date(nowAR().setMonth(nowAR().getMonth()-2)).toISOString().slice(0,7);
   [currentYm,prev1,prev2].forEach(ym=>{ if(!allSalesMonths.includes(ym)) allSalesMonths.push(ym); });
   const allMonths=allSalesMonths.sort((a,b)=>b.localeCompare(a));
 
@@ -1124,7 +1129,7 @@ function Reportes({sales,users,localeNames}) {
           </div>
           {allMonths.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center"}}>Sin datos</div>}
           {allMonths.map((ym,i)=>{
-            const currentYm=new Date().toISOString().slice(0,7);
+            const currentYm=currentYmAR();
             const isCurrentMonth=ym===currentYm;
             const total=totalByMonth(ym);
             const count=countByMonth(ym);
@@ -2834,7 +2839,7 @@ function Gastos({notify}) {
   const[modal,setModal]=useState(false);
   const[form,setForm]=useState(null);
   const[saving,setSaving]=useState(false);
-  const[mesF,setMesF]=useState(new Date().toISOString().slice(0,7));
+  const[mesF,setMesF]=useState(currentYmAR());
   const[confirmDel,setConfirmDel]=useState(null);
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
   const load=async()=>{
@@ -2943,7 +2948,7 @@ function Gastos({notify}) {
 // ─── REPORTE PROVEEDORES ───────────────────────────────────────────────────
 
 function ReporteProveedores({sales}) {
-  const[mes,setMes]=useState(new Date().toISOString().slice(0,7));
+  const[mes,setMes]=useState(currentYmAR());
   const[pagos,setPagos]=useState([]);
   const[gastos,setGastos]=useState([]);
   const[pagoEmp,setPagoEmp]=useState([]);
