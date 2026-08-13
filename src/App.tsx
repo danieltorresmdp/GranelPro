@@ -2017,7 +2017,39 @@ function Products({prods,notify,loadAll}) {
         <tbody>{vis.map((p)=>{const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];return(<tr key={p.id}><td style={{fontFamily:"monospace",fontSize:11,color:"#00d4ff",fontWeight:700}}>{p.code||"—"}</td><td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}</td><td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td><td style={{color:"#00cc55"}}>{p.unit==="kg"?`${fmtM(p.pricePerKg)}/kg`:"—"}</td><td style={{color:"#3388ff"}}>{p.unit==="kg"&&p.bulkWeight>0?`${fmtW(p.bulkWeight)} $${p.bulkPrice}`:"—"}</td><td style={{color:"#cc44ff"}}>{p.unit!=="kg"?`${fmtM((p.unitPrice||0))}`:"—"}</td><td style={{display:"flex",gap:4}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn></td></tr>);})}</tbody>
       </table></Card>
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong style={{color:"#ffffff"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
-      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div><Lbl t="Código"/><Inp value={form.code||""} onChange={(e)=>setForm((f)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/></div><div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div style={{gridColumn:"1/-1",background:"#03120a",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px"}}><Lbl t="💰 Costo del producto ($)"/><Inp type="number" step=".01" value={form.costo||0} onChange={(e)=>setForm((f)=>({...f,costo:parseFloat(e.target.value)||0}))} placeholder="Precio al que comprás (sin IVA)"/><div style={{fontSize:9,color:"#00cc55",marginTop:4}}>Usado para calcular margen real y valor de stock</div></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Producto</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+        <div>
+          <Lbl t="Código"/>
+          <Inp value={form.code||""} onChange={(e)=>setForm((f)=>({...f,code:e.target.value}))} placeholder="ej: 1001"/>
+          {!form.id&&(()=>{
+            const usedCodes=new Set(prods.map(p=>parseInt(p.code)).filter(n=>!isNaN(n)));
+            const maxCode=usedCodes.size>0?Math.max(...usedCodes):0;
+            const nextCode=maxCode+1;
+            const gaps=[];
+            for(let i=1;i<maxCode&&gaps.length<5;i++){if(!usedCodes.has(i)) gaps.push(i);}
+            return(
+              <div style={{marginTop:5}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                  <span style={{fontSize:9,color:"#ffffff"}}>Próximo libre:</span>
+                  <button onClick={()=>setForm(f=>({...f,code:String(nextCode)}))}
+                    style={{background:"#021408",border:"1px solid #00882255",color:"#00cc55",padding:"2px 8px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>
+                    #{nextCode} ← usar
+                  </button>
+                </div>
+                {gaps.length>0&&<div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:9,color:"#ffffff"}}>Gaps:</span>
+                  {gaps.map(g=>(
+                    <button key={g} onClick={()=>setForm(f=>({...f,code:String(g)}))}
+                      style={{background:"#030810",border:"1px solid #3388ff44",color:"#3388ff",padding:"2px 6px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:9}}>
+                      #{g}
+                    </button>
+                  ))}
+                </div>}
+              </div>
+            );
+          })()}
+        </div>
+        <div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div style={{gridColumn:"1/-1",background:"#03120a",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px"}}><Lbl t="💰 Costo del producto ($)"/><Inp type="number" step=".01" value={form.costo||0} onChange={(e)=>setForm((f)=>({...f,costo:parseFloat(e.target.value)||0}))} placeholder="Precio al que comprás (sin IVA)"/><div style={{fontSize:9,color:"#00cc55",marginTop:4}}>Usado para calcular margen real y valor de stock</div></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
