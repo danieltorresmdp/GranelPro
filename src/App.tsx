@@ -3114,27 +3114,35 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
   const getMin=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.min:0;};
   const getMax=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.max:0;};
 
-  const generarPedidoAuto=()=>{
+  const generarPedidoAuto=async()=>{
     if(!localAuto){notify("Seleccioná un local","err");return;}
+    notify("Consultando stock de "+localAuto+"...");
+    // Query Supabase directly for fresh stock data of this local
+    const{data:stockLocal,error}=await sb.from("gp_stock")
+      .select("product_id,stk,min_stk,max_stk")
+      .eq("local_name",localAuto);
+    if(error){notify("Error consultando stock: "+error.message,"err");return;}
+    const stockMap={};
+    (stockLocal||[]).forEach(r=>{
+      stockMap[r.product_id]={stk:Number(r.stk)||0,min:Number(r.min_stk)||0,max:Number(r.max_stk)||0};
+    });
     const sugeridos=prods
       .filter(p=>{
-        const min=getMin(p.id,localAuto);
-        const max=getMax(p.id,localAuto);
-        const stk=getStk(p.id,localAuto);
-        return min>0&&max>0&&stk<=min; // solo los que tienen min+max Y están bajo mínimo
+        const s=stockMap[p.id];
+        if(!s) return false;
+        return s.min>0&&s.max>0&&s.stk<=s.min;
       })
       .map(p=>{
-        const stk=getStk(p.id,localAuto);
-        const max=getMax(p.id,localAuto);
+        const s=stockMap[p.id];
         return{
           prodId:p.id,nombre:p.name,code:p.code,unit:p.unit,cat:p.cat,
-          cantidad:Math.max(0,max-stk),
-          stkActual:stk,min:getMin(p.id,localAuto),max,
+          cantidad:Math.max(0,s.max-s.stk),
+          stkActual:s.stk,min:s.min,max:s.max,
           incluir:true
         };
       })
       .filter(p=>p.cantidad>0);
-    if(sugeridos.length===0){notify(`${localAuto} no tiene productos bajo mínimo con máximo configurado`,"err");return;}
+    if(sugeridos.length===0){notify(`${localAuto} no tiene productos bajo mínimo con mín. y máx. configurados`,"err");return;}
     setItemsAuto(sugeridos);
     setPedidoAuto(true);
   };
