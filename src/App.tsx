@@ -2984,18 +2984,20 @@ function ReporteProveedores({sales}) {
   const[pagos,setPagos]=useState([]);
   const[gastos,setGastos]=useState([]);
   const[pagoEmp,setPagoEmp]=useState([]);
+  const[facturas,setFacturas]=useState([]);
   const[loading,setLoading]=useState(false);
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const names=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return`${names[parseInt(m)-1]} ${y}`;};
   useEffect(()=>{
     const load=async()=>{
       setLoading(true);
       const desde=`${mes}-01`;const hasta=`${mes}-31`;
-      const[pg,gs,pe]=await Promise.all([
+      const[pg,gs,pe,fc]=await Promise.all([
         sb.from("gp_prov_pagos").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta).order("fecha",{ascending:false}),
         sb.from("gp_gastos").select("*").gte("fecha",desde).lte("fecha",hasta),
         sb.from("gp_emp_pagos").select("*,gp_empleados(nombre)").gte("fecha",desde).lte("fecha",hasta),
+        sb.from("gp_prov_facturas").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta),
       ]);
-      setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setLoading(false);
+      setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setFacturas(fc.data||[]);setLoading(false);
     };
     load();
   },[mes]);
@@ -3003,16 +3005,24 @@ function ReporteProveedores({sales}) {
   const ventasMes=sales.filter(s=>s.date&&s.date.slice(0,7)===mes);
   const totalVentas=ventasMes.reduce((a,b)=>a+b.total,0);
   const ventasEf=ventasMes.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0);
-  const ventasDig=ventasMes.filter(s=>s.pay==="tarjeta"||s.pay==="QR"||s.pay?.includes("+")).reduce((a,b)=>a+b.total,0);
+  const ventasDig=ventasMes.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0);
   const totalProv=pagos.reduce((a,b)=>a+Number(b.monto),0);
   const totalEmp=pagoEmp.reduce((a,b)=>a+Number(b.monto),0);
   const totalGastos=gastos.reduce((a,b)=>a+Number(b.monto),0);
   const totalSalidas=totalProv+totalEmp+totalGastos;
   const neto=totalVentas-totalSalidas;
   const provEf=pagos.filter(p=>p.tipo==="efectivo").reduce((a,b)=>a+Number(b.monto),0);
-  const provTr=pagos.filter(p=>p.tipo==="transferencia").reduce((a,b)=>a+Number(b.monto),0);
+  const provTr=pagos.filter(p=>p.tipo==="transferencia"||p.tipo?.includes("transferencia")).reduce((a,b)=>a+Number(b.monto),0);
   const gastosPorCat={};
   gastos.forEach(g=>{gastosPorCat[g.categoria]=(gastosPorCat[g.categoria]||0)+Number(g.monto);});
+
+  // IVA fiscal
+  const IVA=0.21;
+  const factBlanco=facturas.filter(f=>f.es_blanco);
+  const totalFactBlanco=factBlanco.reduce((a,b)=>a+Number(b.monto),0);
+  const ivaCredito=Math.round(totalFactBlanco/1.21*0.21); // CF: IVA facturas prov en blanco
+  const ivaDebito=Math.round(ventasDig/1.21*0.21);        // DF: IVA ventas digitales
+  const posicionFiscal=ivaCredito-ivaDebito;
 
   return(
     <div className="fade">
@@ -3025,6 +3035,7 @@ function ReporteProveedores({sales}) {
         <span style={{fontSize:13,fontWeight:700,color:"#00d4ff"}}>{fmtMonth(mes)}</span>
         {loading&&<span style={{fontSize:11,color:"#ffffff"}}>Cargando...</span>}
       </div>
+
       {/* Resultado grande */}
       <Card sx={{padding:20,marginBottom:14,background:neto>=0?"#021408":"#110305",border:`2px solid ${neto>=0?"#00882244":"#ff333344"}`}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,alignItems:"center"}}>
@@ -3033,12 +3044,67 @@ function ReporteProveedores({sales}) {
           <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:2,marginBottom:6}}>RESULTADO NETO</div><div style={{fontSize:28,fontWeight:900,color:neto>=0?"#00cc55":"#ff4444"}}>{fmtM(neto)}</div><div style={{fontSize:11,color:neto>=0?"#00cc55":"#ff4444",marginTop:2,fontWeight:700}}>{neto>=0?"✓ POSITIVO":"⚠ NEGATIVO"}</div></div>
         </div>
       </Card>
+
+      {/* POSICIÓN FISCAL IVA */}
+      <Card sx={{padding:20,marginBottom:14,background:"#08041a",border:`2px solid ${posicionFiscal>=0?"#6622cc44":"#cc226644"}`}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#cc44ff",marginBottom:14}}>🧾 Posición Fiscal IVA 21% · {fmtMonth(mes)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14}}>
+          <div style={{background:"#0d0518",border:"1px solid #6622cc44",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:"#cc44ff",letterSpacing:1,marginBottom:4}}>CRÉDITO FISCAL (CF)</div>
+            <div style={{fontSize:20,fontWeight:900,color:"#cc44ff"}}>{fmtM(ivaCredito)}</div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:4}}>IVA en facturas prov. en blanco</div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Base: {fmtM(totalFactBlanco)} · {factBlanco.length} fact.</div>
+          </div>
+          <div style={{background:"#1a0408",border:"1px solid #cc226644",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:"#ff6666",letterSpacing:1,marginBottom:4}}>DÉBITO FISCAL (DF)</div>
+            <div style={{fontSize:20,fontWeight:900,color:"#ff6666"}}>{fmtM(ivaDebito)}</div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:4}}>IVA en ventas digitales</div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Base: {fmtM(ventasDig)} · débito+crédito+QR</div>
+          </div>
+          <div style={{background:posicionFiscal>=0?"#0d0518":"#1a0408",border:`1px solid ${posicionFiscal>=0?"#6622cc66":"#cc226666"}`,borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>POSICIÓN NETA</div>
+            <div style={{fontSize:22,fontWeight:900,color:posicionFiscal>=0?"#cc44ff":"#ff4444"}}>{fmtM(Math.abs(posicionFiscal))}</div>
+            <div style={{fontSize:11,fontWeight:700,color:posicionFiscal>=0?"#cc44ff":"#ff4444",marginTop:4}}>{posicionFiscal>=0?"✓ SALDO A FAVOR":"⚠ A PAGAR"}</div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>CF − DF</div>
+          </div>
+        </div>
+        <div style={{background:"#060310",border:"1px solid #cc44ff22",borderRadius:7,padding:"10px 14px",fontSize:10}}>
+          <div style={{color:"#cc44ff",fontWeight:700,marginBottom:6}}>📊 Detalle del cálculo:</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div>
+              <div style={{color:"#ffffff",marginBottom:3}}>➕ Facturas prov. en blanco del mes:</div>
+              {factBlanco.length===0&&<div style={{color:"#ffffff",fontSize:9}}>Sin facturas en blanco este mes</div>}
+              {factBlanco.slice(0,5).map((f,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#ffffff",padding:"1px 0"}}>
+                  <span>{f.gp_proveedores?.nombre||"—"} {f.numero?`#${f.numero}`:""}</span>
+                  <span style={{color:"#cc44ff"}}>{fmtM(Math.round(Number(f.monto)/1.21*0.21))}</span>
+                </div>
+              ))}
+              {factBlanco.length>5&&<div style={{fontSize:9,color:"#ffffff"}}>...y {factBlanco.length-5} más</div>}
+            </div>
+            <div>
+              <div style={{color:"#ffffff",marginBottom:3}}>➖ Ventas digitales del mes:</div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,padding:"1px 0"}}>
+                <span style={{color:"#ffffff"}}>Total digital (IVA incluido)</span>
+                <span style={{color:"#ff6666"}}>{fmtM(ventasDig)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,padding:"1px 0"}}>
+                <span style={{color:"#ffffff"}}>IVA 21% (÷1.21×0.21)</span>
+                <span style={{color:"#ff6666"}}>{fmtM(ivaDebito)}</span>
+              </div>
+              <div style={{marginTop:8,fontSize:9,color:"#ff9900"}}>
+                ⚠ Solo ventas digitales generan débito fiscal visible para AFIP
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
         <Card sx={{padding:18}}>
           <div style={{fontSize:11,fontWeight:800,color:"#00cc55",marginBottom:12}}>📈 ENTRADAS — {fmtMonth(mes)}</div>
           <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>💵 Efectivo</span><span style={{color:"#00cc55",fontWeight:700}}>{fmtM(ventasEf)}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>🏦 Digital (QR / Tarjeta)</span><span style={{color:"#3388ff",fontWeight:700}}>{fmtM(ventasDig)}</span></div>
-          {totalVentas-ventasEf-ventasDig>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #192a38"}}><span style={{color:"#ffffff"}}>Mixtos</span><span style={{color:"#ffffff",fontWeight:700}}>{fmtM(totalVentas-ventasEf-ventasDig)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalVentas)}</span></div>
         </Card>
         <Card sx={{padding:18}}>
