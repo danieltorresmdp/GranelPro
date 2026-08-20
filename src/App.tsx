@@ -2388,8 +2388,24 @@ function Proveedores({notify}) {
     if(!factForm.monto||parseFloat(factForm.monto)<=0){notify("Monto inválido","err");return;}
     setSaving(true);
     try{
-      await sb.from("gp_prov_facturas").insert([{proveedor_id:detId,fecha:factForm.fecha,fecha_vencimiento:factForm.fecha_vencimiento||null,numero:factForm.numero,monto:parseFloat(factForm.monto),es_blanco:factForm.es_blanco,concepto:factForm.concepto,pagada:false,notas:factForm.notas}]);
-      notify("Factura registrada");setFactModal(false);loadDet(detId);
+      if(factForm.id){
+        await sb.from("gp_prov_facturas").update({
+          fecha:factForm.fecha,fecha_vencimiento:factForm.fecha_vencimiento||null,
+          numero:factForm.numero,monto:parseFloat(factForm.monto),
+          es_blanco:factForm.es_blanco,concepto:factForm.concepto,
+          notas:factForm.notas,razon_social:factForm.razon_social||"Torres"
+        }).eq("id",factForm.id);
+        notify("Factura actualizada");
+      } else {
+        await sb.from("gp_prov_facturas").insert([{
+          proveedor_id:detId,fecha:factForm.fecha,fecha_vencimiento:factForm.fecha_vencimiento||null,
+          numero:factForm.numero,monto:parseFloat(factForm.monto),
+          es_blanco:factForm.es_blanco,concepto:factForm.concepto,
+          pagada:false,notas:factForm.notas,razon_social:factForm.razon_social||"Torres"
+        }]);
+        notify("Factura registrada");
+      }
+      setFactModal(false);loadDet(detId);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -2488,7 +2504,7 @@ function Proveedores({notify}) {
 
         {tab==="facturas"&&<>
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <Btn v="or" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setFactForm({fecha:todayStr(),fecha_vencimiento:"",numero:"",monto:"",es_blanco:true,concepto:"",notas:""});setFactModal(true);}}><Ic n="plus" s={12}/>Cargar Factura</Btn>
+            <Btn v="or" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setFactForm({fecha:todayStr(),fecha_vencimiento:"",numero:"",monto:"",es_blanco:true,concepto:"",notas:"",razon_social:"Torres"});setFactModal(true);}}><Ic n="plus" s={12}/>Cargar Factura</Btn>
           </div>
 
           {/* Panel de pago integrado cuando hay seleccionadas */}
@@ -2537,7 +2553,7 @@ function Proveedores({notify}) {
           </div>}
 
           <Card sx={{overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
-            <table><thead><tr><th style={{width:32}}></th><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Estado</th><th style={{minWidth:80}}>Eliminar</th></tr></thead>
+            <table><thead><tr><th style={{width:32}}></th><th>Fecha</th><th>Vencim.</th><th>Nº Factura</th><th>Concepto</th><th>Monto</th><th>Tipo</th><th>Razón Social</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody>{facturas.map(f=>{
                 const vencida=f.fecha_vencimiento&&f.fecha_vencimiento<hoy&&!f.pagada;
                 const seleccionada=selectedFacts.some(s=>s.id===f.id);
@@ -2555,7 +2571,13 @@ function Proveedores({notify}) {
                   <td style={{color:"#ff9900",fontWeight:700}}>{fmtM(f.monto)}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:f.es_blanco?"#021520":"#0a0800",color:f.es_blanco?"#00d4ff":"#ff9900"}}>{f.es_blanco?"⬜ B":"⬛ N"}</span></td>
                   <td><button onClick={(e)=>{e.stopPropagation();togglePagada(f);}} style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"none",cursor:"pointer",background:f.pagada?"#021408":"#110305",color:f.pagada?"#00cc55":"#ff4444"}}>{f.pagada?"✓ PAGADA":"PENDIENTE"}</button></td>
-                  <td onClick={(e)=>e.stopPropagation()}><Btn v="r" sx={{padding:"4px 10px",fontSize:10,fontWeight:700}} onClick={async()=>{if(window.confirm(`¿Eliminar factura ${f.numero||"#"+f.id} por ${fmtM(f.monto)}? Esta acción no se puede deshacer.`)){await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}}><Ic n="del" s={12}/>Elim.</Btn></td>
+                  <td onClick={(e)=>e.stopPropagation()}>
+                    <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:6,background:f.razon_social==="Peña Loza"?"#030d1a":"#0a0515",color:f.razon_social==="Peña Loza"?"#3388ff":"#cc44ff",border:`1px solid ${f.razon_social==="Peña Loza"?"#3388ff33":"#cc44ff33"}`}}>{f.razon_social||"Torres"}</span>
+                  </td>
+                  <td onClick={(e)=>e.stopPropagation()}><div style={{display:"flex",gap:4}}>
+                    <Btn v="gh" sx={{padding:"3px 7px",fontSize:9}} onClick={()=>{setFactForm({...f,monto:String(f.monto),fecha_vencimiento:f.fecha_vencimiento||"",razon_social:f.razon_social||"Torres"});setFactModal(true);}}><Ic n="edit" s={11}/></Btn>
+                    <Btn v="r" sx={{padding:"4px 10px",fontSize:10,fontWeight:700}} onClick={async()=>{if(window.confirm(`¿Eliminar factura ${f.numero||"#"+f.id} por ${fmtM(f.monto)}? Esta acción no se puede deshacer.`)){await sb.from("gp_prov_facturas").delete().eq("id",f.id);loadDet(detId);}}}><Ic n="del" s={12}/>Elim.</Btn>
+                  </div></td>
                 </tr>);
               })}
               {facturas.length===0&&<tr><td colSpan={9} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin facturas registradas</td></tr>}
@@ -2587,21 +2609,33 @@ function Proveedores({notify}) {
       </div></Modal>}
 
       {/* Modal nueva factura */}
-      {factModal&&factForm&&<Modal close={()=>setFactModal(false)} w={480}><div style={{padding:22}}>
-        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Cargar Factura — {detProv?.nombre}</h2>
+      {factModal&&factForm&&<Modal close={()=>setFactModal(false)} w={500}><div style={{padding:22}}>
+        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>{factForm.id?"Editar":"Cargar"} Factura — {detProv?.nombre}</h2>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           <div><Lbl t="Fecha factura"/><Inp type="date" value={factForm.fecha} onChange={(e)=>setFactForm(f=>({...f,fecha:e.target.value}))}/></div>
           <div><Lbl t="Fecha vencimiento"/><Inp type="date" value={factForm.fecha_vencimiento||""} onChange={(e)=>setFactForm(f=>({...f,fecha_vencimiento:e.target.value}))}/></div>
           <div><Lbl t="Nº Factura"/><Inp value={factForm.numero||""} onChange={(e)=>setFactForm(f=>({...f,numero:e.target.value}))} placeholder="ej: A-0001-00012345"/></div>
           <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={factForm.monto} onChange={(e)=>setFactForm(f=>({...f,monto:e.target.value}))}/></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl t="Concepto / Descripción"/><Inp value={factForm.concepto||""} onChange={(e)=>setFactForm(f=>({...f,concepto:e.target.value}))} placeholder="ej: Compra alimentos perro - Marzo"/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Concepto / Descripción"/><Inp value={factForm.concepto||""} onChange={(e)=>setFactForm(f=>({...f,concepto:e.target.value}))} placeholder="ej: Compra alimentos perro - Agosto"/></div>
+          {/* Razón Social */}
+          <div style={{gridColumn:"1/-1"}}>
+            <Lbl t="Razón Social"/>
+            <div style={{display:"flex",gap:12,marginTop:6}}>
+              {["Torres","Peña Loza"].map(rs=>(
+                <label key={rs} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flex:1,background:factForm.razon_social===rs?(rs==="Torres"?"#0d0518":"#030d1a"):"transparent",border:`2px solid ${factForm.razon_social===rs?(rs==="Torres"?"#cc44ff":"#3388ff"):"#192a38"}`,borderRadius:8,padding:"8px 12px"}}>
+                  <input type="radio" checked={factForm.razon_social===rs} onChange={()=>setFactForm(f=>({...f,razon_social:rs}))} style={{accentColor:rs==="Torres"?"#cc44ff":"#3388ff"}}/>
+                  <span style={{fontSize:13,fontWeight:700,color:factForm.razon_social===rs?(rs==="Torres"?"#cc44ff":"#3388ff"):"#ffffff"}}>{rs==="Torres"?"🏢 Torres":"🏢 Peña Loza"}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={factForm.es_blanco===true} onChange={()=>setFactForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ Factura en BLANCO</span></label>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={factForm.es_blanco===false} onChange={()=>setFactForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ En NEGRO</span></label>
           </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={factForm.notas||""} onChange={(e)=>setFactForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setFactModal(false)}>Cancelar</Btn><Btn v="or" onClick={saveFact} disabled={saving}>{saving?"Guardando...":"Cargar Factura"}</Btn></div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setFactModal(false)}>Cancelar</Btn><Btn v="or" onClick={saveFact} disabled={saving}>{saving?"Guardando...":(factForm.id?"Guardar Cambios":"Cargar Factura")}</Btn></div>
       </div></Modal>}
 
       {/* Modal nuevo pago */}
@@ -3017,12 +3051,17 @@ function ReporteProveedores({sales}) {
   gastos.forEach(g=>{gastosPorCat[g.categoria]=(gastosPorCat[g.categoria]||0)+Number(g.monto);});
 
   // IVA fiscal
-  const IVA=0.21;
   const factBlanco=facturas.filter(f=>f.es_blanco);
+  const factBlancoTorres=factBlanco.filter(f=>!f.razon_social||f.razon_social==="Torres");
+  const factBlancoPena=factBlanco.filter(f=>f.razon_social==="Peña Loza");
   const totalFactBlanco=factBlanco.reduce((a,b)=>a+Number(b.monto),0);
-  const ivaCredito=Math.round(totalFactBlanco/1.21*0.21); // CF: IVA facturas prov en blanco
-  const ivaDebito=Math.round(ventasDig/1.21*0.21);        // DF: IVA ventas digitales
-  const posicionFiscal=ivaCredito-ivaDebito;
+  const totalFactTorres=factBlancoTorres.reduce((a,b)=>a+Number(b.monto),0);
+  const totalFactPena=factBlancoPena.reduce((a,b)=>a+Number(b.monto),0);
+  const ivaCreditoTotal=Math.round(totalFactBlanco/1.21*0.21);
+  const ivaCreditoTorres=Math.round(totalFactTorres/1.21*0.21);
+  const ivaCreditoPena=Math.round(totalFactPena/1.21*0.21);
+  const ivaDebito=Math.round(ventasDig/1.21*0.21);
+  const posicionFiscal=ivaCreditoTotal-ivaDebito;
 
   return(
     <div className="fade">
@@ -3051,9 +3090,18 @@ function ReporteProveedores({sales}) {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14}}>
           <div style={{background:"#0d0518",border:"1px solid #6622cc44",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
             <div style={{fontSize:9,color:"#cc44ff",letterSpacing:1,marginBottom:4}}>CRÉDITO FISCAL (CF)</div>
-            <div style={{fontSize:20,fontWeight:900,color:"#cc44ff"}}>{fmtM(ivaCredito)}</div>
+            <div style={{fontSize:20,fontWeight:900,color:"#cc44ff"}}>{fmtM(ivaCreditoTotal)}</div>
             <div style={{fontSize:9,color:"#ffffff",marginTop:4}}>IVA en facturas prov. en blanco</div>
-            <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Base: {fmtM(totalFactBlanco)} · {factBlanco.length} fact.</div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:6}}>
+              <div style={{background:"#100a20",border:"1px solid #cc44ff33",borderRadius:5,padding:"3px 8px",textAlign:"center"}}>
+                <div style={{fontSize:8,color:"#cc44ff"}}>Torres</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#cc44ff"}}>{fmtM(ivaCreditoTorres)}</div>
+              </div>
+              <div style={{background:"#030d1a",border:"1px solid #3388ff33",borderRadius:5,padding:"3px 8px",textAlign:"center"}}>
+                <div style={{fontSize:8,color:"#3388ff"}}>Peña Loza</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#3388ff"}}>{fmtM(ivaCreditoPena)}</div>
+              </div>
+            </div>
           </div>
           <div style={{background:"#1a0408",border:"1px solid #cc226644",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
             <div style={{fontSize:9,color:"#ff6666",letterSpacing:1,marginBottom:4}}>DÉBITO FISCAL (DF)</div>
