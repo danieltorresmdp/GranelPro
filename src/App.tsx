@@ -2049,7 +2049,80 @@ function Products({prods,notify,loadAll}) {
             );
           })()}
         </div>
-        <div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div style={{gridColumn:"1/-1",background:"#03120a",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px"}}><Lbl t="💰 Costo del producto ($)"/><Inp type="number" step=".01" value={form.costo||0} onChange={(e)=>setForm((f)=>({...f,costo:parseFloat(e.target.value)||0}))} placeholder="Precio al que comprás (sin IVA)"/><div style={{fontSize:9,color:"#00cc55",marginTop:4}}>Usado para calcular margen real y valor de stock</div></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+        <div><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Categoría"/><Sel value={form.cat} onChange={(e)=>setForm((f)=>({...f,cat:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></div><div><Lbl t="Tipo"/><Sel value={form.unit} onChange={(e)=>setForm((f)=>({...f,unit:e.target.value}))}><option value="kg">Por Peso (kg)</option><option value="u">Por Unidad</option></Sel></div>{isKg&&<><div><Lbl t="Precio/Kg ($)"/><Inp type="number" step=".01" value={form.pricePerKg} onChange={(e)=>setForm((f)=>({...f,pricePerKg:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Peso Bulto (kg)"/><Inp type="number" step=".5" value={form.bulkWeight} onChange={(e)=>setForm((f)=>({...f,bulkWeight:parseFloat(e.target.value)||0}))}/></div><div><Lbl t="Precio Bulto ($)"/><Inp type="number" step=".01" value={form.bulkPrice} onChange={(e)=>setForm((f)=>({...f,bulkPrice:parseFloat(e.target.value)||0}))}/></div></>}{!isKg&&<div><Lbl t="Precio Unitario ($)"/><Inp type="number" step=".01" value={form.unitPrice||0} onChange={(e)=>setForm((f)=>({...f,unitPrice:parseFloat(e.target.value)||0}))}/></div>}<div style={{gridColumn:"1/-1",background:"#03120a",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px"}}><Lbl t="💰 Costo del producto ($)"/><Inp type="number" step=".01" value={form.costo||0} onChange={(e)=>setForm((f)=>({...f,costo:parseFloat(e.target.value)||0}))} placeholder="Precio al que comprás (sin IVA)"/><div style={{fontSize:9,color:"#00cc55",marginTop:4}}>Usado para calcular margen real y valor de stock</div></div>
+        {/* PANEL RENTABILIDAD */}
+        {(()=>{
+          const IMP=9;
+          const costo=parseFloat(form.costo)||0;
+          const pesoB=parseFloat(form.bulkWeight)||0;
+          const pvBulto=parseFloat(form.bulkPrice)||0;
+          const pvKg=parseFloat(form.pricePerKg)||0;
+          const pvUnit=parseFloat(form.unitPrice)||0;
+          if(costo<=0) return <div style={{gridColumn:"1/-1",background:"#060f1a",border:"1px solid #192a38",borderRadius:8,padding:"10px 14px",fontSize:10,color:"#ffffff"}}>📊 Cargá el costo para ver la rentabilidad estimada</div>;
+          const costoKg=pesoB>0?costo/pesoB:0;
+          // BULTO
+          const mbBulto=pvBulto>0?((pvBulto-costo)/pvBulto*100):0;
+          const mnBulto=mbBulto-IMP;
+          const markupBulto=costo>0&&pvBulto>0?((pvBulto-costo)/costo*100):0;
+          const gananciaBulto=pvBulto>0?(pvBulto*mnBulto/100):0;
+          // GRANEL/KG
+          const mbKg=pvKg>0&&costoKg>0?((pvKg-costoKg)/pvKg*100):0;
+          const mnKg=mbKg-IMP;
+          const markupKg=costoKg>0&&pvKg>0?((pvKg-costoKg)/costoKg*100):0;
+          const gananciaKg=pvKg>0?(pvKg*mnKg/100):0;
+          // UNIDAD
+          const mbUnit=pvUnit>0&&costo>0?((pvUnit-costo)/pvUnit*100):0;
+          const mnUnit=mbUnit-IMP;
+          const markupUnit=costo>0&&pvUnit>0?((pvUnit-costo)/costo*100):0;
+          const gananciaUnit=pvUnit>0?(pvUnit*mnUnit/100):0;
+          const mnColor="#00cc55";
+          const pct=(n)=>n.toFixed(1)+"%";
+          return(
+            <div style={{gridColumn:"1/-1",background:"#040c18",border:"1px solid #00d4ff33",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#00d4ff",marginBottom:10}}>📊 Rentabilidad Estimada · Impuestos/comisiones: {IMP}%</div>
+              {isKg&&costoKg>0&&<div style={{fontSize:10,color:"#ffffff",marginBottom:8}}>Costo por kg: <strong style={{color:"#ff9900"}}>{fmtM(costoKg)}/kg</strong></div>}
+              <div style={{display:"grid",gridTemplateColumns:isKg?"1fr 1fr":"1fr",gap:10}}>
+                {isKg&&pvBulto>0&&pesoB>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#ff9900",marginBottom:6}}>📦 BULTO ({pesoB}kg) — {fmtM(pvBulto)}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
+                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupBulto)}</span></div>
+                    <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbBulto)}</span></div>
+                    <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
+                      <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnBulto)}</span>
+                      
+                    </div>
+                    <div style={{gridColumn:"1/-1"}}><span style={{color:"#ffffff"}}>Ganancia/bulto:</span> <span style={{fontWeight:700,color:mnColor}}>{fmtM(gananciaBulto)}</span></div>
+                  </div>
+                </div>}
+                {isKg&&pvKg>0&&costoKg>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#00cc55",marginBottom:6}}>🌾 GRANEL — {fmtM(pvKg)}/kg</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
+                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupKg)}</span></div>
+                    <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbKg)}</span></div>
+                    <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
+                      <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnKg)}</span>
+                      
+                    </div>
+                    <div style={{gridColumn:"1/-1"}}><span style={{color:"#ffffff"}}>Ganancia/kg:</span> <span style={{fontWeight:700,color:mnColor}}>{fmtM(gananciaKg)}</span></div>
+                  </div>
+                </div>}
+                {!isKg&&pvUnit>0&&costo>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#00d4ff",marginBottom:6}}>📦 UNIDAD — {fmtM(pvUnit)}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
+                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupUnit)}</span></div>
+                    <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbUnit)}</span></div>
+                    <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
+                      <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnUnit)}</span>
+                      
+                    </div>
+                    <div style={{gridColumn:"1/-1"}}><span style={{color:"#ffffff"}}>Ganancia/u:</span> <span style={{fontWeight:700,color:mnColor}}>{fmtM(gananciaUnit)}</span></div>
+                  </div>
+                </div>}
+              </div>
+            </div>
+          );
+        })()}
+        </div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
