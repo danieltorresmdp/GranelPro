@@ -2063,17 +2063,14 @@ function Products({prods,notify,loadAll}) {
           // BULTO
           const mbBulto=pvBulto>0?((pvBulto-costo)/pvBulto*100):0;
           const mnBulto=mbBulto-IMP;
-          const markupBulto=costo>0&&pvBulto>0?((pvBulto-costo)/costo*100):0;
           const gananciaBulto=pvBulto>0?(pvBulto*mnBulto/100):0;
           // GRANEL/KG
           const mbKg=pvKg>0&&costoKg>0?((pvKg-costoKg)/pvKg*100):0;
           const mnKg=mbKg-IMP;
-          const markupKg=costoKg>0&&pvKg>0?((pvKg-costoKg)/costoKg*100):0;
           const gananciaKg=pvKg>0?(pvKg*mnKg/100):0;
           // UNIDAD
           const mbUnit=pvUnit>0&&costo>0?((pvUnit-costo)/pvUnit*100):0;
           const mnUnit=mbUnit-IMP;
-          const markupUnit=costo>0&&pvUnit>0?((pvUnit-costo)/costo*100):0;
           const gananciaUnit=pvUnit>0?(pvUnit*mnUnit/100):0;
           const mnColor="#00cc55";
           const pct=(n)=>n.toFixed(1)+"%";
@@ -2085,7 +2082,7 @@ function Products({prods,notify,loadAll}) {
                 {isKg&&pvBulto>0&&pesoB>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
                   <div style={{fontSize:10,fontWeight:700,color:"#ff9900",marginBottom:6}}>📦 BULTO ({pesoB}kg) — {fmtM(pvBulto)}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
-                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupBulto)}</span></div>
+                    
                     <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbBulto)}</span></div>
                     <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
                       <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnBulto)}</span>
@@ -2097,7 +2094,7 @@ function Products({prods,notify,loadAll}) {
                 {isKg&&pvKg>0&&costoKg>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
                   <div style={{fontSize:10,fontWeight:700,color:"#00cc55",marginBottom:6}}>🌾 GRANEL — {fmtM(pvKg)}/kg</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
-                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupKg)}</span></div>
+                    
                     <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbKg)}</span></div>
                     <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
                       <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnKg)}</span>
@@ -2109,7 +2106,7 @@ function Products({prods,notify,loadAll}) {
                 {!isKg&&pvUnit>0&&costo>0&&<div style={{background:"#030810",border:"1px solid #00d4ff22",borderRadius:8,padding:"10px 12px"}}>
                   <div style={{fontSize:10,fontWeight:700,color:"#00d4ff",marginBottom:6}}>📦 UNIDAD — {fmtM(pvUnit)}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:10}}>
-                    <div><span style={{color:"#ffffff"}}>Markup:</span> <span style={{color:"#ff9900",fontWeight:700}}>{pct(markupUnit)}</span></div>
+                    
                     <div><span style={{color:"#ffffff"}}>Mg. Bruto:</span> <span style={{color:"#ffffff",fontWeight:700}}>{pct(mbUnit)}</span></div>
                     <div style={{gridColumn:"1/-1",marginTop:4,paddingTop:4,borderTop:"1px solid #192a38"}}>
                       <span style={{color:"#ffffff"}}>Mg. Neto:</span> <span style={{fontSize:13,fontWeight:900,color:mnColor}}>{pct(mnUnit)}</span>
