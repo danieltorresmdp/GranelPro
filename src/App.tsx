@@ -222,7 +222,7 @@ const[view,setView]=useState("dash");
   const loadAll=useCallback(async()=>{
     const isAdminSession=session?.role==="admin";
     try{
-      // Cargar clientes con paginación (pueden superar 1000)
+      // Clientes paginados
       const loadClients=async()=>{
         let all=[];let from=0;const size=1000;
         while(true){
@@ -234,12 +234,14 @@ const[view,setView]=useState("dash");
         }
         return all;
       };
-      // Admin: todas las ventas paginadas. Vendedor: solo ventas de hoy de su local
+      // Admin: últimos 90 días. Vendedor: solo hoy
       const loadSales=async()=>{
         if(isAdminSession){
+          const d90=new Date(nowAR());d90.setDate(d90.getDate()-90);
+          const desde=d90.toISOString().split("T")[0];
           let all=[];let from=0;const size=1000;
           while(true){
-            const{data,error}=await sb.from("gp_sales").select("*").order("id",{ascending:false}).range(from,from+size-1);
+            const{data,error}=await sb.from("gp_sales").select("*").gte("date",desde).order("id",{ascending:false}).range(from,from+size-1);
             if(error||!data||data.length===0) break;
             all=[...all,...data];
             if(data.length<size) break;
@@ -247,22 +249,24 @@ const[view,setView]=useState("dash");
           }
           return all;
         } else {
-          // Vendedor: solo ventas de hoy
           const{data}=await sb.from("gp_sales").select("*").eq("date",todayStr()).order("id",{ascending:false});
           return data||[];
         }
       };
-      // Cargar caja con paginación
+      // Caja: últimos 2500, autodepuración del más viejo
       const loadCaja=async()=>{
-        let all=[];let from=0;const size=1000;
-        while(true){
-          const{data,error}=await sb.from("gp_caja").select("*").order("id").range(from,from+size-1);
-          if(error||!data||data.length===0) break;
-          all=[...all,...data];
-          if(data.length<size) break;
-          from+=size;
+        const{data:count}=await sb.from("gp_caja").select("id",{count:"exact",head:true});
+        const total=(count as any)?.count||0;
+        if(total>2500){
+          // Borrar los más viejos que excedan 2500
+          const{data:oldest}=await sb.from("gp_caja").select("id").order("id",{ascending:true}).limit(total-2500);
+          if(oldest&&oldest.length>0){
+            const ids=oldest.map((r:any)=>r.id);
+            await sb.from("gp_caja").delete().in("id",ids);
+          }
         }
-        return all;
+        const{data}=await sb.from("gp_caja").select("*").order("id",{ascending:false}).limit(2500);
+        return(data||[]).reverse();
       };
       const[u,p,sk,lc,c,s,cj]=await Promise.all([
         sb.from("gp_users").select("*").order("id"),
@@ -280,11 +284,10 @@ const[view,setView]=useState("dash");
         setStockMgt((sk.data||[]).map(mapStock));
       }
       if(!lc.error) setLocales((lc.data||[]).map(mapLocale));
-      // Load cuotas config
       const{data:cfgData}=await sb.from("gp_config").select("*");
       if(cfgData){
-        const intRow=cfgData.find(r=>r.key==="cuotas_interes");
-        const minRow=cfgData.find(r=>r.key==="cuotas_min_local");
+        const intRow=cfgData.find((r:any)=>r.key==="cuotas_interes");
+        const minRow=cfgData.find((r:any)=>r.key==="cuotas_min_local");
         setCuotasConfig({
           interes:intRow?.value||{"2":0,"3":0,"4":0,"5":0,"6":0},
           minLocal:minRow?.value||{}
@@ -473,7 +476,6 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
   const td=todayStr();
   const st=sales.filter((s)=>s.date===td);
   const hoy=st.reduce((a,b)=>a+b.total,0);
-  const mes=sales.reduce((a,b)=>a+b.total,0);
   const getCritical=()=>{
     if(isAdmin){
       const all=[];
@@ -501,33 +503,23 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         <h1 style={{fontSize:20,fontWeight:800,margin:0}}>Dashboard 🐾</h1>
         <p style={{color:"#ffffff",fontSize:9,margin:"4px 0 0",letterSpacing:2.5}}>{new Date().toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"}).toUpperCase()}{!isAdmin&&session?.local&&<span style={{marginLeft:8,color:"#00d4ff"}}>· LOCAL {session.local.toUpperCase()}</span>}</p>
       </div>
-      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
         <Stat label="Ventas Hoy" value={`${fmtM(hoy)}`} sub={`${st.length} operaciones`} color="#00cc55" icon="trend"/>
-        <Stat label="Total Mes" value={`${fmtM(mes)}`} sub={`${sales.length} ventas`} color="#00d4ff" icon="hist"/>
         <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub="todos los locales" color="#ff9900" icon="warn"/>
         <Stat label="Stock Negativo" value={critical.filter((p)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
       </div>}
-      {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1.8fr 1fr",gap:14,marginBottom:14}}>
-        <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Últimas Ventas</span>
-            <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>setView("history")}>Ver todas →</Btn>
-          </div>
-          <table><thead><tr><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th></tr></thead>
-            <tbody>{sales.slice(0,8).map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);return(<tr key={s.id}><td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td><td style={{color:"#00cc55",fontWeight:800}}>{fmtM(s.total)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900"}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td></tr>);})}</tbody>
-          </table>
-        </Card>
-        <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
-          {critical.length===0?<div style={{padding:20,color:"#ffffff",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
-            :critical.slice(0,8).map((p,i)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
-              <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:11,fontWeight:700,color:"#ffffff"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{p.cat}{p.localName?` · ${p.localName}`:""}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
-              </div>
-            );})}
-        </Card>
-      </div>}
+      {isAdmin&&<Card sx={{overflow:"hidden",marginBottom:14}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
+        {critical.length===0?<div style={{padding:20,color:"#ffffff",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
+          :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+          {critical.slice(0,12).map((p,i)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
+            <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:11,fontWeight:700,color:"#ffffff"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{p.cat}{p.localName?` · ${p.localName}`:""}</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
+            </div>
+          );})}
+          </div>}
+      </Card>}
       <Card sx={{overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>🏆 Ranking por Puntos</span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"}}>
@@ -1042,7 +1034,8 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
 function Reportes({sales,users,localeNames}) {
   const[tab,setTab]=useState("mensual");
   const[localSel,setLocalSel]=useState("todos");
-  const totalGeneral=sales.reduce((a,b)=>a+b.total,0);
+  const[monthData,setMonthData]=useState([]); // [{ym, total, count, ef, dig, byLocal}]
+  const[loading,setLoading]=useState(true);
 
   const fmtMonth=(ym)=>{
     const[y,m]=ym.split("-");
@@ -1050,48 +1043,92 @@ function Reportes({sales,users,localeNames}) {
     return`${names[parseInt(m)-1]} ${y}`;
   };
 
-  // Todos los meses únicos ordenados desc — garantizar al menos mes actual + 2 anteriores
-  const allSalesMonths=[...new Set(sales.map(s=>s.date?s.date.slice(0,7):"").filter(Boolean))];
-  const currentYm=currentYmAR();
-  const prev1=new Date(nowAR().setMonth(nowAR().getMonth()-1)).toISOString().slice(0,7);
-  const prev2=new Date(nowAR().setMonth(nowAR().getMonth()-2)).toISOString().slice(0,7);
-  [currentYm,prev1,prev2].forEach(ym=>{ if(!allSalesMonths.includes(ym)) allSalesMonths.push(ym); });
-  const allMonths=allSalesMonths.sort((a,b)=>b.localeCompare(a));
+  // Load all monthly aggregates directly from Supabase
+  useEffect(()=>{
+    const load=async()=>{
+      setLoading(true);
+      try{
+        // Get all sales with minimal fields for aggregation
+        let all=[];let from=0;const size=1000;
+        while(true){
+          const{data,error}=await sb.from("gp_sales").select("date,total,pay,local_name").order("date",{ascending:false}).range(from,from+size-1);
+          if(error||!data||data.length===0) break;
+          all=[...all,...data];
+          if(data.length<size) break;
+          from+=size;
+        }
+        // Aggregate by month
+        const map={};
+        all.forEach(s=>{
+          const ym=s.date?s.date.slice(0,7):"";
+          if(!ym) return;
+          if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};
+          map[ym].total+=Number(s.total)||0;
+          map[ym].count++;
+          if(s.pay==="efectivo") map[ym].ef+=Number(s.total)||0;
+          else map[ym].dig+=Number(s.total)||0;
+          const loc=s.local_name||"Sin local";
+          if(!map[ym].byLocal[loc]) map[ym].byLocal[loc]={count:0,total:0,ef:0,dig:0};
+          map[ym].byLocal[loc].count++;
+          map[ym].byLocal[loc].total+=Number(s.total)||0;
+          if(s.pay==="efectivo") map[ym].byLocal[loc].ef+=Number(s.total)||0;
+          else map[ym].byLocal[loc].dig+=Number(s.total)||0;
+        });
+        // Ensure current + 2 prev months exist
+        const cur=currentYmAR();
+        const p1=new Date(nowAR().setMonth(nowAR().getMonth()-1)).toISOString().slice(0,7);
+        const p2=new Date(nowAR().setMonth(nowAR().getMonth()-2)).toISOString().slice(0,7);
+        [cur,p1,p2].forEach(ym=>{if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};});
+        setMonthData(Object.values(map).sort((a,b)=>b.ym.localeCompare(a.ym)));
+      }catch(e){}
+      setLoading(false);
+    };
+    load();
+  },[]);
 
-  // Por mes y local: { ym -> { localName -> {count, total, ef, dig} } }
-  const byMonthLocal=()=>{
-    const map={};
-    sales.forEach((s)=>{
-      const ym=s.date?s.date.slice(0,7):"";
-      if(!ym) return;
-      if(!map[ym]) map[ym]={};
-      const loc=s.localName||"Sin local";
-      if(!map[ym][loc]) map[ym][loc]={count:0,total:0,ef:0,dig:0};
-      map[ym][loc].count++;
-      map[ym][loc].total+=s.total;
-      if(s.pay==="efectivo") map[ym][loc].ef+=s.total;
-      else map[ym][loc].dig+=s.total;
-    });
-    return map;
+  const totalGeneral=monthData.reduce((a,b)=>a+b.total,0);
+  const efGeneral=monthData.reduce((a,b)=>a+b.ef,0);
+  const digGeneral=monthData.reduce((a,b)=>a+b.dig,0);
+  const allMonths=monthData.map(d=>d.ym);
+  const localesVis=localSel==="todos"?localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")):[localSel];
+
+  const totalByMonth=(ym)=>{
+    const d=monthData.find(m=>m.ym===ym);
+    if(!d) return 0;
+    if(localSel==="todos") return d.total;
+    return d.byLocal[localSel]?.total||0;
   };
-  const monthLocalMap=byMonthLocal();
+  const countByMonth=(ym)=>{
+    const d=monthData.find(m=>m.ym===ym);
+    if(!d) return 0;
+    if(localSel==="todos") return d.count;
+    return d.byLocal[localSel]?.count||0;
+  };
+  const efByMonth=(ym)=>{
+    const d=monthData.find(m=>m.ym===ym);
+    if(!d) return 0;
+    if(localSel==="todos") return d.ef;
+    return d.byLocal[localSel]?.ef||0;
+  };
+  const digByMonth=(ym)=>{
+    const d=monthData.find(m=>m.ym===ym);
+    if(!d) return 0;
+    if(localSel==="todos") return d.dig;
+    return d.byLocal[localSel]?.dig||0;
+  };
+  const maxTotal=allMonths.length>0?Math.max(...allMonths.map(ym=>totalByMonth(ym))):1;
 
-  const efByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.ef||0),0);
-  const digByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.dig||0),0);
+  const maxMonth=maxTotal;
 
-  // Locales a mostrar según filtro
-  const localesVis=localSel==="todos"?[...new Set(sales.map(s=>s.localName||"Sin local"))]:[ localSel ];
+  // Reporte por local — aggregate from monthData
+  const byLocal=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")).map(l=>{
+    const total=monthData.reduce((a,b)=>a+(b.byLocal[l]?.total||0),0);
+    const count=monthData.reduce((a,b)=>a+(b.byLocal[l]?.count||0),0);
+    return{name:l,count,total};
+  }).filter(l=>l.count>0).sort((a,b)=>b.total-a.total);
 
-  // Para comparativo: total por mes filtrado por local
-  const totalByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.total||0),0);
-  const countByMonth=(ym)=>localesVis.reduce((acc,l)=>acc+(monthLocalMap[ym]?.[l]?.count||0),0);
-  const maxMonth=allMonths.length>0?Math.max(...allMonths.map(ym=>totalByMonth(ym))):1;
-
-  // Reporte por local
-  const byLocal=localeNames.map((l)=>{const ls=sales.filter((s)=>s.localName===l);return{name:l,count:ls.length,total:ls.reduce((a,b)=>a+b.total,0)};});
-
-  // Reporte por usuario
-  const byUser=users.map((u)=>{const us=sales.filter((s)=>s.uid===u.id);return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
+  // Reporte por usuario — use last 90 days sales in memory
+  const byUser=users.map((u)=>{const us=sales.filter((s)=>String(s.uid)===String(u.id));return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
 
   const LOCAL_COLORS=["#00cc55","#3388ff","#cc44ff","#ff9900","#00d4ff","#ff4444"];
 
@@ -1100,11 +1137,11 @@ function Reportes({sales,users,localeNames}) {
       <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reportes</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>VENTAS TOTALES · {sales.length} OPERACIONES</p></div>
       <Card sx={{padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General</div>
-          <div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{fmtM(totalGeneral)}</div>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General · Todo el historial</div>
+          <div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{loading?"Cargando...":fmtM(totalGeneral)}</div>
           <div style={{display:"flex",gap:14,marginTop:4}}>
-            <span style={{fontSize:10,color:"#00cc55"}}>💵 Efectivo: <strong>{fmtM(sales.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0))}</strong></span>
-            <span style={{fontSize:10,color:"#3388ff"}}>🏦 Digital: <strong>{fmtM(sales.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0))}</strong></span>
+            <span style={{fontSize:10,color:"#00cc55"}}>💵 Efectivo: <strong>{fmtM(efGeneral)}</strong></span>
+            <span style={{fontSize:10,color:"#3388ff"}}>🏦 Digital: <strong>{fmtM(digGeneral)}</strong></span>
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -1127,7 +1164,8 @@ function Reportes({sales,users,localeNames}) {
             <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Comparativo Mensual {localSel!=="todos"&&`· ${localSel}`}</span>
             {localSel==="todos"&&<span style={{fontSize:9,color:"#ffffff"}}>todos los locales</span>}
           </div>
-          {allMonths.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center"}}>Sin datos</div>}
+          {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando historial completo...</div>}
+          {!loading&&allMonths.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center"}}>Sin datos</div>}
           {allMonths.map((ym,i)=>{
             const currentYm=currentYmAR();
             const isCurrentMonth=ym===currentYm;
@@ -1172,7 +1210,7 @@ function Reportes({sales,users,localeNames}) {
                 </div>
                 {/* Desglose por local cuando es "todos" */}
                 {localSel==="todos"&&localeNames.map((l,li)=>{
-                  const ld=monthLocalMap[ym]?.[l];
+                  const ld=monthData.find(m=>m.ym===ym)?.byLocal?.[l];
                   if(!ld||ld.total===0) return null;
                   const lBarW=maxMonth>0?(ld.total/maxMonth*100):0;
                   const lColor=LOCAL_COLORS[li%LOCAL_COLORS.length];
@@ -2225,9 +2263,19 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
       (s.items||[]).forEach(it=>{
         const prod=prods.find(p=>p.id===it.pid);
         if(!prod||!prod.costo) return;
-        // Calcular unidades vendidas
-        const qty=prod.unit==="kg"?it.qty:(it.type==="bulto"?it.qty/prod.bulkWeight:it.qty);
-        cmv+=qty*(prod.costo||0);
+        if(prod.unit==="kg"){
+          if(it.type==="bulto"){
+            // Vendió N bultos → costo = N × costo bulto
+            cmv+=it.qty*(prod.costo||0);
+          } else {
+            // Vendió X kg granel → costo = X × (costo bulto ÷ peso bulto)
+            const costoKg=prod.bulkWeight>0?(prod.costo/prod.bulkWeight):0;
+            cmv+=it.qty*costoKg;
+          }
+        } else {
+          // Unidades → costo directo por unidad
+          cmv+=it.qty*(prod.costo||0);
+        }
       });
     });
 
@@ -2237,7 +2285,8 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     stockLocal.forEach(s=>{
       const prod=prods.find(p=>p.id===s.productId);
       if(!prod||!prod.costo) return;
-      valorStockCosto+=Math.max(0,s.stk)*(prod.costo||0);
+      const costoUnit=prod.unit==="kg"&&prod.bulkWeight>0?prod.costo/prod.bulkWeight:prod.costo;
+      valorStockCosto+=Math.max(0,s.stk)*costoUnit;
     });
 
     // Días de inventario
