@@ -2419,6 +2419,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
 
 function Proveedores({notify}) {
   const[provs,setProvs]=useState([]);
+  const[saldos,setSaldos]=useState({}); // {provId: {deuda, pagado, facturado}}
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(false);
   const[form,setForm]=useState(null);
@@ -2443,6 +2444,29 @@ function Proveedores({notify}) {
     setLoading(true);
     const{data}=await sb.from("gp_proveedores").select("*").order("nombre");
     setProvs(data||[]);
+    // Load summary saldos for all proveedores
+    const[fc,pg]=await Promise.all([
+      sb.from("gp_prov_facturas").select("proveedor_id,monto,pagada"),
+      sb.from("gp_prov_pagos").select("proveedor_id,monto"),
+    ]);
+    const map={};
+    (fc.data||[]).forEach(f=>{
+      if(!map[f.proveedor_id]) map[f.proveedor_id]={facturado:0,pendiente:0,pagado:0};
+      map[f.proveedor_id].facturado+=Number(f.monto)||0;
+      if(!f.pagada) map[f.proveedor_id].pendiente+=Number(f.monto)||0;
+    });
+    (pg.data||[]).forEach(p=>{
+      if(!map[p.proveedor_id]) map[p.proveedor_id]={facturado:0,pendiente:0,pagado:0};
+      map[p.proveedor_id].pagado+=Number(p.monto)||0;
+    });
+    // Real deuda = pendiente - saldo a favor
+    Object.keys(map).forEach(id=>{
+      const m=map[id];
+      const saldoFavor=Math.max(0,m.pagado-m.facturado);
+      m.deuda=Math.max(0,m.pendiente-saldoFavor);
+      m.saldoFavor=saldoFavor;
+    });
+    setSaldos(map);
     setLoading(false);
   };
 
@@ -2557,21 +2581,30 @@ function Proveedores({notify}) {
       {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
       {!loading&&<Card sx={{overflow:"hidden"}}>
         <table>
-          <thead><tr><th>Proveedor</th><th>CUIT</th><th>Teléfono</th><th>Vendedor</th><th>Plazo</th><th>Estado</th><th></th></tr></thead>
-          <tbody>{vis.map(p=>(<tr key={p.id}>
+          <thead><tr><th>Proveedor</th><th>Vendedor</th><th>Plazo</th><th style={{color:"#ff9900"}}>Facturado</th><th style={{color:"#00cc55"}}>Pagado</th><th style={{color:"#ff4444"}}>Deuda</th><th>Estado</th><th></th></tr></thead>
+          <tbody>{vis.map(p=>{
+            const s=saldos[p.id]||{facturado:0,pagado:0,deuda:0,saldoFavor:0};
+            return(<tr key={p.id}>
             <td style={{fontWeight:700,color:"#ffffff"}}>{p.nombre}</td>
-            <td style={{color:"#ffffff",fontSize:11,fontFamily:"monospace"}}>{p.cuit||"—"}</td>
-            <td style={{color:"#ffffff"}}>{p.telefono||"—"}</td>
             <td style={{color:"#ffffff"}}>{p.vendedor||"—"}</td>
             <td style={{color:"#00d4ff",fontWeight:700}}>{p.dias_plazo?`${p.dias_plazo}d`:"—"}</td>
+            <td style={{color:"#ff9900",fontWeight:700}}>{s.facturado>0?fmtM(s.facturado):"—"}</td>
+            <td style={{color:"#00cc55",fontWeight:700}}>{s.pagado>0?fmtM(s.pagado):"—"}</td>
+            <td>
+              {s.saldoFavor>0
+                ?<span style={{color:"#00d4ff",fontWeight:700}}>▲ {fmtM(s.saldoFavor)}</span>
+                :s.deuda>0
+                  ?<span style={{color:"#ff4444",fontWeight:800}}>{fmtM(s.deuda)}</span>
+                  :<span style={{color:"#00cc55",fontSize:11}}>✓ Al día</span>}
+            </td>
             <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:p.activo?"#021408":"#130900",color:p.activo?"#00cc55":"#ff9900",border:`1px solid ${p.activo?"#00882233":"#ff990033"}`}}>{p.activo?"ACTIVO":"INACTIVO"}</span></td>
             <td><div style={{display:"flex",gap:4}}>
               <Btn v="cy" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>{setDetId(p.id);setTab("facturas");loadDet(p.id);}}><Ic n="hist" s={11}/>C.Cte</Btn>
               <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(p)}><Ic n="edit" s={11}/></Btn>
               <Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(p)}><Ic n="del" s={11}/></Btn>
             </div></td>
-          </tr>))}
-          {vis.length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin proveedores</td></tr>}
+          </tr>);})}
+          {vis.length===0&&<tr><td colSpan={8} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin proveedores</td></tr>}
           </tbody>
         </table>
       </Card>}
@@ -2772,10 +2805,6 @@ function Proveedores({notify}) {
           <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
           {selectedFacts.length===0&&<div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto||""} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>}
           {selectedFacts.length===0&&<div style={{gridColumn:"1/-1"}}><Lbl t="Forma de pago"/><div style={{display:"flex",gap:12,marginTop:6}}>{["efectivo","transferencia"].map(t=>(<label key={t} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="radio" checked={pagoForm.tipo===t} onChange={()=>setPagoForm(f=>({...f,tipo:t}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:pagoForm.tipo===t?"#00cc55":"#ffffff"}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span></label>))}</div></div>}
-          <div style={{gridColumn:"1/-1",display:"flex",gap:16}}>
-            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===true} onChange={()=>setPagoForm(f=>({...f,es_blanco:true}))} style={{accentColor:"#00d4ff"}}/><span style={{color:"#00d4ff",fontSize:12,fontWeight:700}}>⬜ BLANCO</span></label>
-            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="radio" checked={pagoForm.es_blanco===false} onChange={()=>setPagoForm(f=>({...f,es_blanco:false}))} style={{accentColor:"#ff9900"}}/><span style={{color:"#ff9900",fontSize:12,fontWeight:700}}>⬛ NEGRO</span></label>
-          </div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
         </div>
         <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"✓ Registrar"}</Btn></div>
