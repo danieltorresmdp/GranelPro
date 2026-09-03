@@ -237,7 +237,7 @@ const[view,setView]=useState("dash");
       // Admin: últimos 90 días. Vendedor: solo hoy
       const loadSales=async()=>{
         if(isAdminSession){
-          const d90=new Date(nowAR());d90.setDate(d90.getDate()-90);
+          const d90=nowAR();d90.setDate(d90.getDate()-90);
           const desde=d90.toISOString().split("T")[0];
           let all=[];let from=0;const size=1000;
           while(true){
@@ -1076,8 +1076,11 @@ function Reportes({sales,users,localeNames}) {
         });
         // Ensure current + 2 prev months exist
         const cur=currentYmAR();
-        const p1=new Date(nowAR().setMonth(nowAR().getMonth()-1)).toISOString().slice(0,7);
-        const p2=new Date(nowAR().setMonth(nowAR().getMonth()-2)).toISOString().slice(0,7);
+        const arNow=nowAR();
+        const p1m=new Date(arNow);p1m.setMonth(arNow.getMonth()-1);
+        const p2m=new Date(arNow);p2m.setMonth(arNow.getMonth()-2);
+        const p1=p1m.toISOString().slice(0,7);
+        const p2=p2m.toISOString().slice(0,7);
         [cur,p1,p2].forEach(ym=>{if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};});
         setMonthData(Object.values(map).sort((a,b)=>b.ym.localeCompare(a.ym)));
       }catch(e){}
@@ -2240,8 +2243,8 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const[iibb,setIibb]=useState(3);
   const[payway,setPayway]=useState(2.5);
 
-  const hoy=new Date();
-  const desdeFecha=new Date(hoy);
+  const hoy=nowAR();
+  const desdeFecha=nowAR();
   desdeFecha.setDate(hoy.getDate()-periodo);
   const desdeStr=desdeFecha.toISOString().split("T")[0];
 
@@ -3145,9 +3148,11 @@ function ReporteProveedores({sales}) {
       setLoading(true);
       const desde=`${mes}-01`;const hasta=`${mes}-31`;
       const[pg,gs,pe,fc]=await Promise.all([
+        // Pagos del mes (por fecha de pago)
         sb.from("gp_prov_pagos").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta).order("fecha",{ascending:false}),
         sb.from("gp_gastos").select("*").gte("fecha",desde).lte("fecha",hasta),
         sb.from("gp_emp_pagos").select("*,gp_empleados(nombre)").gte("fecha",desde).lte("fecha",hasta),
+        // Facturas del mes (por fecha de emisión — pueden pagarse en otro mes)
         sb.from("gp_prov_facturas").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta),
       ]);
       setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setFacturas(fc.data||[]);setLoading(false);
@@ -3288,7 +3293,10 @@ function ReporteProveedores({sales}) {
         </Card>
       </div>
       {pagos.length>0&&<Card sx={{overflow:"hidden",marginBottom:14}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Pagos a Proveedores · {fmtMonth(mes)}</span></div>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Pagos a Proveedores · {fmtMonth(mes)}</span>
+          <span style={{fontSize:9,color:"#ffffff"}}>Pagos registrados con fecha en {fmtMonth(mes)} (pueden corresponder a facturas de otros meses)</span>
+        </div>
         <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Monto</th><th>Tipo</th><th>Factura</th></tr></thead>
           <tbody>{pagos.map((p,i)=>(<tr key={i}><td style={{fontSize:11}}>{p.fecha}</td><td style={{fontWeight:700,color:"#ffffff"}}>{p.gp_proveedores?.nombre||"—"}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(p.monto)}</td><td style={{fontSize:11,color:p.tipo==="efectivo"?"#00cc55":"#3388ff"}}>{p.tipo==="efectivo"?"💵":"🏦"} {p.tipo}</td><td style={{fontSize:10,color:"#ffffff"}}>{p.factura||"—"}</td></tr>))}</tbody>
         </table>
