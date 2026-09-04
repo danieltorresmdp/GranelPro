@@ -3061,7 +3061,8 @@ function Gastos({notify}) {
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
   const load=async()=>{
     setLoading(true);
-    const{data}=await sb.from("gp_gastos").select("*").gte("fecha",`${mesF}-01`).lte("fecha",`${mesF}-31`).order("fecha",{ascending:false});
+    const hastaG=new Date(parseInt(mesF.split("-")[0]),parseInt(mesF.split("-")[1]),0).toISOString().split("T")[0];
+    const{data}=await sb.from("gp_gastos").select("*").gte("fecha",`${mesF}-01`).lte("fecha",hastaG).order("fecha",{ascending:false});
     setGastos(data||[]);setLoading(false);
   };
   useEffect(()=>{load();},[mesF]);
@@ -3170,21 +3171,26 @@ function ReporteProveedores({sales}) {
   const[gastos,setGastos]=useState([]);
   const[pagoEmp,setPagoEmp]=useState([]);
   const[facturas,setFacturas]=useState([]);
+  const[proveedores,setProveedores]=useState([]);
   const[loading,setLoading]=useState(false);
+  const getNombreProv=(id)=>proveedores.find(p=>p.id===id)?.nombre||"—";
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const names=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return`${names[parseInt(m)-1]} ${y}`;};
   useEffect(()=>{
     const load=async()=>{
       setLoading(true);
-      const desde=`${mes}-01`;const hasta=`${mes}-31`;
-      const[pg,gs,pe,fc]=await Promise.all([
+      const desde=`${mes}-01`;
+      const hastaDate=new Date(parseInt(mes.split("-")[0]),parseInt(mes.split("-")[1]),0);
+      const hasta=hastaDate.toISOString().split("T")[0];
+      const[pg,gs,pe,fc,pv]=await Promise.all([
         // Pagos del mes (por fecha de pago)
-        sb.from("gp_prov_pagos").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta).order("fecha",{ascending:false}),
+        sb.from("gp_prov_pagos").select("*").gte("fecha",desde).lte("fecha",hasta).order("fecha",{ascending:false}),
         sb.from("gp_gastos").select("*").gte("fecha",desde).lte("fecha",hasta),
         sb.from("gp_emp_pagos").select("*,gp_empleados(nombre)").gte("fecha",desde).lte("fecha",hasta),
         // Facturas del mes (por fecha de emisión — pueden pagarse en otro mes)
-        sb.from("gp_prov_facturas").select("*,gp_proveedores(nombre)").gte("fecha",desde).lte("fecha",hasta),
+        sb.from("gp_prov_facturas").select("*").gte("fecha",desde).lte("fecha",hasta),
+        sb.from("gp_proveedores").select("id,nombre"),
       ]);
-      setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setFacturas(fc.data||[]);setLoading(false);
+      setPagos(pg.data||[]);setGastos(gs.data||[]);setPagoEmp(pe.data||[]);setFacturas(fc.data||[]);setProveedores(pv.data||[]);setLoading(false);
     };
     load();
   },[mes]);
@@ -3277,7 +3283,7 @@ function ReporteProveedores({sales}) {
               {factBlanco.length===0&&<div style={{color:"#ffffff",fontSize:9}}>Sin facturas en blanco este mes</div>}
               {factBlanco.slice(0,5).map((f,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#ffffff",padding:"1px 0"}}>
-                  <span>{f.gp_proveedores?.nombre||"—"} {f.numero?`#${f.numero}`:""}</span>
+                  <span>{getNombreProv(f.proveedor_id)} {f.numero?`#${f.numero}`:""}</span>
                   <span style={{color:"#cc44ff"}}>{fmtM(Math.round(Number(f.monto)/1.21*0.21))}</span>
                 </div>
               ))}
@@ -3327,7 +3333,7 @@ function ReporteProveedores({sales}) {
           <span style={{fontSize:9,color:"#ffffff"}}>Pagos registrados con fecha en {fmtMonth(mes)} (pueden corresponder a facturas de otros meses)</span>
         </div>
         <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Monto</th><th>Tipo</th><th>Factura</th></tr></thead>
-          <tbody>{pagos.map((p,i)=>(<tr key={i}><td style={{fontSize:11}}>{p.fecha}</td><td style={{fontWeight:700,color:"#ffffff"}}>{p.gp_proveedores?.nombre||"—"}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(p.monto)}</td><td style={{fontSize:11,color:p.tipo==="efectivo"?"#00cc55":"#3388ff"}}>{p.tipo==="efectivo"?"💵":"🏦"} {p.tipo}</td><td style={{fontSize:10,color:"#ffffff"}}>{p.factura||"—"}</td></tr>))}</tbody>
+          <tbody>{pagos.map((p,i)=>(<tr key={i}><td style={{fontSize:11}}>{p.fecha}</td><td style={{fontWeight:700,color:"#ffffff"}}>{getNombreProv(p.proveedor_id)}</td><td style={{color:"#ff6666",fontWeight:700}}>{fmtM(p.monto)}</td><td style={{fontSize:11,color:p.tipo==="efectivo"?"#00cc55":"#3388ff"}}>{p.tipo==="efectivo"?"💵":"🏦"} {p.tipo}</td><td style={{fontSize:10,color:"#ffffff"}}>{p.factura||"—"}</td></tr>))}</tbody>
         </table>
       </Card>}
       {gastos.length>0&&<Card sx={{overflow:"hidden"}}>
