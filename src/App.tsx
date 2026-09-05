@@ -3695,15 +3695,25 @@ function Estadisticas({prods,sales,localeNames}) {
 
 function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const[mes,setMes]=useState(currentYmAR());
-  const[gastos,setGastos]=useState([]);
-  const[empPagos,setEmpPagos]=useState([]);
-  const[provPagos,setProvPagos]=useState([]);
+  const[factBlanco,setFactBlanco]=useState([]);
   const[loading,setLoading]=useState(false);
   const[umbralAlerta,setUmbralAlerta]=useState(15);
   const[activeTab,setActiveTab]=useState("global");
+  // Gastos manuales — temporales por sesión
+  const[gastosGlobal,setGastosGlobal]=useState([
+    {desc:"Empleados",monto:""},
+    {desc:"Alquileres",monto:""},
+    {desc:"Servicios",monto:""},
+    {desc:"Mantenimiento",monto:""},
+    {desc:"Impuestos",monto:""},
+    {desc:"Publicidad",monto:""},
+    {desc:"Otros",monto:""},
+  ]);
+  const[gastosLocal,setGastosLocal]=useState({}); // {localName: [{desc,monto}]}
 
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return`${n[parseInt(m)-1]} ${y}`;};
-  const pct=(n,d=1)=>d===0?"—":`${n.toFixed(1)}%`;
+  const pct=(n,d=1)=>`${Number(n).toFixed(d)}%`;
+  const IMP_COM=9;
 
   useEffect(()=>{
     const load=async()=>{
@@ -3711,14 +3721,9 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
       const desde=`${mes}-01`;
       const hastaDate=new Date(parseInt(mes.split("-")[0]),parseInt(mes.split("-")[1]),0);
       const hasta=hastaDate.toISOString().split("T")[0];
-      const[gs,ep,pp]=await Promise.all([
-        sb.from("gp_gastos").select("*").gte("fecha",desde).lte("fecha",hasta),
-        sb.from("gp_emp_pagos").select("*,gp_empleados(nombre,local)").gte("fecha",desde).lte("fecha",hasta),
-        sb.from("gp_prov_pagos").select("*").gte("fecha",desde).lte("fecha",hasta),
-      ]);
-      setGastos(gs.data||[]);
-      setEmpPagos(ep.data||[]);
-      setProvPagos(pp.data||[]);
+      // Solo facturas en blanco del mes para IVA crédito fiscal
+      const{data}=await sb.from("gp_prov_facturas").select("monto,es_blanco").gte("fecha",desde).lte("fecha",hasta).eq("es_blanco",true);
+      setFactBlanco(data||[]);
       setLoading(false);
     };
     load();
@@ -3726,13 +3731,11 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
 
   const localesVenta=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
   const ventasMes=sales.filter(s=>s.date?.slice(0,7)===mes&&!s.localName?.toUpperCase().includes("DEPOSIT"));
-
-  // Global
   const totalVentas=ventasMes.reduce((a,b)=>a+b.total,0);
-  const ventasEf=ventasMes.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0);
   const ventasDig=ventasMes.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0);
+  const ventasEf=ventasMes.filter(s=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0);
 
-  // CMV global
+  // CMV
   const calcCMV=(ventasLocal)=>{
     let cmv=0;
     ventasLocal.forEach(s=>{
@@ -3751,71 +3754,54 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const margenBruto=totalVentas-cmvGlobal;
   const margenBrutoPct=totalVentas>0?margenBruto/totalVentas*100:0;
 
-  // IVA neto
-  const IVA=0.21;
-  const ivaDebito=ventasDig/1.21*IVA;
-  const ivaCredito=provPagos.reduce((a,b)=>a+Number(b.monto),0)/1.21*IVA;
-  const ivaNeto=ivaCredito-ivaDebito; // positivo=a favor, negativo=a pagar
+  // IVA — igual que Reporte Prov: facturas en blanco del mes
+  const totalFactBlanco=factBlanco.reduce((a,b)=>a+Number(b.monto),0);
+  const ivaCredito=totalFactBlanco/1.21*0.21;
+  const ivaDebito=ventasDig/1.21*0.21;
+  const ivaNeto=ivaCredito-ivaDebito;
 
-  // Gastos del mes
-  const totalEmp=empPagos.reduce((a,b)=>a+Number(b.monto),0);
-  const totalAlquiler=gastos.filter(g=>g.categoria==="Alquiler").reduce((a,b)=>a+Number(b.monto),0);
-  const totalServicios=gastos.filter(g=>g.categoria==="Servicios").reduce((a,b)=>a+Number(b.monto),0);
-  const totalMant=gastos.filter(g=>g.categoria==="Mantenimiento").reduce((a,b)=>a+Number(b.monto),0);
-  const totalImp=gastos.filter(g=>g.categoria==="Impuestos").reduce((a,b)=>a+Number(b.monto),0);
-  const totalOtros=gastos.filter(g=>!["Alquiler","Servicios","Mantenimiento","Impuestos","Sueldos"].includes(g.categoria)).reduce((a,b)=>a+Number(b.monto),0);
-  const totalGastosFijos=totalAlquiler+totalServicios+totalMant+totalImp+totalOtros;
-  const totalSalidas=totalEmp+totalGastosFijos;
-  const resultadoNeto=margenBruto-totalSalidas;
+  // Gastos manuales global
+  const totalGastosGlobal=gastosGlobal.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
+  const resultadoNeto=margenBruto-totalGastosGlobal;
   const resultadoNetoPct=totalVentas>0?resultadoNeto/totalVentas*100:0;
 
   // Por local
-  const dataLocal=localesVenta.map(loc=>{
-    const vl=ventasMes.filter(s=>s.localName===loc);
-    const vTotal=vl.reduce((a,b)=>a+b.total,0);
-    const vDig=vl.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0);
-    const cmv=calcCMV(vl);
-    const mb=vTotal-cmv;
-    const mbPct=vTotal>0?mb/vTotal*100:0;
-    // Gastos del local — buscar por descripción que contenga el nombre del local
-    const locKey=loc.toUpperCase();
-    const gsLoc=gastos.filter(g=>g.descripcion?.toUpperCase().includes(locKey)||g.notas?.toUpperCase().includes(locKey));
-    const empLoc=empPagos.filter(e=>e.gp_empleados?.local?.toUpperCase()===locKey);
-    const gfLoc=gsLoc.reduce((a,b)=>a+Number(b.monto),0);
-    const empLocTotal=empLoc.reduce((a,b)=>a+Number(b.monto),0);
-    const rNeto=mb-gfLoc-empLocTotal;
-    const rNetoPct=vTotal>0?rNeto/vTotal*100:0;
-    return{loc,vTotal,vDig,cmv,mb,mbPct,gfLoc,empLocTotal,rNeto,rNetoPct,ventas:vl.length};
-  }).filter(d=>d.vTotal>0).sort((a,b)=>b.vTotal-a.vTotal);
+  const getGastosLocal=(loc)=>(gastosLocal[loc]||[{desc:"Empleados",monto:""},{desc:"Alquileres",monto:""},{desc:"Servicios",monto:""},{desc:"Otros",monto:""}]);
+  const setGastoLocalItem=(loc,idx,field,val)=>{
+    setGastosLocal(prev=>{
+      const cur=getGastosLocal(loc).map((g,i)=>i===idx?{...g,[field]:val}:g);
+      return{...prev,[loc]:cur};
+    });
+  };
 
-  // Alertas productos
-  const IMP_COMISIONES=9;
+  // Alertas — tomar el MÍNIMO margen neto entre bulto y granel
+  const IMP_COMISIONES=IMP_COM;
   const alertaProds=prods.filter(p=>{
     if(!p.costo||p.costo<=0) return false;
-    // Chequear margen neto de granel y bulto
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
-    const mnBulto=p.bulkPrice>0?((p.bulkPrice-p.costo)/p.bulkPrice*100)-IMP_COMISIONES:null;
-    const mnKg=p.pricePerKg>0&&costoKg>0?((p.pricePerKg-costoKg)/p.pricePerKg*100)-IMP_COMISIONES:null;
-    const mnUnit=p.unitPrice>0?((p.unitPrice-p.costo)/p.unitPrice*100)-IMP_COMISIONES:null;
-    const mn=mnBulto??mnKg??mnUnit??100;
-    return mn<umbralAlerta;
+    const mns=[];
+    if(p.bulkPrice>0) mns.push((p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES);
+    if(p.pricePerKg>0&&costoKg>0) mns.push((p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES);
+    if(p.unit!=="kg"&&p.unitPrice>0) mns.push((p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES);
+    if(mns.length===0) return false;
+    return Math.min(...mns)<umbralAlerta;
   }).map(p=>{
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
-    const mnBulto=p.bulkPrice>0?((p.bulkPrice-p.costo)/p.bulkPrice*100)-IMP_COMISIONES:null;
-    const mnKg=p.pricePerKg>0&&costoKg>0?((p.pricePerKg-costoKg)/p.pricePerKg*100)-IMP_COMISIONES:null;
-    const mnUnit=p.unitPrice>0?((p.unitPrice-p.costo)/p.unitPrice*100)-IMP_COMISIONES:null;
+    const mnBulto=p.bulkPrice>0?(p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES:null;
+    const mnKg=p.pricePerKg>0&&costoKg>0?(p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES:null;
+    const mnUnit=p.unit!=="kg"&&p.unitPrice>0?(p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES:null;
     return{...p,mnBulto,mnKg,mnUnit,costoKg};
   }).sort((a,b)=>{
-    const ma=a.mnBulto??a.mnKg??a.mnUnit??0;
-    const mb2=b.mnBulto??b.mnKg??b.mnUnit??0;
+    const ma=Math.min(...[a.mnBulto,a.mnKg,a.mnUnit].filter(x=>x!==null));
+    const mb2=Math.min(...[b.mnBulto,b.mnKg,b.mnUnit].filter(x=>x!==null));
     return ma-mb2;
   });
 
-  const Row=({label,value,sub=null,color="#ffffff",indent=false,bold=false,big=false})=>(
+  const Row=({label,value,sub=null,color="#ffffff",indent=false,bold=false,big=false,neg=false})=>(
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:`${big?"10":"6"}px ${indent?"24":"12"}px`,borderBottom:"1px solid #192a3810"}}>
       <span style={{fontSize:bold||big?12:11,color:"#ffffff",fontWeight:bold||big?700:400}}>{label}</span>
       <div style={{textAlign:"right"}}>
-        <span style={{fontSize:big?16:12,fontWeight:big?900:bold?700:400,color}}>{value}</span>
+        <span style={{fontSize:big?16:12,fontWeight:big?900:bold?700:400,color}}>{neg&&value!=="$0,00"?"−":""}{value}</span>
         {sub&&<span style={{fontSize:9,color:"#ffffff",marginLeft:6}}>{sub}</span>}
       </div>
     </div>
@@ -3832,99 +3818,211 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{display:"flex",gap:8,marginBottom:14}}>
         {[["global","🌐 Global"],["local","📍 Por Local"],["alertas","⚠ Alertas"]].map(([k,label])=>(
           <button key={k} onClick={()=>setActiveTab(k)} style={{padding:"8px 16px",borderRadius:7,border:`1px solid ${activeTab===k?"#00d4ff":"#192a38"}`,background:activeTab===k?"#021520":"transparent",color:activeTab===k?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:activeTab===k?700:400}}>{label}</button>
         ))}
       </div>
 
-      {/* ── TAB GLOBAL ── */}
-      {activeTab==="global"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        {/* Columna izquierda — waterfall */}
-        <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",background:"#040c18"}}><span style={{fontSize:10,fontWeight:800,color:"#00d4ff"}}>📊 Estado de Resultados · {fmtMonth(mes)}</span></div>
-          <Row label="Ventas totales" value={fmtM(totalVentas)} sub={`${ventasMes.length} ops`} color="#00cc55" bold big/>
-          <div style={{padding:"4px 12px",background:"#060f1a"}}><span style={{fontSize:9,color:"#ffffff"}}>💵 Efectivo: {fmtM(ventasEf)} · 🏦 Digital: {fmtM(ventasDig)} ({totalVentas>0?(ventasDig/totalVentas*100).toFixed(0):0}%)</span></div>
-          <Row label="− Costo mercadería (CMV)" value={`−${fmtM(cmvGlobal)}`} color="#ff6666" indent/>
-          <Row label="= Margen Bruto" value={fmtM(margenBruto)} sub={pct(margenBrutoPct)} color={margenBruto>=0?"#00cc55":"#ff4444"} bold/>
-          <div style={{padding:"4px 12px 8px",background:"#060f1a",fontSize:9,color:"#ffffff"}}>Gastos operativos:</div>
-          <Row label="− Empleados" value={`−${fmtM(totalEmp)}`} color="#ff9900" indent/>
-          <Row label="− Alquileres" value={`−${fmtM(totalAlquiler)}`} color="#ff9900" indent/>
-          <Row label="− Servicios" value={`−${fmtM(totalServicios)}`} color="#ff9900" indent/>
-          <Row label="− Mantenimiento" value={`−${fmtM(totalMant)}`} color="#ff9900" indent/>
-          <Row label="− Impuestos/otros" value={`−${fmtM(totalImp+totalOtros)}`} color="#ff9900" indent/>
-          <Row label="= RESULTADO NETO" value={fmtM(resultadoNeto)} sub={pct(resultadoNetoPct)} color={resultadoNeto>=0?"#00cc55":"#ff4444"} bold big/>
-        </Card>
-
-        {/* Columna derecha — IVA + resumen */}
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* ── GLOBAL ── */}
+      {activeTab==="global"&&<div style={{display:"grid",gridTemplateColumns:"1.2fr 1fr",gap:14}}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {/* Ventas del mes */}
           <Card sx={{overflow:"hidden"}}>
-            <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",background:"#08041a"}}><span style={{fontSize:10,fontWeight:800,color:"#cc44ff"}}>🧾 Posición Fiscal IVA 21%</span></div>
-            <Row label="Crédito fiscal (compras en blanco)" value={fmtM(ivaCredito)} color="#cc44ff"/>
-            <Row label="Débito fiscal (ventas digitales)" value={`−${fmtM(ivaDebito)}`} color="#ff6666" indent/>
-            <Row label={ivaNeto>=0?"= Saldo a favor":"= IVA a pagar"} value={fmtM(Math.abs(ivaNeto))} color={ivaNeto>=0?"#cc44ff":"#ff4444"} bold/>
-            <div style={{padding:"8px 12px",fontSize:9,color:"#ffffff",background:"#060f1a"}}>⚠ Solo pagos a proveedores del mes como CF. Para CF real verificar facturas en blanco.</div>
-          </Card>
-          <Card sx={{overflow:"hidden"}}>
-            <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",background:"#040c18"}}><span style={{fontSize:10,fontWeight:800,color:"#ffffff"}}>📈 Resumen ejecutivo</span></div>
-            <Row label="Margen bruto %" value={pct(margenBrutoPct)} color={margenBrutoPct>20?"#00cc55":"#ff9900"}/>
-            <Row label="Margen neto %" value={pct(resultadoNetoPct)} color={resultadoNeto>=0?"#00cc55":"#ff4444"}/>
-            <Row label="Gastos fijos totales" value={fmtM(totalSalidas)} color="#ff6666"/>
-            <Row label="Gastos / Margen bruto" value={margenBruto>0?pct(totalSalidas/margenBruto*100):"—"} color="#ff9900"/>
-          </Card>
-        </div>
-      </div>}
-
-      {/* ── TAB POR LOCAL ── */}
-      {activeTab==="local"&&<div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:12}}>
-          {dataLocal.map(d=>(
-            <Card key={d.loc} sx={{overflow:"hidden"}}>
-              <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#040c18"}}>
-                <span style={{fontSize:12,fontWeight:800,color:"#00d4ff"}}>📍 {d.loc}</span>
-                <span style={{fontSize:10,color:"#ffffff"}}>{d.ventas} ventas</span>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",background:"#040c18"}}><span style={{fontSize:10,fontWeight:800,color:"#00d4ff"}}>📊 Auditoría · {fmtMonth(mes)}</span></div>
+            <Row label="Ventas totales" value={fmtM(totalVentas)} sub={`${ventasMes.length} ops`} color="#00cc55" bold big/>
+            <div style={{padding:"4px 12px 6px",background:"#060f1a",fontSize:9,color:"#ffffff"}}>
+              💵 Efectivo: {fmtM(ventasEf)} ({totalVentas>0?(ventasEf/totalVentas*100).toFixed(0):0}%) · 🏦 Digital: {fmtM(ventasDig)} ({totalVentas>0?(ventasDig/totalVentas*100).toFixed(0):0}%)
+            </div>
+            <Row label="− Costo mercadería (CMV)" value={fmtM(cmvGlobal)} color="#ff6666" indent neg/>
+            <Row label="= Margen Bruto" value={fmtM(margenBruto)} sub={pct(margenBrutoPct)} color={margenBruto>=0?"#00cc55":"#ff4444"} bold/>
+            {/* Gastos manuales */}
+            <div style={{padding:"8px 12px 4px",background:"#06101a",borderTop:"1px solid #192a38"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={{fontSize:9,fontWeight:700,color:"#ff9900",letterSpacing:1}}>GASTOS A DEDUCIR</span>
+                <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setGastosGlobal(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
               </div>
-              <Row label="Ventas" value={fmtM(d.vTotal)} color="#00cc55" bold/>
-              <Row label="− CMV" value={`−${fmtM(d.cmv)}`} color="#ff6666" indent/>
-              <Row label="= Margen Bruto" value={fmtM(d.mb)} sub={pct(d.mbPct)} color={d.mb>=0?"#00cc55":"#ff4444"} bold/>
-              {(d.empLocTotal>0||d.gfLoc>0)&&<>
-                <Row label="− Empleados" value={`−${fmtM(d.empLocTotal)}`} color="#ff9900" indent/>
-                <Row label="− Gastos fijos" value={`−${fmtM(d.gfLoc)}`} color="#ff9900" indent/>
-                <Row label="= Resultado Neto" value={fmtM(d.rNeto)} sub={pct(d.rNetoPct)} color={d.rNeto>=0?"#00cc55":"#ff4444"} bold/>
-              </>}
-              {d.empLocTotal===0&&d.gfLoc===0&&<div style={{padding:"8px 12px",fontSize:9,color:"#ff9900"}}>⚠ Sin gastos fijos asignados a este local. Cargalos en Gastos con el nombre del local en la descripción.</div>}
-            </Card>
-          ))}
-          {dataLocal.length===0&&<div style={{color:"#ffffff",padding:20}}>Sin ventas en {fmtMonth(mes)}</div>}
+              {gastosGlobal.map((g,i)=>(
+                <div key={i} style={{display:"flex",gap:6,marginBottom:5,alignItems:"center"}}>
+                  <Inp value={g.desc} onChange={(e)=>setGastosGlobal(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2,fontSize:11,padding:"5px 8px"}} placeholder="Concepto..."/>
+                  <Inp type="number" step=".01" value={g.monto} onChange={(e)=>setGastosGlobal(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1,fontSize:11,padding:"5px 8px"}} placeholder="$0"/>
+                  <button onClick={()=>setGastosGlobal(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16,lineHeight:1}}>×</button>
+                </div>
+              ))}
+              {totalGastosGlobal>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"4px 0 2px",borderTop:"1px solid #192a3830",marginTop:2}}>
+                <span style={{fontSize:10,color:"#ff6666",fontWeight:700}}>Total gastos</span>
+                <span style={{fontSize:12,color:"#ff6666",fontWeight:800}}>−{fmtM(totalGastosGlobal)}</span>
+              </div>}
+            </div>
+            <Row label="= RESULTADO NETO" value={fmtM(Math.abs(resultadoNeto))} sub={`${resultadoNeto>=0?"✓":"⚠"} ${pct(resultadoNetoPct)}`} color={resultadoNeto>=0?"#00cc55":"#ff4444"} bold big neg={resultadoNeto<0}/>
+          </Card>
+        </div>
+
+        {/* IVA + resumen */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card sx={{overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",background:"#08041a"}}><span style={{fontSize:10,fontWeight:800,color:"#cc44ff"}}>🧾 Posición Fiscal IVA 21% · {fmtMonth(mes)}</span></div>
+            <Row label="Crédito fiscal — facturas prov. en blanco" value={fmtM(ivaCredito)} color="#cc44ff"/>
+            <div style={{padding:"3px 24px 3px",fontSize:9,color:"#ffffff"}}>Base: {fmtM(totalFactBlanco)} · {factBlanco.length} facturas</div>
+            <Row label="Débito fiscal — ventas digitales" value={fmtM(ivaDebito)} color="#ff6666" indent neg/>
+            <div style={{padding:"3px 24px 6px",fontSize:9,color:"#ffffff"}}>Base: {fmtM(ventasDig)}</div>
+            <Row label={ivaNeto>=0?"= Saldo a favor":"= IVA a pagar"} value={fmtM(Math.abs(ivaNeto))} color={ivaNeto>=0?"#cc44ff":"#ff4444"} bold/>
+          </Card>
+          <Card sx={{padding:16}}>
+            <div style={{fontSize:10,fontWeight:800,color:"#ffffff",marginBottom:10}}>📈 Ratios clave</div>
+            {[
+              ["Margen bruto %",pct(margenBrutoPct),margenBrutoPct>20?"#00cc55":"#ff9900"],
+              ["Margen neto %",totalGastosGlobal>0?pct(resultadoNetoPct):"— (cargá gastos)","#00d4ff"],
+              ["CMV / Ventas",totalVentas>0?pct(cmvGlobal/totalVentas*100):"—","#ff9900"],
+              ["Ventas digitales",totalVentas>0?pct(ventasDig/totalVentas*100):"—","#3388ff"],
+            ].map(([lbl,val,col])=>(
+              <div key={lbl} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818"}}>
+                <span style={{fontSize:11,color:"#ffffff"}}>{lbl}</span>
+                <span style={{fontSize:12,fontWeight:700,color:col}}>{val}</span>
+              </div>
+            ))}
+          </Card>
+          {/* Mix de ventas bulto vs granel */}
+          {(()=>{
+            let totalGranel=0,totalBulto=0,totalUnidad=0;
+            let cmvGranel=0,cmvBulto=0,cmvUnidad=0;
+            ventasMes.forEach(s=>{
+              (s.items||[]).forEach(it=>{
+                const prod=prods.find(p=>p.id===it.pid);
+                const sub=Number(it.sub)||0;
+                const costoKg=prod?.bulkWeight>0?(prod.costo/prod.bulkWeight):0;
+                if(it.type==="granel"){
+                  totalGranel+=sub;
+                  if(prod&&costoKg>0) cmvGranel+=it.qty*costoKg;
+                } else if(it.type==="bulto"){
+                  totalBulto+=sub;
+                  if(prod?.costo) cmvBulto+=it.qty*(prod.costo||0);
+                } else {
+                  totalUnidad+=sub;
+                  if(prod?.costo) cmvUnidad+=it.qty*(prod.costo||0);
+                }
+              });
+            });
+            const totalMix=totalGranel+totalBulto+totalUnidad||1;
+            const mgGranel=totalGranel>0?(totalGranel-cmvGranel)/totalGranel*100:null;
+            const mgBulto=totalBulto>0?(totalBulto-cmvBulto)/totalBulto*100:null;
+            const mgUnidad=totalUnidad>0?(totalUnidad-cmvUnidad)/totalUnidad*100:null;
+            const mgPonderado=(totalGranel+totalBulto+totalUnidad)>0?(totalGranel+totalBulto+totalUnidad-cmvGranel-cmvBulto-cmvUnidad)/(totalGranel+totalBulto+totalUnidad)*100:0;
+            const mnPonderado=mgPonderado-IMP_COM;
+            const barColor=(p)=>p>20?"#00cc55":p>10?"#ff9900":"#ff4444";
+            return(
+              <Card sx={{padding:16}}>
+                <div style={{fontSize:10,fontWeight:800,color:"#ffffff",marginBottom:10}}>📦 Mix de ventas del mes</div>
+                {[
+                  ["🌾 Granel",totalGranel,mgGranel,"#00cc55"],
+                  ["📦 Bulto",totalBulto,mgBulto,"#ff9900"],
+                  ["🛍️ Unidad",totalUnidad,mgUnidad,"#00d4ff"],
+                ].filter(([,t])=>t>0).map(([lbl,tot,mg,col])=>(
+                  <div key={lbl} style={{marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:11,color:col,fontWeight:700}}>{lbl}</span>
+                      <span style={{fontSize:11,color:"#ffffff"}}>{fmtM(tot)} <span style={{color:"#ffffff",fontSize:9}}>({(tot/totalMix*100).toFixed(0)}%)</span></span>
+                    </div>
+                    <div style={{height:6,background:"#192a38",borderRadius:3,overflow:"hidden",marginBottom:2}}>
+                      <div style={{height:"100%",width:`${tot/totalMix*100}%`,background:col,borderRadius:3}}/>
+                    </div>
+                    <div style={{fontSize:9,color:"#ffffff",display:"flex",gap:10}}>
+                      <span>Mg. Bruto: <strong style={{color:mg!==null?barColor(mg):"#ffffff"}}>{mg!==null?pct(mg):"—"}</strong></span>
+                      <span>Mg. Neto est.: <strong style={{color:mg!==null?barColor(mg-IMP_COM):"#ffffff"}}>{mg!==null?pct(mg-IMP_COM):"—"}</strong></span>
+                    </div>
+                  </div>
+                ))}
+                <div style={{borderTop:"1px solid #192a38",marginTop:6,paddingTop:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    <span style={{fontSize:11,color:"#ffffff",fontWeight:700}}>Mg. bruto ponderado</span>
+                    <span style={{fontSize:13,fontWeight:800,color:barColor(mgPonderado)}}>{pct(mgPonderado)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+                    <span style={{fontSize:11,color:"#ffffff",fontWeight:700}}>Mg. neto ponderado</span>
+                    <span style={{fontSize:13,fontWeight:800,color:barColor(mnPonderado)}}>{pct(mnPonderado)}</span>
+                  </div>
+                  <div style={{fontSize:9,color:"#ffffff",marginTop:4}}>Ponderado según ventas reales del mes. Neto = Bruto − {IMP_COM}%</div>
+                </div>
+              </Card>
+            );
+          })()}
         </div>
       </div>}
 
-      {/* ── TAB ALERTAS ── */}
+      {/* ── POR LOCAL ── */}
+      {activeTab==="local"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(360px,1fr))",gap:12}}>
+        {localesVenta.map(loc=>{
+          const vl=ventasMes.filter(s=>s.localName===loc);
+          const vTotal=vl.reduce((a,b)=>a+b.total,0);
+          const cmvLoc=calcCMV(vl);
+          const mbLoc=vTotal-cmvLoc;
+          const mbPct=vTotal>0?mbLoc/vTotal*100:0;
+          const gl=getGastosLocal(loc);
+          const totalGL=gl.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
+          const rNeto=mbLoc-totalGL;
+          const rNetoPct=vTotal>0?rNeto/vTotal*100:0;
+          return(
+            <Card key={loc} sx={{overflow:"hidden"}}>
+              <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",background:"#040c18"}}>
+                <span style={{fontSize:12,fontWeight:800,color:"#00d4ff"}}>📍 {loc}</span>
+                <span style={{fontSize:10,color:"#ffffff"}}>{vl.length} ventas</span>
+              </div>
+              {vTotal===0?<div style={{padding:14,color:"#ffffff",fontSize:11}}>Sin ventas en {fmtMonth(mes)}</div>:<>
+                <Row label="Ventas" value={fmtM(vTotal)} color="#00cc55" bold/>
+                <Row label="− CMV" value={fmtM(cmvLoc)} color="#ff6666" indent neg/>
+                <Row label="= Margen Bruto" value={fmtM(mbLoc)} sub={pct(mbPct)} color={mbLoc>=0?"#00cc55":"#ff4444"} bold/>
+                <div style={{padding:"8px 12px 4px",background:"#06101a",borderTop:"1px solid #192a38"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                    <span style={{fontSize:9,fontWeight:700,color:"#ff9900",letterSpacing:1}}>GASTOS DEL LOCAL</span>
+                    <Btn v="gh" sx={{padding:"2px 6px",fontSize:8}} onClick={()=>setGastosLocal(prev=>({...prev,[loc]:[...getGastosLocal(loc),{desc:"",monto:""}]}))}>+ Agregar</Btn>
+                  </div>
+                  {gl.map((g,i)=>(
+                    <div key={i} style={{display:"flex",gap:5,marginBottom:4,alignItems:"center"}}>
+                      <Inp value={g.desc} onChange={(e)=>setGastoLocalItem(loc,i,"desc",e.target.value)} sx={{flex:2,fontSize:10,padding:"4px 7px"}} placeholder="Concepto..."/>
+                      <Inp type="number" step=".01" value={g.monto} onChange={(e)=>setGastoLocalItem(loc,i,"monto",e.target.value)} sx={{flex:1,fontSize:10,padding:"4px 7px"}} placeholder="$0"/>
+                      <button onClick={()=>setGastosLocal(prev=>({...prev,[loc]:getGastosLocal(loc).filter((_,xi)=>xi!==i)}))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
+                    </div>
+                  ))}
+                  {totalGL>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderTop:"1px solid #192a3830",marginTop:2}}>
+                    <span style={{fontSize:10,color:"#ff6666",fontWeight:700}}>Total gastos</span>
+                    <span style={{fontSize:11,color:"#ff6666",fontWeight:800}}>−{fmtM(totalGL)}</span>
+                  </div>}
+                </div>
+                {totalGL>0&&<Row label="= Resultado Neto" value={fmtM(Math.abs(rNeto))} sub={`${rNeto>=0?"✓":"⚠"} ${pct(rNetoPct)}`} color={rNeto>=0?"#00cc55":"#ff4444"} bold big neg={rNeto<0}/>}
+              </>}
+            </Card>
+          );
+        })}
+      </div>}
+
+      {/* ── ALERTAS ── */}
       {activeTab==="alertas"&&<div>
-        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
-          <span style={{fontSize:12,color:"#ffffff"}}>Alerta si Mg. Neto &lt;</span>
-          <Inp type="number" value={umbralAlerta} onChange={(e)=>setUmbralAlerta(parseFloat(e.target.value)||0)} sx={{width:70,fontSize:13}}/>
-          <span style={{fontSize:12,color:"#ffffff"}}>% · Comisiones: {IMP_COMISIONES}%</span>
-          <span style={{fontSize:11,color:"#ff4444",fontWeight:700}}>{alertaProds.length} productos bajo umbral</span>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:"#ffffff"}}>Mostrar productos con Mg. Neto &lt;</span>
+          <Inp type="number" value={umbralAlerta} onChange={(e)=>setUmbralAlerta(parseFloat(e.target.value)||0)} sx={{width:65,fontSize:13}}/>
+          <span style={{fontSize:12,color:"#ffffff"}}>% · Comisiones/impuestos descontados: {IMP_COMISIONES}%</span>
+          <span style={{fontSize:11,color:"#ff4444",fontWeight:700,marginLeft:8}}>{alertaProds.length} productos bajo umbral</span>
         </div>
-        {alertaProds.length===0&&<Card sx={{padding:20,textAlign:"center"}}><span style={{color:"#00cc55",fontSize:13}}>✓ Todos los productos con costo cargado están sobre el umbral de {umbralAlerta}%</span></Card>}
+        {alertaProds.length===0&&<Card sx={{padding:20,textAlign:"center"}}><span style={{color:"#00cc55",fontSize:13}}>✓ Todos los productos con costo cargado están sobre el {umbralAlerta}% de margen neto</span></Card>}
         {alertaProds.length>0&&<Card sx={{overflow:"hidden"}}>
-          <table><thead><tr><th>Código</th><th>Producto</th><th>Cat.</th><th>Mg. Neto Bulto</th><th>Mg. Neto Granel</th><th>Costo/kg</th></tr></thead>
+          <table><thead><tr><th>#</th><th>Producto</th><th>Cat.</th><th style={{color:"#ff9900"}}>Mg.Neto Bulto</th><th style={{color:"#00cc55"}}>Mg.Neto Granel</th><th>Costo/kg</th></tr></thead>
             <tbody>{alertaProds.map(p=>{
               const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
-              const mnColor=(mn)=>mn===null?"#ffffff":mn<0?"#ff4444":mn<umbralAlerta?"#ff9900":"#00cc55";
+              const mc=(mn)=>mn===null?"#ffffff":mn<0?"#ff4444":mn<umbralAlerta?"#ff9900":"#00cc55";
               return(<tr key={p.id}>
                 <td style={{fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>{p.code||"—"}</td>
                 <td style={{fontWeight:700,color:"#ffffff"}}>{CAT_EM[p.cat]||""} {p.name}</td>
                 <td style={{fontSize:10,color:"#ffffff"}}>{p.cat}</td>
-                <td style={{fontWeight:700,color:mnColor(p.mnBulto)}}>{p.mnBulto!==null?pct(p.mnBulto):"—"}</td>
-                <td style={{fontWeight:700,color:mnColor(p.mnKg)}}>{p.mnKg!==null?pct(p.mnKg):"—"}</td>
-                <td style={{color:"#ff9900"}}>{p.costoKg>0?fmtM(p.costoKg)+"/kg":"—"}</td>
+                <td style={{fontWeight:700,color:mc(p.mnBulto)}}>{p.mnBulto!==null?pct(p.mnBulto):"—"}</td>
+                <td style={{fontWeight:700,color:mc(p.mnKg)}}>{p.mnKg!==null?pct(p.mnKg):"—"}</td>
+                <td style={{color:"#ff9900",fontSize:11}}>{p.costoKg>0?fmtM(p.costoKg)+"/kg":"—"}</td>
               </tr>);
             })}</tbody>
           </table>
         </Card>}
+        <div style={{marginTop:10,padding:"8px 12px",background:"#040c16",borderRadius:7,fontSize:9,color:"#ffffff"}}>
+          ⚠ Solo se analizan productos con costo cargado. Mg. Neto = Mg. Bruto − {IMP_COMISIONES}% comisiones/impuestos.
+        </div>
       </div>}
     </div>
   );
