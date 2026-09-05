@@ -3743,9 +3743,20 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
         const prod=prods.find(p=>p.id===it.pid);
         if(!prod||!prod.costo) return;
         if(prod.unit==="kg"){
-          if(it.type==="bulto") cmv+=it.qty*(prod.costo||0);
-          else{const ck=prod.bulkWeight>0?(prod.costo/prod.bulkWeight):0;cmv+=it.qty*ck;}
-        } else cmv+=it.qty*(prod.costo||0);
+          if(it.type==="bulto"){
+            // qty = kg totales del bulto, bulkWeight = kg por bulto
+            // cantidad de bultos = qty / bulkWeight
+            const nBultos=prod.bulkWeight>0?it.qty/prod.bulkWeight:1;
+            cmv+=nBultos*(prod.costo||0);
+          } else {
+            // granel: qty = kg vendidos, costo por kg = costo/bulkWeight
+            const ck=prod.bulkWeight>0?(prod.costo/prod.bulkWeight):0;
+            cmv+=it.qty*ck;
+          }
+        } else {
+          // unidad: qty = unidades vendidas
+          cmv+=it.qty*(prod.costo||0);
+        }
       });
     });
     return cmv;
@@ -3896,7 +3907,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
                   if(prod&&costoKg>0) cmvGranel+=it.qty*costoKg;
                 } else if(it.type==="bulto"){
                   totalBulto+=sub;
-                  if(prod?.costo) cmvBulto+=it.qty*(prod.costo||0);
+                  if(prod?.costo&&prod.bulkWeight>0) cmvBulto+=(it.qty/prod.bulkWeight)*(prod.costo||0);
                 } else {
                   totalUnidad+=sub;
                   if(prod?.costo) cmvUnidad+=it.qty*(prod.costo||0);
