@@ -1347,9 +1347,17 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
           </div>
         </div>
-        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th></th></tr></thead>
-          <tbody>{filteredCaja.map((d)=>{
+        <table><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>Ventas</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th>{isAdmin&&<th style={{color:"#00d4ff"}}>Diferencia</th>}<th></th></tr></thead>
+          <tbody>{filteredCaja.map((d,idx)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
+            const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
+            // Fondo del cierre anterior del mismo local
+            const prevCierre=[...myCaja].reverse().filter(c=>c.localName===d.localName&&c.id<d.id).slice(-1)[0];
+            const fondoAnterior=prevCierre?.openingAmount||0;
+            const esperado=d.totalEf+fondoAnterior;
+            const diferencia=cajaTotalDec-esperado;
+            const diffColor=Math.abs(diferencia)<100?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
+            const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:`${fmtM(diferencia)}`;
             return(<tr key={d.id}>
               <td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td>
               <td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td>
@@ -1361,12 +1369,18 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
               <td style={{fontWeight:800,color:"#00cc55"}}>{fmtM((d.totalAll||0))}</td>
               <td style={{color:"#00cc55",fontSize:11}}>{fmtM((d.openingAmount||0))}</td>
               <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?fmtM((d.retiro_efectivo)):"—"}</td>
+              {isAdmin&&<td style={{fontWeight:700,color:diffColor,fontSize:11}}>
+                {cajaTotalDec>0?<span title={`Esperado: ${fmtM(esperado)} (Ef: ${fmtM(d.totalEf)} + Fondo ant: ${fmtM(fondoAnterior)})\nDeclarado: ${fmtM(cajaTotalDec)}`}>{diffLabel}</span>:"—"}
+              </td>}
               <td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>
             </tr>);
           })}
-          {filteredCaja.length===0&&<tr><td colSpan={11} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
+          {filteredCaja.length===0&&<tr><td colSpan={isAdmin?12:11} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
           </tbody>
         </table>
+        {isAdmin&&<div style={{padding:"8px 14px",fontSize:9,color:"#ffffff",borderTop:"1px solid #192a38",background:"#060f1a"}}>
+          💡 <strong>Diferencia</strong> = Caja declarada − (Ventas efectivo + Fondo turno anterior) · ✓ OK = diferencia menor a $100 · Naranja = sobrante · Rojo = faltante. Pasá el cursor sobre el valor para ver el detalle.
+        </div>}
       </Card>}
 
       {/* Modal cierre */}
