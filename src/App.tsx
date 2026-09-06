@@ -947,739 +947,214 @@ function ProdCardInline({p,onAdd}) {
 }
 
 function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
-  const[q,setQ]=useState("");const[pf,setPf]=useState("todos");const[vendF,setVendF]=useState("todos");const[localF,setLocalF]=useState("todos");const[det,setDet]=useState(null);const[confirmDel,setConfirmDel]=useState(null);
-  const[editPay,setEditPay]=useState(null); // {saleId, currentPay}
+  const PAGE=50;
+  const[rows,setRows]=useState([]);
+  const[total,setTotal]=useState(0);
+  const[page,setPage]=useState(0);
+  const[loading,setLoading]=useState(false);
+  const[q,setQ]=useState("");
+  const[pf,setPf]=useState("todos");
+  const[localF,setLocalF]=useState("todos");
+  const[vendF,setVendF]=useState("todos");
+  const[dateFrom,setDateFrom]=useState("");
+  const[dateTo,setDateTo]=useState("");
+  const[det,setDet]=useState(null);
+  const[confirmDel,setConfirmDel]=useState(null);
+  const[editPay,setEditPay]=useState(null);
   const[newPay,setNewPay]=useState("");
   const[savingPay,setSavingPay]=useState(false);
 
+  const localeNames=[...new Set(sales.map(s=>s.localName).filter(Boolean))].sort();
+  const vendedores=users.filter(u=>u.role==="vendedor");
+
+  const fetchRows=useCallback(async(pg=0)=>{
+    setLoading(true);
+    try{
+      let query=sb.from("gp_sales").select("*",{count:"exact"});
+      if(!isAdmin) query=query.eq("uid",session?.id);
+      if(pf!=="todos") query=query.eq("pay",pf);
+      if(localF!=="todos") query=query.eq("local_name",localF);
+      if(vendF!=="todos") query=query.eq("uid",vendF);
+      if(dateFrom) query=query.gte("date",dateFrom);
+      if(dateTo) query=query.lte("date",dateTo);
+      query=query.order("id",{ascending:false}).range(pg*PAGE,(pg+1)*PAGE-1);
+      const{data,count,error}=await query;
+      if(!error){
+        setRows((data||[]).map(mapSale));
+        setTotal(count||0);
+        setPage(pg);
+      }
+    }catch(e){}
+    setLoading(false);
+  },[pf,localF,vendF,dateFrom,dateTo,isAdmin,session]);
+
+  useEffect(()=>{fetchRows(0);},[fetchRows]);
+
+  // Client search filter (local, since clients are in memory)
+  const filtered=q.trim()
+    ?rows.filter(s=>{
+        const cl=clients.find(c=>c.id===s.cid);
+        return cl?.name?.toLowerCase().includes(q.toLowerCase());
+      })
+    :rows;
+
+  const delSale=async(id)=>{
+    await sb.from("gp_sales").delete().eq("id",id);
+    notify("Venta eliminada");setConfirmDel(null);
+    fetchRows(page);loadAll();
+  };
+
   const doEditPay=async()=>{
-    if(!newPay||newPay===editPay?.currentPay){notify("Seleccioná un medio de pago diferente","err");return;}
+    if(!newPay||newPay===editPay?.currentPay){notify("Seleccioná un medio diferente","err");return;}
     setSavingPay(true);
     try{
       await sb.from("gp_sales").update({pay:newPay}).eq("id",editPay.saleId);
       notify("Medio de pago actualizado");
       setEditPay(null);setNewPay("");
       if(det) setDet(prev=>({...prev,pay:newPay}));
-      loadAll();
+      fetchRows(page);
     }catch(e){notify("Error","err");}
     setSavingPay(false);
   };
-  const loginAt=session?.loginAt?new Date(session.loginAt):null;
-  const mySales=isAdmin?sales:sales.filter((s)=>{
-    if(String(s.uid)!==String(session?.id)) return false;
-    if(s.date!==todayStr()) return false;
-    return true;
-  });
-  // Unique vendors and locals for filters
-  const vendorOptions=[...new Map(mySales.map(s=>{const u=users.find(u=>u.id===s.uid);return[s.uid,{id:s.uid,name:u?.name||"—"}];}).filter(([,u])=>u.name!=="—")).values()];
-  const localOptions=[...new Set(mySales.map(s=>s.localName).filter(Boolean))];
-  const vis=mySales.filter((s)=>{
-    const cl=clients.find((c)=>c.id===s.cid);
-    const matchQ=!q||cl?.name.toLowerCase().includes(q.toLowerCase());
-    const matchPay=pf==="todos"||s.pay===pf;
-    const matchVend=vendF==="todos"||String(s.uid)===vendF;
-    const matchLocal=localF==="todos"||s.localName===localF;
-    return matchQ&&matchPay&&matchVend&&matchLocal;
-  });
-  const delSale=async(id)=>{await sb.from("gp_sales").delete().eq("id",id);notify("Venta eliminada");setConfirmDel(null);loadAll();};
+
+  const totalPages=Math.ceil(total/PAGE);
+
   return(
     <div className="fade">
-      <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Ventas</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{mySales.length} REGISTROS{!isAdmin&&" · MIS VENTAS"}</p></div>
-      <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
-        <div style={{flex:1,position:"relative",minWidth:160}}><Inp placeholder="Buscar cliente..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={13}/></span></div>
-        <Sel value={pf} onChange={(e)=>setPf(e.target.value)} sx={{width:130}}><option value="todos">Todos los pagos</option>{PAY_OPTS.map(m=><option key={m}>{m}</option>)}</Sel>
-        {isAdmin&&<Sel value={vendF} onChange={(e)=>setVendF(e.target.value)} sx={{width:140}}><option value="todos">👤 Vendedor</option>{vendorOptions.map(u=><option key={u.id} value={String(u.id)}>{u.name}</option>)}</Sel>}
-        {isAdmin&&<Sel value={localF} onChange={(e)=>setLocalF(e.target.value)} sx={{width:130}}><option value="todos">📍 Local</option>{localOptions.map(l=><option key={l} value={l}>{l}</option>)}</Sel>}
-        {isAdmin&&(vendF!=="todos"||localF!=="todos"||pf!=="todos")&&<Btn v="gh" sx={{padding:"6px 10px",fontSize:9}} onClick={()=>{setVendF("todos");setLocalF("todos");setPf("todos");}}>Limpiar</Btn>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Ventas</h1>
+          <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{total.toLocaleString("es-AR")} REGISTROS · {isAdmin?"TODAS LAS VENTAS":"MIS VENTAS"}</p>
+        </div>
+        <Btn v="gh" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>fetchRows(page)}><Ic n="trend" s={12}/>Actualizar</Btn>
       </div>
-      <Card sx={{overflow:"hidden"}}><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th><th>Vendedor</th><th>Local</th><th></th></tr></thead>
-        <tbody>{vis.map((s)=>{const cl=clients.find((c)=>c.id===s.cid);const us=users.find((u)=>u.id===s.uid);const saleTime=new Date(s.id).toString()!=="Invalid Date"?new Date(s.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false}):"";return(<tr key={s.id}><td style={{color:"#ffffff",fontSize:9,fontFamily:"monospace"}}>#{String(s.id).slice(-6)}</td><td style={{color:"#ffffff"}}>{s.date}{saleTime&&<div style={{fontSize:9,color:"#00d4ff"}}>{saleTime}</div>}</td><td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(s.total)}</td><td><Chip t={s.pay}/></td><td style={{color:"#ff9900",fontWeight:700}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td>
-          <td><div style={{display:"flex",gap:4}}>
-            <Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setDet(s)}><Ic n="eye" s={11}/></Btn>
-            {isAdmin&&<Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(s)}><Ic n="del" s={11}/></Btn>}
-          </div></td>
-        </tr>);})}</tbody>
-      </table></Card>
-      {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2><div style={{display:"flex",gap:6}}>{isAdmin&&<Btn v="or" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setEditPay({saleId:det.id,currentPay:det.pay});setNewPay(det.pay);}}><Ic n="edit" s={11}/>Editar pago</Btn>}<Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn></div></div>
-        <div style={{fontSize:10,color:"#ffffff",marginBottom:12}}>{det.date}{new Date(det.id).toString()!=="Invalid Date"&&<span style={{color:"#00d4ff",marginLeft:6}}>{new Date(det.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span>} · <Chip t={det.pay}/> {det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}</div>
-        {det.items?.map((it,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><div><div style={{fontSize:12,color:"#ffffff",fontWeight:600}}>{it.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{it.unitDisplay}</div></div><span style={{color:"#00cc55",fontWeight:700}}>{fmtM(it.sub)}</span></div>))}
-        <div style={{background:"#040c16",borderRadius:8,padding:"11px 13px",marginTop:11}}>{det.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,color:"#ff9900"}}><span>Desc.</span><span>−{fmtM(det.disc)}</span></div>}<div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:14}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(det.total)}</span></div></div>
+
+      {/* Filtros */}
+      <Card sx={{padding:"10px 14px",marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr",gap:8,alignItems:"end"}}>
+          <div><Lbl t="Buscar cliente"/><Inp placeholder="Nombre..." value={q} onChange={(e)=>setQ(e.target.value)}/></div>
+          <div><Lbl t="Medio de pago"/>
+            <Sel value={pf} onChange={(e)=>{setPf(e.target.value);setPage(0);}}>
+              <option value="todos">Todos</option>
+              {PAY_OPTS.map(m=><option key={m}>{m}</option>)}
+            </Sel>
+          </div>
+          {isAdmin&&<div><Lbl t="Local"/>
+            <Sel value={localF} onChange={(e)=>{setLocalF(e.target.value);setPage(0);}}>
+              <option value="todos">Todos</option>
+              {localeNames.map(l=><option key={l}>{l}</option>)}
+            </Sel>
+          </div>}
+          {isAdmin&&<div><Lbl t="Vendedor"/>
+            <Sel value={vendF} onChange={(e)=>{setVendF(e.target.value);setPage(0);}}>
+              <option value="todos">Todos</option>
+              {vendedores.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </Sel>
+          </div>}
+          <div><Lbl t="Desde"/><Inp type="date" value={dateFrom} onChange={(e)=>{setDateFrom(e.target.value);setPage(0);}}/></div>
+          <div><Lbl t="Hasta"/><Inp type="date" value={dateTo} onChange={(e)=>{setDateTo(e.target.value);setPage(0);}}/></div>
+        </div>
+        {(pf!=="todos"||localF!=="todos"||vendF!=="todos"||dateFrom||dateTo)&&
+          <Btn v="gh" sx={{marginTop:8,padding:"3px 10px",fontSize:9}} onClick={()=>{setPf("todos");setLocalF("todos");setVendF("todos");setDateFrom("");setDateTo("");}}>Limpiar filtros</Btn>}
+      </Card>
+
+      {/* Tabla */}
+      <Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"8px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:9,color:"#ffffff",letterSpacing:1}}>
+            {loading?"Cargando...":`Mostrando ${page*PAGE+1}–${Math.min((page+1)*PAGE,total)} de ${total.toLocaleString("es-AR")} ventas`}
+          </span>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} disabled={page===0} onClick={()=>fetchRows(page-1)}>← Ant.</Btn>
+            <span style={{fontSize:10,color:"#ffffff"}}>{page+1} / {totalPages||1}</span>
+            <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} disabled={page>=totalPages-1} onClick={()=>fetchRows(page+1)}>Sig. →</Btn>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Pts</th>{isAdmin&&<><th>Local</th><th>Vendedor</th></>}<th></th></tr></thead>
+          <tbody>
+            {filtered.map(s=>{
+              const cl=clients.find(c=>c.id===s.cid);
+              const us=users.find(u=>u.id===s.uid);
+              return(<tr key={s.id} style={{cursor:"pointer"}} onClick={()=>setDet(s)}>
+                <td style={{fontSize:11}}>{s.date}<span style={{color:"#00d4ff",marginLeft:4,fontSize:9}}>{new Date(s.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
+                <td style={{fontWeight:700,color:"#ffffff"}}>{cl?.name||"—"}</td>
+                <td style={{color:"#00cc55",fontWeight:800}}>{fmtM(s.total)}</td>
+                <td><Chip t={s.pay}/></td>
+                <td style={{color:"#ff9900",fontSize:11}}>{s.ptsE>0?`+${s.ptsE}`:"-"}</td>
+                {isAdmin&&<><td style={{color:"#00d4ff",fontSize:11}}>{s.localName||"—"}</td><td style={{color:"#ffffff",fontSize:11}}>{us?.name||"—"}</td></>}
+                <td onClick={(e)=>e.stopPropagation()}>
+                  {isAdmin&&<Btn v="r" sx={{padding:"2px 6px",fontSize:9}} onClick={()=>setConfirmDel(s)}><Ic n="del" s={11}/></Btn>}
+                </td>
+              </tr>);
+            })}
+            {filtered.length===0&&!loading&&<tr><td colSpan={isAdmin?8:6} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin resultados</td></tr>}
+          </tbody>
+        </table>
+        <div style={{padding:"8px 14px",borderTop:"1px solid #192a38",display:"flex",justifyContent:"flex-end",gap:6}}>
+          <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} disabled={page===0} onClick={()=>fetchRows(page-1)}>← Anterior</Btn>
+          <Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} disabled={page>=totalPages-1} onClick={()=>fetchRows(page+1)}>Siguiente →</Btn>
+        </div>
+      </Card>
+
+      {/* Modal detalle */}
+      {det&&(<Modal close={()=>setDet(null)} w={440}><div style={{padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
+          <h2 style={{margin:0,fontSize:15,fontWeight:800}}>Detalle #{String(det.id).slice(-6)}</h2>
+          <div style={{display:"flex",gap:6}}>
+            {isAdmin&&<Btn v="or" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setEditPay({saleId:det.id,currentPay:det.pay});setNewPay(det.pay);}}><Ic n="edit" s={11}/>Editar pago</Btn>}
+            <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDet(null)}><Ic n="x" s={13}/></Btn>
+          </div>
+        </div>
+        <div style={{fontSize:10,color:"#ffffff",marginBottom:12}}>
+          {det.date}<span style={{color:"#00d4ff",marginLeft:6}}>{new Date(det.id).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span> · <Chip t={det.pay}/>{det.localName&&<span style={{color:"#00d4ff",marginLeft:6}}>📍{det.localName}</span>}
+        </div>
+        <div style={{marginBottom:12}}>
+          {(det.items||[]).map((it,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #192a3820",fontSize:12}}>
+              <span style={{color:"#ffffff"}}>{it.name} <span style={{color:"#ffffff",fontSize:10}}>{it.unitDisplay||""}</span></span>
+              <span style={{color:"#00cc55",fontWeight:700}}>{fmtM(it.sub)}</span>
+            </div>
+          ))}
+        </div>
+        {det.disc>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#ff9900",marginBottom:4}}><span>Descuento puntos</span><span>−{fmtM(det.disc)}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:15,borderTop:"1px solid #192a38",paddingTop:8}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(det.total)}</span></div>
+        {det.ptsE>0&&<div style={{fontSize:10,color:"#ff9900",marginTop:6}}>+{det.ptsE} pts generados</div>}
+        {det.ptsUs>0&&<div style={{fontSize:10,color:"#ff9900"}}>−{det.ptsUs} pts usados</div>}
+        {isAdmin&&<div style={{marginTop:12,display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <Btn v="r" sx={{padding:"4px 10px",fontSize:10}} onClick={()=>{setDet(null);setConfirmDel(det);}}><Ic n="del" s={12}/>Eliminar</Btn>
+        </div>}
       </div></Modal>)}
-      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar venta?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:8}}>Venta <strong style={{color:"#ffffff"}}>#{String(confirmDel.id).slice(-6)}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ El stock no se repondrá automáticamente</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delSale(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+
       {editPay&&<Modal close={()=>setEditPay(null)} w={380}><div style={{padding:22}}>
         <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Editar Medio de Pago</h2>
         <div style={{background:"#040c16",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:11}}>
           <div style={{color:"#ffffff",marginBottom:4}}>Venta #{String(editPay.saleId).slice(-6)}</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>Pago actual: <Chip t={editPay.currentPay}/></div>
         </div>
-        <Lbl t="Nuevo medio de pago"/>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,marginBottom:16}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
           {PAY_OPTS.map(opt=>(
             <label key={opt} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 12px",borderRadius:7,background:newPay===opt?"#021408":"#060f1a",border:`1px solid ${newPay===opt?"#00cc55":"#192a38"}`}}>
               <input type="radio" checked={newPay===opt} onChange={()=>setNewPay(opt)} style={{accentColor:"#00cc55"}}/>
-              <Chip t={opt}/>
-              <span style={{fontSize:12,color:"#ffffff"}}>{opt}</span>
+              <Chip t={opt}/><span style={{fontSize:12,color:"#ffffff"}}>{opt}</span>
             </label>
           ))}
         </div>
         <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
           <Btn v="gh" onClick={()=>setEditPay(null)}>Cancelar</Btn>
-          <Btn v="or" onClick={doEditPay} disabled={savingPay||!newPay||newPay===editPay.currentPay}>{savingPay?"Guardando...":"Confirmar cambio"}</Btn>
+          <Btn v="or" onClick={doEditPay} disabled={savingPay||!newPay||newPay===editPay.currentPay}>{savingPay?"Guardando...":"Confirmar"}</Btn>
         </div>
       </div></Modal>}
-    </div>
-  );
-}
 
-function Reportes({sales,users,localeNames}) {
-  const[tab,setTab]=useState("mensual");
-  const[localSel,setLocalSel]=useState("todos");
-  const[monthData,setMonthData]=useState([]); // [{ym, total, count, ef, dig, byLocal}]
-  const[loading,setLoading]=useState(true);
-
-  const fmtMonth=(ym)=>{
-    const[y,m]=ym.split("-");
-    const names=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-    return`${names[parseInt(m)-1]} ${y}`;
-  };
-
-  // Load all monthly aggregates directly from Supabase
-  useEffect(()=>{
-    const load=async()=>{
-      setLoading(true);
-      try{
-        // Get all sales with minimal fields for aggregation
-        let all=[];let from=0;const size=1000;
-        while(true){
-          const{data,error}=await sb.from("gp_sales").select("date,total,pay,local_name").order("date",{ascending:false}).range(from,from+size-1);
-          if(error||!data||data.length===0) break;
-          all=[...all,...data];
-          if(data.length<size) break;
-          from+=size;
-        }
-        // Aggregate by month
-        const map={};
-        all.forEach(s=>{
-          const ym=s.date?s.date.slice(0,7):"";
-          if(!ym) return;
-          if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};
-          map[ym].total+=Number(s.total)||0;
-          map[ym].count++;
-          if(s.pay==="efectivo") map[ym].ef+=Number(s.total)||0;
-          else map[ym].dig+=Number(s.total)||0;
-          const loc=s.local_name||"Sin local";
-          if(!map[ym].byLocal[loc]) map[ym].byLocal[loc]={count:0,total:0,ef:0,dig:0};
-          map[ym].byLocal[loc].count++;
-          map[ym].byLocal[loc].total+=Number(s.total)||0;
-          if(s.pay==="efectivo") map[ym].byLocal[loc].ef+=Number(s.total)||0;
-          else map[ym].byLocal[loc].dig+=Number(s.total)||0;
-        });
-        // Ensure current + 2 prev months exist
-        const cur=currentYmAR();
-        const arNow=nowAR();
-        const p1m=new Date(arNow);p1m.setMonth(arNow.getMonth()-1);
-        const p2m=new Date(arNow);p2m.setMonth(arNow.getMonth()-2);
-        const p1=p1m.toISOString().slice(0,7);
-        const p2=p2m.toISOString().slice(0,7);
-        [cur,p1,p2].forEach(ym=>{if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};});
-        setMonthData(Object.values(map).sort((a,b)=>b.ym.localeCompare(a.ym)));
-      }catch(e){}
-      setLoading(false);
-    };
-    load();
-  },[]);
-
-  const totalGeneral=monthData.reduce((a,b)=>a+b.total,0);
-  const efGeneral=monthData.reduce((a,b)=>a+b.ef,0);
-  const digGeneral=monthData.reduce((a,b)=>a+b.dig,0);
-  const allMonths=monthData.map(d=>d.ym);
-  const localesVis=localSel==="todos"?localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")):[localSel];
-
-  const totalByMonth=(ym)=>{
-    const d=monthData.find(m=>m.ym===ym);
-    if(!d) return 0;
-    if(localSel==="todos") return d.total;
-    return d.byLocal[localSel]?.total||0;
-  };
-  const countByMonth=(ym)=>{
-    const d=monthData.find(m=>m.ym===ym);
-    if(!d) return 0;
-    if(localSel==="todos") return d.count;
-    return d.byLocal[localSel]?.count||0;
-  };
-  const efByMonth=(ym)=>{
-    const d=monthData.find(m=>m.ym===ym);
-    if(!d) return 0;
-    if(localSel==="todos") return d.ef;
-    return d.byLocal[localSel]?.ef||0;
-  };
-  const digByMonth=(ym)=>{
-    const d=monthData.find(m=>m.ym===ym);
-    if(!d) return 0;
-    if(localSel==="todos") return d.dig;
-    return d.byLocal[localSel]?.dig||0;
-  };
-  const maxTotal=allMonths.length>0?Math.max(...allMonths.map(ym=>totalByMonth(ym))):1;
-
-  const maxMonth=maxTotal;
-
-  // Reporte por local — aggregate from monthData
-  const byLocal=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")).map(l=>{
-    const total=monthData.reduce((a,b)=>a+(b.byLocal[l]?.total||0),0);
-    const count=monthData.reduce((a,b)=>a+(b.byLocal[l]?.count||0),0);
-    return{name:l,count,total};
-  }).filter(l=>l.count>0).sort((a,b)=>b.total-a.total);
-
-  // Reporte por usuario — use last 90 days sales in memory
-  const byUser=users.map((u)=>{const us=sales.filter((s)=>String(s.uid)===String(u.id));return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
-
-  const LOCAL_COLORS=["#00cc55","#3388ff","#cc44ff","#ff9900","#00d4ff","#ff4444"];
-
-  return(
-    <div className="fade">
-      <div style={{marginBottom:16}}><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Reportes</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>VENTAS TOTALES · {sales.length} OPERACIONES</p></div>
-      <Card sx={{padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General · Todo el historial</div>
-          <div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{loading?"Cargando...":fmtM(totalGeneral)}</div>
-          <div style={{display:"flex",gap:14,marginTop:4}}>
-            <span style={{fontSize:10,color:"#00cc55"}}>💵 Efectivo: <strong>{fmtM(efGeneral)}</strong></span>
-            <span style={{fontSize:10,color:"#3388ff"}}>🏦 Digital: <strong>{fmtM(digGeneral)}</strong></span>
-          </div>
+      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>🗑️</div>
+        <h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar venta?</h2>
+        <p style={{color:"#ffffff",fontSize:13,marginBottom:8}}>Venta <strong>#{String(confirmDel.id).slice(-6)}</strong> · {fmtM(confirmDel.total)}</p>
+        <p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ El stock no se repondrá automáticamente</p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn>
+          <Btn v="r" onClick={()=>delSale(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <Btn v={tab==="mensual"?"cy":"gh"} onClick={()=>setTab("mensual")}><Ic n="trend" s={13}/>Mensual</Btn>
-          <Btn v={tab==="local"?"cy":"gh"} onClick={()=>setTab("local")}><Ic n="loc" s={13}/>Por Local</Btn>
-          <Btn v={tab==="user"?"cy":"gh"} onClick={()=>setTab("user")}><Ic n="usr" s={13}/>Por Usuario</Btn>
-        </div>
-      </Card>
-
-      {tab==="mensual"&&(<>
-        {/* Filtro por local */}
-        <div style={{display:"flex",gap:7,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-          <span style={{fontSize:9,color:"#ffffff",letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>Filtrar:</span>
-          <button onClick={()=>setLocalSel("todos")} style={{background:localSel==="todos"?"#00d4ff":"transparent",border:`1px solid ${localSel==="todos"?"#00d4ff":"#192a38"}`,color:localSel==="todos"?"#030810":"#ffffff",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>Todos</button>
-          {localeNames.map((l,i)=><button key={l} onClick={()=>setLocalSel(l)} style={{background:localSel===l?LOCAL_COLORS[i%LOCAL_COLORS.length]:"transparent",border:`1px solid ${localSel===l?LOCAL_COLORS[i%LOCAL_COLORS.length]:"#192a38"}`,color:localSel===l?"#030810":"#ffffff",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,transition:"all .15s"}}>📍 {l}</button>)}
-        </div>
-
-        <Card sx={{overflow:"hidden"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Comparativo Mensual {localSel!=="todos"&&`· ${localSel}`}</span>
-            {localSel==="todos"&&<span style={{fontSize:9,color:"#ffffff"}}>todos los locales</span>}
-          </div>
-          {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando historial completo...</div>}
-          {!loading&&allMonths.length===0&&<div style={{padding:20,color:"#ffffff",textAlign:"center"}}>Sin datos</div>}
-          {allMonths.map((ym,i)=>{
-            const currentYm=currentYmAR();
-            const isCurrentMonth=ym===currentYm;
-            const total=totalByMonth(ym);
-            const count=countByMonth(ym);
-            const prevYm=allMonths[i+1];
-            const prevTotal=prevYm?totalByMonth(prevYm):null;
-            const diff=prevTotal!=null?total-prevTotal:null;
-            const pct=prevTotal!=null&&prevTotal>0?((total-prevTotal)/prevTotal*100):null;
-            const barW=maxMonth>0?(total/maxMonth*100):0;
-            return(
-              <div key={ym} style={{padding:"12px 16px",borderBottom:"1px solid #192a3814"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <span style={{fontSize:13,fontWeight:800,color:isCurrentMonth?"#00d4ff":"#a0bcd0",minWidth:70}}>{fmtMonth(ym)}</span>
-                    {isCurrentMonth&&<span style={{fontSize:8,background:"#00d4ff22",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>MES ACTUAL</span>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:14}}>
-                    {pct!=null&&<span style={{fontSize:10,fontWeight:700,color:diff>=0?"#00cc55":"#ff4444"}}>{diff>=0?"▲":"▼"} {Math.abs(pct).toFixed(1)}% vs mes ant.</span>}
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:14,fontWeight:800,color:"#00cc55"}}>{fmtM(total)}</div>
-                      <div style={{fontSize:9,color:"#ffffff"}}>{count} ventas</div>
-                    </div>
-                  </div>
-                </div>
-                {/* Desglose efectivo / digital */}
-                <div style={{display:"flex",gap:16,marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <span style={{fontSize:9,color:"#00cc55"}}>💵 Efectivo:</span>
-                    <span style={{fontSize:11,fontWeight:700,color:"#00cc55"}}>{fmtM(efByMonth(ym))}</span>
-                    {total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(efByMonth(ym)/total*100).toFixed(0)}%)</span>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <span style={{fontSize:9,color:"#3388ff"}}>🏦 Digital:</span>
-                    <span style={{fontSize:11,fontWeight:700,color:"#3388ff"}}>{fmtM(digByMonth(ym))}</span>
-                    {total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(digByMonth(ym)/total*100).toFixed(0)}%)</span>}
-                  </div>
-                </div>
-                {/* Barra global */}
-                <div style={{height:5,background:"#192a38",borderRadius:3,overflow:"hidden",marginBottom:localSel==="todos"?6:0}}>
-                  <div style={{height:"100%",background:isCurrentMonth?"#00d4ff":"#00cc55",width:`${barW}%`,borderRadius:3,transition:"width .4s ease"}}/>
-                </div>
-                {/* Desglose por local cuando es "todos" */}
-                {localSel==="todos"&&localeNames.map((l,li)=>{
-                  const ld=monthData.find(m=>m.ym===ym)?.byLocal?.[l];
-                  if(!ld||ld.total===0) return null;
-                  const lBarW=maxMonth>0?(ld.total/maxMonth*100):0;
-                  const lColor=LOCAL_COLORS[li%LOCAL_COLORS.length];
-                  return(
-                    <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-                      <span style={{fontSize:9,color:lColor,minWidth:72,fontWeight:600}}>📍 {l}</span>
-                      <div style={{flex:1,height:4,background:"#192a38",borderRadius:2,overflow:"hidden"}}>
-                        <div style={{height:"100%",background:lColor,width:`${lBarW}%`,borderRadius:2,opacity:.8}}/>
-                      </div>
-                      <span style={{fontSize:10,fontWeight:700,color:lColor,minWidth:80,textAlign:"right"}}>{fmtM(ld.total)}</span>
-                      <span style={{fontSize:9,color:"#ffffff",minWidth:40,textAlign:"right"}}>{ld.count}v</span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </Card>
-      </>)}
-
-      {tab==="local"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Ventas por Local</span></div>
-        <table><thead><tr><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
-          <tbody>{byLocal.sort((a,b)=>b.total-a.total).map((l)=>(<tr key={l.name}><td style={{fontWeight:700,color:"#ffffff"}}>📍 {l.name}</td><td>{l.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(l.total)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#00cc55",width:`${totalGeneral>0?(l.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#ffffff",minWidth:36}}>{totalGeneral>0?(l.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
-        </table>
-      </Card>)}
-
-      {tab==="user"&&(<Card sx={{overflow:"hidden"}}><div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Ventas por Usuario</span></div>
-        <table><thead><tr><th>Usuario</th><th>Rol</th><th>Local</th><th>Ventas</th><th>Total</th><th>% del Total</th></tr></thead>
-          <tbody>{byUser.map((u,i)=>(<tr key={i}><td style={{fontWeight:700,color:"#ffffff"}}>{u.name}</td><td><Chip t={u.role}/></td><td style={{color:"#00d4ff"}}>{u.local||"—"}</td><td>{u.count}</td><td style={{fontWeight:800,color:"#00cc55",fontSize:13}}>{fmtM(u.total)}</td><td><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:"#3388ff",width:`${totalGeneral>0?(u.total/totalGeneral*100):0}%`,borderRadius:3}}/></div><span style={{fontSize:10,color:"#ffffff",minWidth:36}}>{totalGeneral>0?(u.total/totalGeneral*100).toFixed(1):0}%</span></div></td></tr>))}</tbody>
-        </table>
-      </Card>)}
-    </div>
-  );
-}
-
-function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
-  const[localF,setLocalF]=useState("");
-  const[saving,setSaving]=useState(null);
-  const[vals,setVals]=useState({});
-  const[minVals,setMinVals]=useState({});
-  const[maxVals,setMaxVals]=useState({});
-  const[modoAjuste,setModoAjuste]=useState({});
-  const[q,setQ]=useState("");
-  const[catF,setCatF]=useState("Todas");
-  const[soloMinimos,setSoloMinimos]=useState(false);
-  const[loading,setLoading]=useState(true);
-  const[histProd,setHistProd]=useState(null);
-  const[histData,setHistData]=useState([]);
-  const[histLoading,setHistLoading]=useState(false);
-
-  const fetchAll=async()=>{
-    setLoading(true);
-    let all=[];let from=0;const size=1000;
-    while(true){
-      const{data,error}=await sb.from("gp_stock").select("*").range(from,from+size-1);
-      if(error||!data||data.length===0) break;
-      all=[...all,...data];
-      if(data.length<size) break;
-      from+=size;
-    }
-    setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,max:Number(r.max_stk)||0})));
-    setLoading(false);
-  };
-
-useEffect(()=>{fetchAll();},[]);
-
-  const openHist=async(prod)=>{
-    setHistProd(prod);setHistLoading(true);setHistData([]);
-    const{data}=await sb.from("gp_stock_mov").select("*").eq("product_id",prod.id).eq("local_name",localF).order("fecha",{ascending:false}).limit(200);
-    setHistData(data||[]);setHistLoading(false);
-  };
-
-  useEffect(()=>{setVals({});setQ("");setCatF("Todas");},[localF]);
-
-  const saveStk=async(prod)=>{
-    const inputVal=vals[prod.id];
-    const hasStk=inputVal!==undefined;
-    const hasMin=minVals[prod.id]!==undefined;
-    const hasMax=maxVals[prod.id]!==undefined;
-    if(!hasStk&&!hasMin&&!hasMax){notify("No hay cambios para guardar","err");return;}
-    setSaving(prod.id);
-    try{
-      const{data:rows,error:findErr}=await sb.from("gp_stock").select("id,stk,min_stk,max_stk").eq("product_id",prod.id).eq("local_name",localF);
-      if(findErr){notify("Error: "+findErr.message,"err");setSaving(null);return;}
-      const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
-      const newStk=hasStk?parseFloat(inputVal):0;
-      if(hasStk&&isNaN(newStk)){notify("Valor inválido","err");setSaving(null);return;}
-      const esAjuste=modoAjuste[prod.id]===true;
-      // Ingreso SUMA, Ajuste REEMPLAZA
-      const finalStk=hasStk?(esAjuste?newStk:realStk+newStk):realStk;
-      const tipoMov=esAjuste?"ajuste":"ingreso";
-      const newMin=hasMin?parseFloat(minVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].min_stk)||0:0);
-      const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].max_stk)||0:0);
-      const updatePayload={min_stk:newMin,max_stk:newMax,...(hasStk?{stk:finalStk}:{})};
-      if(rows&&rows.length>0){
-        await sb.from("gp_stock").update(updatePayload).eq("id",rows[0].id);
-      }else{
-        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk,min_stk:newMin,max_stk:newMax}]);
-      }
-      if(hasStk){
-        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:tipoMov,cantidad:esAjuste?newStk-realStk:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
-      }
-      setStockMgt(prev=>{
-        const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
-        if(exists) return prev.map(s=>s.productId===prod.id&&s.localName===localF?{...s,stk:finalStk,min:newMin,max:newMax}:s);
-        return[...prev,{productId:prod.id,localName:localF,stk:finalStk,min:newMin,max:newMax}];
-      });
-      notify(`✓ ${prod.name} guardado`);
-      setVals(v=>({...v,[prod.id]:undefined}));
-      setMinVals(v=>({...v,[prod.id]:undefined}));
-      setMaxVals(v=>({...v,[prod.id]:undefined}));
-      setModoAjuste(v=>({...v,[prod.id]:false}));
-    }catch(e){notify("Error: "+e.message,"err");}
-    setSaving(null);
-  };
-
-  const getStk=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.stk:0;};
-  const getMin=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.min:0;};
-  const getMax=(pid)=>{const r=stockMgt.find((s)=>s.productId===pid&&s.localName===localF);return r?r.max:0;};
-
-  const filtered=prods.filter((p)=>{
-    const matchQ=p.name.toLowerCase().includes(q.toLowerCase())||(p.code&&p.code.toLowerCase().includes(q.toLowerCase()));
-    const matchCat=catF==="Todas"||p.cat===catF;
-    const matchMin=!soloMinimos||(getMin(p.id)>0&&getStk(p.id)<=getMin(p.id));
-    return matchQ&&matchCat&&matchMin;
-  });
-
-  const bajosMinimo=prods.filter(p=>getMin(p.id)>0&&getStk(p.id)<=getMin(p.id));
-
-  const exportPedidoPDF=(catPDF="Todas")=>{
-    const fecha=new Date().toLocaleDateString("es-AR");
-    const lista=prods.filter(p=>{
-      const matchCat=catPDF==="Todas"||p.cat===catPDF;
-      return matchCat&&getMin(p.id)>0&&getStk(p.id)<=getMin(p.id);
-    });
-    if(lista.length===0){notify(`No hay productos bajo mínimo${catPDF!=="Todas"?` en ${catPDF}`:""}`,"err");return;}
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido ${catPDF} — ${localF}</title>
-    <style>
-      body{font-family:Arial,sans-serif;padding:20px;color:#000;font-size:12px}
-      h1{font-size:18px;margin-bottom:4px;text-align:center}
-      .sub{text-align:center;font-size:10px;color:#555;margin-bottom:20px}
-      table{width:100%;border-collapse:collapse}
-      th{background:#1a1a2e;color:#fff;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px}
-      td{padding:7px 10px;border-bottom:1px solid #eee;font-size:11px}
-      tr:nth-child(even) td{background:#fafafa}
-      .bajo{color:#cc0000;font-weight:700}
-      .apedir{color:#006600;font-weight:900;font-size:13px}
-      .checkbox{width:18px;height:18px;border:2px solid #000;display:inline-block;border-radius:2px}
-      .footer{margin-top:30px;font-size:9px;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:8px}
-      .no-print{text-align:center;margin-bottom:15px}
-      @media print{.no-print{display:none}}
-    </style></head><body>
-    <div class="no-print"><button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir / PDF</button><button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button></div>
-    <h1>🐾 Masc🐾tas Pet Shop</h1>
-    <div class="sub">Lista de Pedido · 📍 ${localF}${catPDF!=="Todas"?` · 🗂 ${catPDF}`:""} · ${fecha} · ${lista.length} productos bajo mínimo</div>
-    <table><thead><tr><th>✓</th><th>Cód.</th><th>Producto</th><th>Cat.</th><th>Stock actual</th><th>Mínimo</th><th>Máximo</th><th>A pedir</th></tr></thead><tbody>
-    ${lista.map(p=>{
-      const stk=getStk(p.id);const min=getMin(p.id);const max=getMax(p.id);
-      const aPedir=max>0?Math.max(0,max-stk):Math.max(0,min*2-stk);
-      const fQ=(n)=>p.unit==="kg"?fmtW(n):`${Math.round(n)} u`;
-      return`<tr><td><div class="checkbox"></div></td><td style="font-family:monospace;font-size:10px">${p.code||"—"}</td><td><strong>${p.name}</strong></td><td>${p.cat}</td><td class="bajo">${fQ(stk)}</td><td>${fQ(min)}</td><td>${max>0?fQ(max):"—"}</td><td class="apedir">${fQ(aPedir)}</td></tr>`;
-    }).join("")}
-    </tbody></table>
-    <div class="footer">Masc🐾tas Pet Shop · Generado el ${fecha} · Pedido para ${localF}${catPDF!=="Todas"?` · ${catPDF}`:""}</div>
-    </body></html>`;
-    const win=window.open("","_blank");
-    if(win){win.document.write(html);win.document.close();}
-    else notify("Permitir ventanas emergentes para exportar","err");
-  };
-
-  return(
-    <div className="fade">
-      <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock por Local</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>ADMINISTRADOR · EDICIÓN LIBRE</p></div>
-        <Btn v="gh" onClick={fetchAll} disabled={loading}><Ic n="spin" s={13}/>Actualizar</Btn>
-      </div>
-
-      {/* Paso 1: Selección de local */}
-      <div style={{marginBottom:16}}>
-        <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:8}}>Seleccioná un local para ajustar stock</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {localeNames.map((l)=>{
-            const active=localF===l;
-            return(
-              <button key={l} onClick={()=>setLocalF(l)} style={{
-                background:active?"#00d4ff":"transparent",
-                border:`2px solid ${active?"#00d4ff":"#192a38"}`,
-                color:active?"#030810":"#2a3d50",
-                borderRadius:9,padding:"10px 20px",cursor:"pointer",
-                fontFamily:"inherit",fontSize:12,fontWeight:800,
-                transition:"all .15s",
-                boxShadow:active?"0 0 18px #00d4ff55":"none",
-                transform:active?"scale(1.04)":"scale(1)",
-              }}>
-                📍 {l}
-                {active&&<span style={{marginLeft:7,fontSize:9,background:"#030810",color:"#00d4ff",padding:"2px 7px",borderRadius:10,fontWeight:700,letterSpacing:1}}>AJUSTANDO</span>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Paso 2: Filtros y tabla — solo si hay local seleccionado */}
-      {!localF&&(
-        <Card sx={{padding:40,textAlign:"center"}}>
-          <div style={{fontSize:32,marginBottom:12}}>📍</div>
-          <div style={{fontSize:14,fontWeight:700,color:"#ffffff",marginBottom:6}}>Seleccioná un local</div>
-          <div style={{fontSize:11,color:"#ffffff"}}>Elegí el local arriba para ver y editar su stock</div>
-        </Card>
-      )}
-
-      {localF&&<>
-        {/* Banner local activo */}
-        <div style={{background:"#00d4ff11",border:"1px solid #00d4ff33",borderRadius:8,padding:"8px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
-          <Ic n="loc" s={14} c="#00d4ff"/>
-          <span style={{fontSize:11,fontWeight:700,color:"#00d4ff"}}>Editando stock de: {localF}</span>
-          <span style={{fontSize:9,color:"#ffffff",marginLeft:4}}>{filtered.length} productos</span>
-        </div>
-
-        <div style={{display:"flex",gap:9,marginBottom:12,flexWrap:"wrap"}}>
-          <div style={{position:"relative",flex:1,minWidth:180}}>
-            <Inp placeholder="Buscar por nombre o código..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/>
-            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3}}><Ic n="srch" s={13}/></span>
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {["Todas",...CATEGORIES].map(c=>{
-              const[,,tx,em]=CAT_STYLE[c]||["","","#6a8090",""];
-              const active=catF===c;
-              return(
-                <button key={c} onClick={()=>setCatF(c)} style={{background:active?"#0b1825":"transparent",border:`1px solid ${active?tx:"#192a38"}`,color:active?tx:"#ffffff",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>
-                  {em&&<span style={{fontSize:14}}>{em}</span>}{c==="Todas"?c:""}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <Card sx={{overflow:"auto"}}>
-          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Stock · <span style={{color:"#00d4ff"}}>{localF}</span></span>
-              <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
-                {bajosMinimo.length>0&&<>
-                  <span style={{fontSize:9,color:"#ff4444",fontWeight:700,letterSpacing:1}}>📄 PDF PEDIDO:</span>
-                  <Btn v="cy" sx={{padding:"4px 9px",fontSize:9}} onClick={()=>exportPedidoPDF("Todas")}>Todos ({bajosMinimo.length})</Btn>
-                  {CATEGORIES.map(cat=>{
-                    const n=bajosMinimo.filter(p=>p.cat===cat).length;
-                    return n>0?<Btn key={cat} v="gh" sx={{padding:"4px 9px",fontSize:9,border:"1px solid #00d4ff44",color:"#00d4ff"}} onClick={()=>exportPedidoPDF(cat)}>{cat} ({n})</Btn>:null;
-                  })}
-                </>}
-                <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-              <Sel value={catF} onChange={(e)=>setCatF(e.target.value)} sx={{width:120,fontSize:10,padding:"4px 8px"}}>
-                <option value="Todas">Todas las cats.</option>
-                {CATEGORIES.map(c=><option key={c}>{c}</option>)}
-              </Sel>
-              <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",background:soloMinimos?"#110305":"transparent",border:`1px solid ${soloMinimos?"#ff444466":"#192a38"}`,borderRadius:6,padding:"4px 10px"}}>
-                <input type="checkbox" checked={soloMinimos} onChange={(e)=>setSoloMinimos(e.target.checked)} style={{accentColor:"#ff4444"}}/>
-                <span style={{fontSize:10,color:soloMinimos?"#ff4444":"#ffffff",fontWeight:soloMinimos?700:400}}>⚠ Solo bajo mínimo</span>
-              </label>
-            </div>
-          </div>
-          {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
-          <div style={{overflowX:"auto"}}>
-          <table style={{minWidth:720}}>
-            <thead><tr><th style={{minWidth:160}}>Producto</th><th style={{minWidth:50,fontSize:9}}>Cat.</th><th style={{minWidth:70}}>Stock</th><th style={{color:"#00cc55",minWidth:58}}>Mín.</th><th style={{color:"#00d4ff",minWidth:58}}>Máx.</th><th style={{minWidth:72}}>Modo</th><th style={{color:"#ffcc00",minWidth:90}}>Cantidad</th><th style={{minWidth:75}}>Result.</th><th style={{minWidth:85}}>Acc.</th></tr></thead>
-            <tbody>{filtered.map((p)=>{
-              const stk=getStk(p.id);
-              const min=getMin(p.id);
-              const max=getMax(p.id);
-              const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
-              const edited=vals[p.id]!==undefined&&vals[p.id]!=="";
-              const inputVal=edited?parseFloat(vals[p.id])||0:0;
-              const esAjuste=modoAjuste[p.id]===true;
-              const preview=edited?(esAjuste?inputVal:stk+inputVal):null;
-              const bajMin=min>0&&stk<=min;
-              return(
-                <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
-                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
-                  <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
-                  <td><span style={{fontWeight:800,color:bajMin?"#ff4444":stk<0?"#ff6666":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}</span></td>
-                  <td>
-                    <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
-                      placeholder={min>0?String(min):"mín"}
-                      value={minVals[p.id]!==undefined?minVals[p.id]:""}
-                      onChange={(e)=>setMinVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:54,fontSize:10,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
-                  </td>
-                  <td>
-                    <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
-                      placeholder={max>0?String(max):"máx"}                      value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
-                      onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:54,fontSize:10,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
-                  </td>
-                  <td>
-                    <button onClick={()=>setModoAjuste(v=>({...v,[p.id]:!esAjuste}))}
-                      style={{fontSize:8,fontWeight:800,padding:"3px 6px",borderRadius:6,border:`1px solid ${esAjuste?"#ff990066":"#00882266"}`,background:esAjuste?"#140800":"#021408",color:esAjuste?"#ff9900":"#00cc55",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {esAjuste?"= Ajuste":"+ Ingreso"}
-                    </button>
-                  </td>
-                  <td>
-                    <input type="number" step={p.unit==="kg"?".5":"1"}
-                      value={edited?vals[p.id]:""}
-                      placeholder={esAjuste?"Stock real...":"Cantidad..."}
-                      onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
-                      onFocus={(e)=>e.target.select()}
-                      style={{width:82,fontSize:11,background:edited?(esAjuste?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(esAjuste?"#ff990055":"#00cc5555"):"#192a38"}`,color:esAjuste?"#ff9900":"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td>
-                    {preview!==null
-                      ?<div>
-                        <span style={{fontWeight:800,fontSize:12,color:preview<min&&min>0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
-                        {esAjuste&&edited&&<div style={{fontSize:9,color:inputVal>stk?"#00cc55":"#ff6666"}}>{inputVal>stk?"+":""}{p.unit==="kg"?fmtW(inputVal-stk):`${Math.round(inputVal-stk)} u`}</div>}
-                      </div>
-                      :<span style={{color:"#ffffff",fontSize:11}}>—</span>}
-                  </td>
-                  <td>
-                    <div style={{display:"flex",gap:5}}>
-                      <Btn v="g" sx={{padding:"3px 7px",fontSize:8}} onClick={()=>saveStk(p)} disabled={saving===p.id}>
-                        {saving===p.id?<><Ic n="spin" s={11}/>...</>:<><Ic n="ok" s={11}/>Guardar</>}
-                      </Btn>
-                      <Btn v="gh" sx={{padding:"3px 6px",fontSize:8}} onClick={()=>openHist(p)} title="Ver historial">
-                        <Ic n="hist" s={11}/>
-                      </Btn>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            </tbody>
-          </table>
-          </div>}
-        </Card>
-      </>}
-
-      {/* Modal historial de movimientos */}
-      {histProd&&<Modal close={()=>setHistProd(null)} w={520}>
-        <div style={{padding:22}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div>
-              <h2 style={{margin:0,fontSize:15,fontWeight:800}}>Historial · {histProd.name}</h2>
-              <div style={{fontSize:9,color:"#ffffff",marginTop:3,letterSpacing:2}}>📍 {localF} · últimos 200 movimientos</div>
-            </div>
-            <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setHistProd(null)}><Ic n="x" s={13}/></Btn>
-          </div>
-          {histLoading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
-          {!histLoading&&histData.length===0&&<div style={{padding:20,textAlign:"center",color:"#ffffff",fontSize:12}}>Sin movimientos registrados aún</div>}
-          {!histLoading&&histData.length>0&&<div style={{maxHeight:420,overflowY:"auto"}}>
-            <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
-              <tbody>{histData.map((m,i)=>{
-                const isIngreso=m.tipo==="ingreso";
-                const fmtQ=histProd.unit==="kg"?fmtW(Math.abs(m.cantidad)):`${Math.abs(m.cantidad)} u`;
-                const fmtA=histProd.unit==="kg"?fmtW(m.stock_antes):`${m.stock_antes} u`;
-                const fmtD=histProd.unit==="kg"?fmtW(m.stock_despues):`${m.stock_despues} u`;
-                return(
-                  <tr key={i}>
-                    <td style={{fontSize:10,color:"#ffffff"}}>{new Date(m.fecha).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</td>
-                    <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:isIngreso?"#021408":"#110305",color:isIngreso?"#00cc55":"#ff5555",border:`1px solid ${isIngreso?"#00882233":"#ff333333"}`}}>{isIngreso?"▲ INGRESO":"▼ VENTA"}</span></td>
-                    <td style={{fontWeight:700,color:isIngreso?"#00cc55":"#ff6666"}}>{isIngreso?"+":"-"}{fmtQ}</td>
-                    <td style={{color:"#ffffff",fontSize:11}}>{fmtA}</td>
-                    <td style={{fontWeight:700,color:Number(m.stock_despues)<0?"#ff4444":"#00cc55",fontSize:11}}>{fmtD}</td>
-                    <td style={{color:"#ffffff",fontSize:10}}>{m.usuario||"—"}</td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
-          </div>}
-        </div>
-      </Modal>}
-    </div>
-  );
-}
-
-function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
-  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
-  const[savingCuotas,setSavingCuotas]=useState(false);
-  const[localInteres,setLocalInteres]=useState({...cuotasConfig?.interes});
-  const[localMinCuota,setLocalMinCuota]=useState({...cuotasConfig?.minLocal});
-  // Sync when cuotasConfig loads from Supabase
-  useEffect(()=>{setLocalInteres({...cuotasConfig?.interes});setLocalMinCuota({...cuotasConfig?.minLocal});},[JSON.stringify(cuotasConfig)]);
-
-  const openNew=()=>{setForm({name:""});setModal(true);};
-  const openEdit=(l)=>{setForm({...l});setModal(true);};
-  const save=async()=>{
-    if(!form.name.trim()){notify("Nombre requerido","err");return;}
-    setSaving(true);
-    try{
-      if(form.id) await sb.from("gp_locales").update({name:form.name.trim()}).eq("id",form.id);
-      else await sb.from("gp_locales").insert([{name:form.name.trim()}]);
-      notify(form.id?"Local actualizado":"Local creado");loadAll();setModal(false);
-    }catch(e){notify("Error","err");}
-    setSaving(false);
-  };
-  const del=async(id)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
-
-  const saveCuotas=async()=>{
-    setSavingCuotas(true);
-    try{
-      await sb.from("gp_config").upsert([{key:"cuotas_interes",value:localInteres,updated_at:new Date().toISOString()}]);
-      await sb.from("gp_config").upsert([{key:"cuotas_min_local",value:localMinCuota,updated_at:new Date().toISOString()}]);
-      setCuotasConfig({interes:localInteres,minLocal:localMinCuota});
-      notify("Configuración de cuotas guardada");
-    }catch(e){notify("Error","err");}
-    setSavingCuotas(false);
-  };
-
-  return(
-    <div className="fade">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Locales</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>PUNTOS DE VENTA</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Local</Btn></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:20}}>
-        {locales.map((l)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
-        {locales.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay locales. Creá el primero.</div>}
-      </div>
-
-      {/* Configuración de cuotas */}
-      <Card sx={{padding:20,marginBottom:14}}>
-        <div style={{fontSize:13,fontWeight:800,color:"#cc44ff",marginBottom:16}}>💳 Configuración de Cuotas — Tarjeta Crédito</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          {/* Intereses por cuota */}
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10,letterSpacing:1}}>INTERÉS POR CANTIDAD DE CUOTAS (global)</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              {["1","2","3","4","5","6"].map(n=>(
-                <div key={n} style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"10px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:10,color:"#cc44ff",fontWeight:700,marginBottom:4}}>{n} cuota{parseInt(n)>1?"s":""}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
-                    <input type="number" min="0" max="100" step="0.1"
-                      value={localInteres[n]??0}
-                      onChange={(e)=>setLocalInteres(prev=>({...prev,[n]:parseFloat(e.target.value)||0}))}
-                      style={{width:52,background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,textAlign:"center",outline:"none"}}/>
-                    <span style={{fontSize:10,color:"#ffffff"}}>%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Cuota mínima por local */}
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10,letterSpacing:1}}>CUOTA MÍNIMA POR LOCAL</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>(
-                <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"8px 12px"}}>
-                  <span style={{fontSize:12,color:"#ffffff",fontWeight:700}}>📍 {l.name}</span>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:10,color:"#ffffff"}}>desde</span>
-                    <select value={localMinCuota[l.name]||"1"}
-                      onChange={(e)=>setLocalMinCuota(prev=>({...prev,[l.name]:e.target.value}))}
-                      style={{background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 8px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,outline:"none",cursor:"pointer"}}>
-                      {["1","2","3"].map(n=><option key={n} value={n}>{n} cuota{parseInt(n)>1?"s":""}</option>)}
-                    </select>
-                    <span style={{fontSize:10,color:"#ffffff"}}>hasta 6</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
-          <Btn v="pu" onClick={saveCuotas} disabled={savingCuotas}>{savingCuotas?"Guardando...":"💾 Guardar Configuración"}</Btn>
-        </div>
-      </Card>
-
-      {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
-      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar local?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong style={{color:"#ffffff"}}>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+      </div></Modal>)}
     </div>
   );
 }
