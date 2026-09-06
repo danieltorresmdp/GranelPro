@@ -3766,10 +3766,26 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const margenBrutoPct=totalVentas>0?margenBruto/totalVentas*100:0;
 
   // IVA — igual que Reporte Prov: facturas en blanco del mes
+  const TORRES_LOCALES=["CAMET","STORNI","ESTRADA"];
+  const isPenaLoza=(loc)=>!TORRES_LOCALES.includes((loc||"").toUpperCase());
+  const isTorres=(loc)=>TORRES_LOCALES.includes((loc||"").toUpperCase());
+
   const totalFactBlanco=factBlanco.reduce((a,b)=>a+Number(b.monto),0);
+  const totalFactTorres=factBlanco.filter(f=>!f.razon_social||f.razon_social==="Torres").reduce((a,b)=>a+Number(b.monto),0);
+  const totalFactPena=factBlanco.filter(f=>f.razon_social==="Peña Loza").reduce((a,b)=>a+Number(b.monto),0);
   const ivaCredito=totalFactBlanco/1.21*0.21;
-  const ivaDebito=ventasDig/1.21*0.21;
+  const ivaCreditoTorres=totalFactTorres/1.21*0.21;
+  const ivaCreditoPena=totalFactPena/1.21*0.21;
+
+  // Débito por razón social según locales
+  const ventasDigTorres=ventasMes.filter(s=>s.pay!=="efectivo"&&isTorres(s.localName)).reduce((a,b)=>a+b.total,0);
+  const ventasDigPena=ventasMes.filter(s=>s.pay!=="efectivo"&&isPenaLoza(s.localName)).reduce((a,b)=>a+b.total,0);
+  const ivaDebitoTorres=ventasDigTorres/1.21*0.21;
+  const ivaDebitoPena=ventasDigPena/1.21*0.21;
+  const ivaDebito=ivaDebitoTorres+ivaDebitoPena;
   const ivaNeto=ivaCredito-ivaDebito;
+  const ivaNetoTorres=ivaCreditoTorres-ivaDebitoTorres;
+  const ivaNetoPena=ivaCreditoPena-ivaDebitoPena;
 
   // Gastos manuales global
   const totalGastosGlobal=gastosGlobal.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
@@ -3873,11 +3889,31 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card sx={{overflow:"hidden"}}>
             <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",background:"#08041a"}}><span style={{fontSize:10,fontWeight:800,color:"#cc44ff"}}>🧾 Posición Fiscal IVA 21% · {fmtMonth(mes)}</span></div>
-            <Row label="Crédito fiscal — facturas prov. en blanco" value={fmtM(ivaCredito)} color="#cc44ff"/>
-            <div style={{padding:"3px 24px 3px",fontSize:9,color:"#ffffff"}}>Base: {fmtM(totalFactBlanco)} · {factBlanco.length} facturas</div>
-            <Row label="Débito fiscal — ventas digitales" value={fmtM(ivaDebito)} color="#ff6666" indent neg/>
-            <div style={{padding:"3px 24px 6px",fontSize:9,color:"#ffffff"}}>Base: {fmtM(ventasDig)}</div>
-            <Row label={ivaNeto>=0?"= Saldo a favor":"= IVA a pagar"} value={fmtM(Math.abs(ivaNeto))} color={ivaNeto>=0?"#cc44ff":"#ff4444"} bold/>
+            {/* Total */}
+            <Row label="CF — Facturas en blanco (total)" value={fmtM(ivaCredito)} color="#cc44ff" bold/>
+            <Row label="DF — Ventas digitales (total)" value={fmtM(ivaDebito)} color="#ff6666" indent neg/>
+            <Row label={ivaNeto>=0?"= Posición total: SALDO A FAVOR":"= Posición total: A PAGAR"} value={fmtM(Math.abs(ivaNeto))} color={ivaNeto>=0?"#cc44ff":"#ff4444"} bold/>
+            {/* Torres */}
+            <div style={{padding:"6px 12px 2px",background:"#0d0518",borderTop:"1px solid #192a38"}}>
+              <span style={{fontSize:9,fontWeight:700,color:"#cc44ff",letterSpacing:1}}>🏢 TORRES · Camet · Storni · Estrada</span>
+            </div>
+            <Row label="CF Torres (facturas)" value={fmtM(ivaCreditoTorres)} color="#cc44ff" indent/>
+            <Row label="DF Torres (ventas dig.)" value={fmtM(ivaDebitoTorres)} color="#ff9966" indent neg/>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"5px 24px 8px",borderBottom:"1px solid #192a38"}}>
+              <span style={{fontSize:11,fontWeight:700,color:ivaNetoTorres>=0?"#cc44ff":"#ff4444"}}>{ivaNetoTorres>=0?"✓ Saldo a favor":"⚠ A pagar"}</span>
+              <span style={{fontSize:13,fontWeight:900,color:ivaNetoTorres>=0?"#cc44ff":"#ff4444"}}>{ivaNetoTorres>=0?"":"-"}{fmtM(Math.abs(ivaNetoTorres))}</span>
+            </div>
+            {/* Peña Loza */}
+            <div style={{padding:"6px 12px 2px",background:"#030d1a",borderTop:"1px solid #192a38"}}>
+              <span style={{fontSize:9,fontWeight:700,color:"#3388ff",letterSpacing:1}}>🏢 PEÑA LOZA · Cataluña · Tejedor · Feria 180 · Pedraza</span>
+            </div>
+            <Row label="CF Peña Loza (facturas)" value={fmtM(ivaCreditoPena)} color="#3388ff" indent/>
+            <Row label="DF Peña Loza (ventas dig.)" value={fmtM(ivaDebitoPena)} color="#ff9966" indent neg/>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"5px 24px 8px"}}>
+              <span style={{fontSize:11,fontWeight:700,color:ivaNetoPena>=0?"#3388ff":"#ff4444"}}>{ivaNetoPena>=0?"✓ Saldo a favor":"⚠ A pagar"}</span>
+              <span style={{fontSize:13,fontWeight:900,color:ivaNetoPena>=0?"#3388ff":"#ff4444"}}>{ivaNetoPena>=0?"":"-"}{fmtM(Math.abs(ivaNetoPena))}</span>
+            </div>
+            <div style={{padding:"6px 12px",fontSize:9,color:"#ffffff",background:"#060f1a",borderTop:"1px solid #192a38"}}>CF = crédito fiscal (facturas prov. en blanco) · DF = débito fiscal (ventas digitales)</div>
           </Card>
           <Card sx={{padding:16}}>
             <div style={{fontSize:10,fontWeight:800,color:"#ffffff",marginBottom:10}}>📈 Ratios clave</div>
