@@ -1206,6 +1206,28 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[cajaTotal,setCajaTotal]=useState("");
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
+
+  // Formatea número mientras se escribe: solo dígitos, muestra con puntos de miles
+  const MoneyInp=({value,onChange,placeholder})=>{
+    const fmt=(v)=>{
+      const digits=v.replace(/\D/g,"");
+      if(!digits) return "";
+      return parseInt(digits,10).toLocaleString("es-AR");
+    };
+    const raw=(v)=>v.replace(/\D/g,"");
+    return(
+      <div style={{position:"relative"}}>
+        <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#00cc55",fontWeight:700,fontSize:14,pointerEvents:"none"}}>$</span>
+        <input
+          type="text" inputMode="numeric"
+          value={fmt(value)}
+          placeholder={placeholder||"0"}
+          onChange={(e)=>onChange(raw(e.target.value))}
+          style={{background:"#060f1a",border:"1px solid #192a38",color:"#00cc55",padding:"10px 12px 10px 22px",borderRadius:6,fontFamily:"inherit",fontSize:16,fontWeight:800,width:"100%",outline:"none",boxSizing:"border-box",letterSpacing:1}}
+        />
+      </div>
+    );
+  };
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
   const[notes,setNotes]=useState("");
   const[saving,setSaving]=useState(false);
@@ -1347,6 +1369,13 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
           </div>
         </div>
+        {/* Leyenda arriba */}
+        <div style={{padding:"6px 14px",fontSize:9,borderBottom:"1px solid #192a38",background:"#060f1a",display:"flex",gap:16,alignItems:"center"}}>
+          <span style={{color:"#00cc55",fontWeight:700}}>✓ OK = cuadra (diferencia &lt; $100)</span>
+          <span style={{color:"#ff4444",fontWeight:700}}>🔴 Rojo = falta efectivo</span>
+          <span style={{color:"#ff9900",fontWeight:700}}>🟠 Naranja = sobra efectivo</span>
+          <span style={{color:"#ffffff"}}>— = sin monto declarado</span>
+        </div>
         <div style={{overflowX:"auto"}}>
         <table style={{minWidth:900}}><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
           <tbody>{filteredCaja.map((d,idx)=>{
@@ -1380,9 +1409,6 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           </tbody>
         </table>
         </div>
-        <div style={{padding:"6px 14px",fontSize:9,color:"#ffffff",borderTop:"1px solid #192a38",background:"#060f1a"}}>
-          💡 <strong>Diferencia</strong>: Caja declarada − (Ventas ef. + Fondo ant.) · ✓ OK &lt; $100 · Naranja = sobró · Rojo = faltó. Pasá el cursor para ver detalle.
-        </div>
       </Card>}
 
       {/* Modal cierre */}
@@ -1410,9 +1436,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>}
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-          <div><Lbl t="Caja Total ($)"/><Inp type="number" step=".01" placeholder="Efectivo físico" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
-          <div><Lbl t="Fondo ($)"/><Inp type="number" step=".01" placeholder="0.00" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
-          <div><Lbl t="Retiro ($)"/><Inp type="number" step=".01" placeholder="0.00" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
+          <div><Lbl t="Caja Total ($)"/><MoneyInp value={cajaTotal} onChange={setCajaTotal} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
+          <div><Lbl t="Fondo ($)"/><MoneyInp value={fondo} onChange={setFondo} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
+          <div><Lbl t="Retiro ($)"/><MoneyInp value={retiro} onChange={setRetiro} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
         </div>
 
         {/* Otros gastos */}
