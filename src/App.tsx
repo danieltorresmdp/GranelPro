@@ -1775,8 +1775,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
       {localF&&<>
         {/* Banner */}
         <div style={{background:"#021520",border:"1px solid #00d4ff44",borderRadius:8,padding:"7px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
-          <Ic n="loc" s={13} c="#00d4ff"/>
-          <span style={{fontSize:11,fontWeight:800,color:"#00d4ff"}}>Editando stock de: {localF}</span>
+          <span style={{fontSize:11,fontWeight:800,color:"#00d4ff"}}>📍 Editando stock de: {localF}</span>
           <span style={{fontSize:10,color:"#ffffff",marginLeft:4}}>{filtered.length} productos</span>
         </div>
 
