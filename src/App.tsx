@@ -1713,6 +1713,231 @@ function Products({prods,notify,loadAll}) {
   );
 }
 
+// ─── STOCK X LOCAL ─────────────────────────────────────────────────────────
+
+function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
+  const[localF,setLocalF]=useState("");
+  const[catF,setCatF]=useState("todas");
+  const[soloMin,setSoloMin]=useState(false);
+  const[search,setSearch]=useState("");
+  const[minVals,setMinVals]=useState({});
+  const[maxVals,setMaxVals]=useState({});
+  const[qtyVals,setQtyVals]=useState({});
+  const[modoVals,setModoVals]=useState({}); // "ajuste" | undefined = ingreso
+  const[histProd,setHistProd]=useState(null);
+  const[histRows,setHistRows]=useState([]);
+  const[saving,setSaving]=useState(false);
+
+  const localesSinDepo=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
+  const localActivo=localF||localesSinDepo[0]||"";
+
+  useEffect(()=>{if(!localF&&localesSinDepo.length>0) setLocalF(localesSinDepo[0]);},[localeNames]);
+
+  const fetchAll=async()=>{
+    let all=[];let from=0;const size=1000;
+    while(true){
+      const{data,error}=await sb.from("gp_stock").select("*").range(from,from+size-1);
+      if(error||!data||data.length===0) break;
+      all=[...all,...data];
+      if(data.length<size) break;
+      from+=size;
+    }
+    setStockMgt(all.map(r=>({id:r.id,productId:r.product_id,localName:r.local_name,stk:Number(r.stk)||0,min:Number(r.min_stk)||0,max:Number(r.max_stk)||0})));
+  };
+  useEffect(()=>{fetchAll();},[]);
+
+  const getStk=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.stk:0;};
+  const getMin=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.min:0;};
+  const getMax=(pid,loc)=>{const s=stockMgt.find(s=>s.productId===pid&&s.localName===loc);return s?s.max:0;};
+
+  const CATEGORIES=["Perro","Gato","Accesorios","Granja","Golosinas"];
+  const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+
+  const prodsFiltered=prods.filter(p=>{
+    if(catF!=="todas"&&p.cat!==catF) return false;
+    if(search&&!p.name.toLowerCase().includes(search.toLowerCase())&&!p.code?.toLowerCase().includes(search.toLowerCase())) return false;
+    if(soloMin){const stk=getStk(p.id,localActivo);const min=getMin(p.id,localActivo);return min>0&&stk<=min;}
+    return true;
+  });
+
+  const saveStk=async(prod)=>{
+    const hasMin=minVals[prod.id]!==undefined;
+    const hasMax=maxVals[prod.id]!==undefined;
+    const hasQty=qtyVals[prod.id]!==undefined&&qtyVals[prod.id]!=="";
+    if(!hasMin&&!hasMax&&!hasQty){notify("No hay cambios para guardar","err");return;}
+    setSaving(true);
+    try{
+      const{data:rows}=await sb.from("gp_stock").select("id,stk,min_stk,max_stk").eq("product_id",prod.id).eq("local_name",localActivo);
+      const existing=rows&&rows.length>0?rows[0]:null;
+      const newMin=hasMin?parseFloat(minVals[prod.id])||0:(existing?Number(existing.min_stk)||0:0);
+      const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(existing?Number(existing.max_stk)||0:0);
+      let newStk=existing?Number(existing.stk)||0:0;
+      let delta=0;
+      if(hasQty){
+        const qty=parseFloat(qtyVals[prod.id])||0;
+        const esAjuste=modoVals[prod.id]==="ajuste";
+        if(esAjuste){delta=qty-newStk;newStk=qty;}
+        else{delta=qty;newStk=newStk+qty;}
+      }
+      if(existing){
+        await sb.from("gp_stock").update({stk:newStk,min_stk:newMin,max_stk:newMax}).eq("id",existing.id);
+      } else {
+        await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localActivo,stk:newStk,min_stk:newMin,max_stk:newMax}]);
+      }
+      if(hasQty&&delta!==0){
+        await sb.from("gp_stock_mov").insert([{id:Date.now()+prod.id,product_id:prod.id,local_name:localActivo,tipo:modoVals[prod.id]==="ajuste"?"ajuste":"ingreso",cantidad:delta,stock_antes:newStk-delta,stock_despues:newStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
+      }
+      notify("Guardado");
+      setStockMgt(prev=>{
+        const idx=prev.findIndex(s=>s.productId===prod.id&&s.localName===localActivo);
+        const upd={...prev[idx]||{id:0,productId:prod.id,localName:localActivo},stk:newStk,min:newMin,max:newMax};
+        if(idx>=0){const n=[...prev];n[idx]=upd;return n;}
+        return[...prev,upd];
+      });
+      setMinVals(v=>{const n={...v};delete n[prod.id];return n;});
+      setMaxVals(v=>{const n={...v};delete n[prod.id];return n;});
+      setQtyVals(v=>{const n={...v};delete n[prod.id];return n;});
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+
+  const openHist=async(prod)=>{
+    const{data}=await sb.from("gp_stock_mov").select("*").eq("product_id",prod.id).eq("local_name",localActivo).order("fecha",{ascending:false}).limit(200);
+    setHistRows(data||[]);setHistProd(prod);
+  };
+
+  // PDF pedido por categoría
+  const generarPDF=async(cat)=>{
+    const items=prods.filter(p=>(cat==="todos"||p.cat===cat)).map(p=>{
+      const stk=getStk(p.id,localActivo);const min=getMin(p.id,localActivo);const max=getMax(p.id,localActivo);
+      if(min<=0||max<=0||stk>min) return null;
+      return{name:p.name,code:p.code,cat:p.cat,unit:p.unit,stk,min,max,pedir:max-stk};
+    }).filter(Boolean);
+    if(items.length===0){notify(`Sin productos bajo mínimo en ${cat}`,"err");return;}
+    const rows=items.map(i=>`<tr><td>${i.code||"—"}</td><td>${i.name}</td><td>${i.cat}</td><td>${i.unit==="kg"?i.stk.toFixed(1)+" kg":i.stk+" u"}</td><td>${i.min}</td><td>${i.max}</td><td style="color:#d00;font-weight:900">${i.unit==="kg"?i.pedir.toFixed(1)+" kg":i.pedir+" u"}</td></tr>`).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido ${localActivo}</title><style>body{font-family:Arial,sans-serif;padding:20px}h2{margin-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px}th{background:#f0f0f0}@media print{.noprint{display:none}}</style></head><body><div class="noprint"><button onclick="window.print()">🖨️ Imprimir</button></div><h2>Pedido de Stock — ${localActivo}</h2><p>Categoría: <strong>${cat}</strong> · Fecha: ${todayStr()}</p><table><thead><tr><th>#</th><th>Producto</th><th>Cat.</th><th>Stock actual</th><th>Mínimo</th><th>Máximo</th><th>A pedir</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+  };
+
+  // Contar bajo mínimo por categoría
+  const bajoPorCat=(cat)=>prods.filter(p=>(cat==="todos"||p.cat===cat)&&getMin(p.id,localActivo)>0&&getStk(p.id,localActivo)<=getMin(p.id,localActivo)).length;
+
+  return(
+    <div className="fade">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+        <div>
+          <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Stock x Local</h1>
+          <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>GESTIÓN DE INVENTARIO POR SUCURSAL</p>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <Btn v="gh" sx={{padding:"5px 10px",fontSize:9}} onClick={fetchAll}>↺ Actualizar</Btn>
+        </div>
+      </div>
+
+      {/* Selector de local */}
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+        {localesSinDepo.map(l=>(
+          <button key={l} onClick={()=>{setLocalF(l);setMinVals({});setMaxVals({});setQtyVals({});}} style={{padding:"6px 14px",borderRadius:7,border:`2px solid ${localActivo===l?"#00d4ff":"#192a38"}`,background:localActivo===l?"#021520":"transparent",color:localActivo===l?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:localActivo===l?800:400}}>
+            📍 {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros y PDF buttons */}
+      <Card sx={{padding:"10px 14px",marginBottom:10,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Inp placeholder="Buscar por nombre o código..." value={search} onChange={(e)=>setSearch(e.target.value)} sx={{flex:1,minWidth:180}}/>
+        <Sel value={catF} onChange={(e)=>setCatF(e.target.value)} sx={{width:140}}>
+          <option value="todas">Todas las cats.</option>
+          {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+        </Sel>
+        <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:11,color:"#ff9900",fontWeight:700}}>
+          <input type="checkbox" checked={soloMin} onChange={(e)=>setSoloMin(e.target.checked)} style={{accentColor:"#ff9900"}}/>
+          ⚠ Solo bajo mínimo
+        </label>
+      </Card>
+
+      {/* PDF buttons */}
+      <div style={{marginBottom:10,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:9,color:"#ffffff",letterSpacing:1,textTransform:"uppercase"}}>📄 PDF Pedido:</span>
+        {bajoPorCat("todos")>0&&<Btn v="cy" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>generarPDF("todos")}>TODOS ({bajoPorCat("todos")})</Btn>}
+        {CATEGORIES.filter(c=>bajoPorCat(c)>0).map(c=>(
+          <Btn key={c} v="gh" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>generarPDF(c)}>{CAT_EM[c]} {c} ({bajoPorCat(c)})</Btn>
+        ))}
+        <span style={{fontSize:10,color:"#ffffff",marginLeft:4}}>{prods.length} productos</span>
+      </div>
+
+      {/* Tabla */}
+      <Card sx={{overflow:"hidden"}}>
+        <div style={{overflowX:"auto"}}>
+        <table style={{minWidth:820}}>
+          <thead><tr>
+            <th style={{minWidth:160}}>Producto</th>
+            <th style={{minWidth:50,fontSize:9}}>Cat.</th>
+            <th style={{minWidth:70}}>Stock</th>
+            <th style={{color:"#00cc55",minWidth:58}}>Mín.</th>
+            <th style={{color:"#00d4ff",minWidth:58}}>Máx.</th>
+            <th style={{minWidth:72}}>Modo</th>
+            <th style={{color:"#ffcc00",minWidth:90}}>Cantidad</th>
+            <th style={{minWidth:75}}>Result.</th>
+            <th style={{minWidth:85}}>Acc.</th>
+          </tr></thead>
+          <tbody>{prodsFiltered.map(prod=>{
+            const stk=getStk(prod.id,localActivo);
+            const min=getMin(prod.id,localActivo);
+            const max=getMax(prod.id,localActivo);
+            const edited=qtyVals[prod.id]!==undefined&&qtyVals[prod.id]!=="";
+            const esAjuste=modoVals[prod.id]==="ajuste";
+            const qty=parseFloat(qtyVals[prod.id])||0;
+            const resultado=edited?(esAjuste?qty:stk+qty):stk;
+            const isBajo=min>0&&stk<=min;
+            const CAT_EM_ROW={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+            return(<tr key={prod.id} style={{background:isBajo?"#110300":"transparent"}}>
+              <td>
+                <div style={{fontSize:12,fontWeight:700,color:isBajo?"#ff9900":"#ffffff"}}>{prod.name}</div>
+                <div style={{fontSize:9,color:"#ffffff"}}>#{prod.code}</div>
+                {isBajo&&<span style={{fontSize:8,color:"#ff4444",fontWeight:700}}>⚠ BAJO MÍN.</span>}
+              </td>
+              <td style={{fontSize:10}}><span style={{background:"#192a38",padding:"2px 5px",borderRadius:4,fontSize:9}}>{CAT_EM_ROW[prod.cat]||""}</span></td>
+              <td style={{fontWeight:800,color:isBajo?"#ff4444":stk===0?"#ffffff":"#00cc55",fontSize:13}}>{prod.unit==="kg"?`${stk.toFixed(1)} kg`:`${stk} u`}</td>
+              <td><input type="number" step={prod.unit==="kg"?".5":"1"} value={minVals[prod.id]??""} placeholder={min>0?String(min):"mín"} onChange={(e)=>setMinVals(v=>({...v,[prod.id]:e.target.value}))} style={{width:54,fontSize:10,background:"#060f1a",border:"1px solid #00882255",color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/></td>
+              <td><input type="number" step={prod.unit==="kg"?".5":"1"} value={maxVals[prod.id]??""} placeholder={max>0?String(max):"máx"} onChange={(e)=>setMaxVals(v=>({...v,[prod.id]:e.target.value}))} style={{width:54,fontSize:10,background:"#060f1a",border:"1px solid #00d4ff55",color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/></td>
+              <td><button onClick={()=>setModoVals(v=>({...v,[prod.id]:esAjuste?undefined:"ajuste"}))} style={{fontSize:8,fontWeight:800,padding:"3px 6px",borderRadius:6,border:`1px solid ${esAjuste?"#ff9900":"#00882244"}`,background:esAjuste?"#140800":"#021408",color:esAjuste?"#ff9900":"#00cc55",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{esAjuste?"= Ajuste":"+ Ingreso"}</button></td>
+              <td><input type="number" step={prod.unit==="kg"?".1":"1"} value={qtyVals[prod.id]??""} placeholder="Cantidad..." onChange={(e)=>setQtyVals(v=>({...v,[prod.id]:e.target.value}))} style={{width:82,fontSize:11,background:edited?(esAjuste?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(esAjuste?"#ff990055":"#00882255"):"#192a38"}`,color:"#ffffff",padding:"5px 8px",borderRadius:5,fontFamily:"inherit",outline:"none"}}/></td>
+              <td style={{fontSize:12,fontWeight:700,color:edited?(resultado<0?"#ff4444":"#00cc55"):"#ffffff"}}>{edited?(prod.unit==="kg"?`${resultado.toFixed(1)} kg`:`${resultado} u`):"—"}</td>
+              <td><div style={{display:"flex",gap:4}}>
+                <Btn v="g" sx={{padding:"3px 7px",fontSize:8}} onClick={()=>saveStk(prod)} disabled={saving}>✓</Btn>
+                <Btn v="gh" sx={{padding:"3px 6px",fontSize:8}} onClick={()=>openHist(prod)}>📋</Btn>
+              </div></td>
+            </tr>);
+          })}
+          {prodsFiltered.length===0&&<tr><td colSpan={9} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin productos para el filtro seleccionado</td></tr>}
+          </tbody>
+        </table>
+        </div>
+      </Card>
+
+      {/* Modal historial */}
+      {histProd&&<Modal close={()=>setHistProd(null)} w={500}><div style={{padding:20}}>
+        <h2 style={{margin:"0 0 12px",fontSize:14,fontWeight:800}}>Historial: {histProd.name} · {localActivo}</h2>
+        {histRows.length===0?<div style={{color:"#ffffff",textAlign:"center",padding:20}}>Sin movimientos registrados</div>:
+        <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
+          <tbody>{histRows.map((r,i)=>(
+            <tr key={i}>
+              <td style={{fontSize:10}}>{new Date(r.fecha).toLocaleString("es-AR",{hour12:false})}</td>
+              <td style={{fontSize:10,color:r.tipo==="venta"?"#ff6666":r.tipo==="ingreso"?"#00cc55":"#ff9900",fontWeight:700}}>{r.tipo}</td>
+              <td style={{fontSize:11,fontWeight:700,color:r.cantidad>0?"#00cc55":"#ff4444"}}>{r.cantidad>0?"+":""}{histProd.unit==="kg"?r.cantidad.toFixed(1):r.cantidad}</td>
+              <td style={{fontSize:10,color:"#ffffff"}}>{histProd.unit==="kg"?Number(r.stock_antes).toFixed(1):r.stock_antes}</td>
+              <td style={{fontSize:10,color:"#00d4ff"}}>{histProd.unit==="kg"?Number(r.stock_despues).toFixed(1):r.stock_despues}</td>
+              <td style={{fontSize:10,color:"#ffffff"}}>{r.usuario}</td>
+            </tr>
+          ))}</tbody>
+        </table>}
+      </div></Modal>}
+    </div>
+  );
+}
+
+
 function UserMgmt({users,notify,session,loadAll,localeNames}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);
   const openNew=()=>{setForm({name:"",username:"",password:"",role:"vendedor",local:"",active:true});setModal(true);};
