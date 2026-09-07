@@ -1208,20 +1208,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[retiro,setRetiro]=useState("");
 
   // Campo de dinero: input normal de número con preview formateado abajo
-  const MoneyInp=({value,onChange,placeholder})=>(
-    <div>
-      <input
-        type="text" inputMode="numeric" pattern="[0-9]*"
-        value={value}
-        placeholder={placeholder||"0"}
-        onChange={(e)=>{const v=e.target.value.replace(/[^0-9]/g,"");onChange(v);}}
-        style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:15,fontWeight:700,width:"100%",outline:"none",boxSizing:"border-box"}}
-      />
-      {value&&parseInt(value)>0&&<div style={{fontSize:14,fontWeight:900,color:"#00cc55",marginTop:3}}>
-        $ {parseInt(value).toLocaleString("es-AR")}
-      </div>}
-    </div>
-  );
+  const fmtPrev=(v)=>v&&parseInt(v)>0?`$ ${parseInt(v).toLocaleString("es-AR")}`:"";
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
   const[notes,setNotes]=useState("");
   const[saving,setSaving]=useState(false);
@@ -1467,9 +1454,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>}
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-          <div><Lbl t="Caja Total ($)"/><MoneyInp value={cajaTotal} onChange={setCajaTotal} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
-          <div><Lbl t="Fondo ($)"/><MoneyInp value={fondo} onChange={setFondo} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
-          <div><Lbl t="Retiro ($)"/><MoneyInp value={retiro} onChange={setRetiro} placeholder="0"/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
+          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/>{fmtPrev(cajaTotal)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(cajaTotal)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
+          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/>{fmtPrev(fondo)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(fondo)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
+          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>{fmtPrev(retiro)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(retiro)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
         </div>
 
         {/* Otros gastos */}
