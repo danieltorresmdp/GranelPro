@@ -1866,6 +1866,13 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
         <span style={{fontSize:10,color:"#ffffff",marginLeft:4}}>{prods.length} productos</span>
       </div>
 
+      {/* Banner local activo */}
+      <div style={{background:"#021520",border:"1px solid #00d4ff44",borderRadius:8,padding:"8px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+        <Ic n="loc" s={14} c="#00d4ff"/>
+        <span style={{fontSize:12,fontWeight:800,color:"#00d4ff"}}>Editando stock de: {localActivo}</span>
+        <span style={{fontSize:10,color:"#ffffff",marginLeft:4}}>{prodsFiltered.length} productos{soloMin?" · Solo bajo mínimo":""}</span>
+      </div>
+
       {/* Tabla */}
       <Card sx={{overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
@@ -1906,7 +1913,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
               <td style={{fontSize:12,fontWeight:700,color:edited?(resultado<0?"#ff4444":"#00cc55"):"#ffffff"}}>{edited?(prod.unit==="kg"?`${resultado.toFixed(1)} kg`:`${resultado} u`):"—"}</td>
               <td><div style={{display:"flex",gap:4}}>
                 <Btn v="g" sx={{padding:"3px 7px",fontSize:8}} onClick={()=>saveStk(prod)} disabled={saving}>✓</Btn>
-                <Btn v="gh" sx={{padding:"3px 6px",fontSize:8}} onClick={()=>openHist(prod)}>📋</Btn>
+                <Btn v="gh" sx={{padding:"3px 6px",fontSize:8}} onClick={()=>openHist(prod)}><Ic n="hist" s={11}/></Btn>
               </div></td>
             </tr>);
           })}
