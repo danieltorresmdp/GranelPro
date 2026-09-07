@@ -1208,7 +1208,6 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[retiro,setRetiro]=useState("");
 
   // Campo de dinero: input normal de número con preview formateado abajo
-  const fmtPrev=(v)=>v&&parseInt(v)>0?`$ ${parseInt(v).toLocaleString("es-AR")}`:"";
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
   const[notes,setNotes]=useState("");
   const[saving,setSaving]=useState(false);
@@ -1391,10 +1390,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           <span style={{color:"#ff9900",fontWeight:700}}>🟠 Naranja = sobra efectivo</span>
           <span style={{color:"#ffffff"}}>— = sin monto declarado</span>
         </div>
-        {/* Tabla con scroll — barra arriba via overflow-x en wrapper con flex column invertido */}
-        <div style={{display:"flex",flexDirection:"column-reverse"}}>
-          <div id="caja-scroll" style={{overflowX:"auto"}}>
-            <table style={{minWidth:900}}><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
+        {/* Tabla historial con scroll */}
+        <div style={{overflowX:"auto"}}>
+          <table style={{minWidth:900}}><thead><tr style={{position:"sticky",top:0}}><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
           <tbody>{filteredCaja.map((d,idx)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
             const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
@@ -1425,7 +1423,6 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
           </tbody>
         </table>
-          </div>
         </div>
       </Card>}
 
@@ -1454,9 +1451,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>}
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/>{fmtPrev(cajaTotal)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(cajaTotal)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
-          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/>{fmtPrev(fondo)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(fondo)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
-          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>{fmtPrev(retiro)&&<div style={{fontSize:13,fontWeight:900,color:"#00cc55",marginTop:3}}>{fmtPrev(retiro)}</div>}<div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
+          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
+          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
+          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
         </div>
 
         {/* Otros gastos */}
