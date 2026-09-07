@@ -1799,7 +1799,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
             <span style={{fontSize:10,color:"#00d4ff"}}>{filtered.length} productos</span>
           </div>
           {loading?<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando stock...</div>:
-          <table>
+          <table style={{fontSize:11}}>
             <thead><tr>
               <th>Producto</th><th>Cat.</th><th>Stock Actual</th>
               <th style={{color:"#00cc55"}}>Mín.</th>
@@ -1826,18 +1826,18 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
                       placeholder={min>0?String(min):"mín"}
                       value={minVals[p.id]!==undefined?minVals[p.id]:""}
                       onChange={(e)=>setMinVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:64,fontSize:11,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                      style={{width:52,fontSize:10,background:minVals[p.id]!==undefined?"#021408":"#060f1a",border:`1px solid ${minVals[p.id]!==undefined?"#00882266":"#192a38"}`,color:"#00cc55",padding:"3px 4px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"} min="0"
                       placeholder={max>0?String(max):"máx"}
                       value={maxVals[p.id]!==undefined?maxVals[p.id]:""}
                       onChange={(e)=>setMaxVals(v=>({...v,[p.id]:e.target.value}))}
-                      style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
+                      style={{width:52,fontSize:10,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"3px 4px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
                     <button onClick={()=>setAjusteVals(v=>({...v,[p.id]:!v[p.id]}))}
-                      style={{fontSize:9,fontWeight:800,padding:"4px 8px",borderRadius:6,
+                      style={{fontSize:8,fontWeight:800,padding:"3px 6px",borderRadius:6,
                         border:`1px solid ${ajusteVals[p.id]?"#ff990055":"#00882255"}`,
                         background:ajusteVals[p.id]?"#140800":"#021408",
                         color:ajusteVals[p.id]?"#ff9900":"#00cc55",
@@ -1850,7 +1850,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
                       value={edited?vals[p.id]:0}
                       onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                       onFocus={(e)=>e.target.select()}
-                      style={{width:90,fontSize:12,background:edited?(ajusteVals[p.id]?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(ajusteVals[p.id]?"#ff990055":"#00cc55"):"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
+                      style={{width:76,fontSize:11,background:edited?(ajusteVals[p.id]?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(ajusteVals[p.id]?"#ff990055":"#00cc55"):"#192a38"}`,color:"#ffffff",padding:"4px 6px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
                   </td>
                   <td>
                     {preview!==null
@@ -1876,7 +1876,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
       </>}
 
       {/* Modal historial */}
-      {histProd&&<Modal close={()=>setHistProd(null)} w={520}>
+      {histProd&&<Modal close={()=>setHistProd(null)} w={460}>
         <div style={{padding:22}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div>
@@ -1887,19 +1887,19 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
           </div>
           {histLoading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
           {!histLoading&&histRows.length===0&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Sin movimientos registrados</div>}
-          {!histLoading&&histRows.length>0&&<table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
+          {!histLoading&&histRows.length>0&&<div style={{maxHeight:"60vh",overflowY:"auto"}}><table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
             <tbody>{histRows.map((r,i)=>(
               <tr key={i}>
                 <td style={{fontSize:10}}>{new Date(r.fecha).toLocaleString("es-AR",{hour12:false})}</td>
                 <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:r.tipo==="venta"?"#110305":r.tipo==="ingreso"?"#03120a":"#080410",color:r.tipo==="venta"?"#ff4444":r.tipo==="ingreso"?"#00cc55":"#cc44ff"}}>{r.tipo}</span></td>
-                <td style={{fontWeight:800,color:r.cantidad>0?"#00cc55":"#ff4444"}}>{r.cantidad>0?"+":""}{histProd.unit==="kg"?fmtW(r.cantidad):`${r.cantidad} u`}</td>
+                <td style={{fontWeight:800,color:r.tipo==="venta"?"#ff4444":r.cantidad>0?"#00cc55":"#ff9900"}}>{r.tipo==="venta"?"-":r.cantidad>0?"+":""}{histProd.unit==="kg"?fmtW(Math.abs(r.cantidad)):`${Math.abs(r.cantidad)} u`}</td>
                 <td style={{color:"#ffffff",fontSize:11}}>{histProd.unit==="kg"?fmtW(r.stock_antes):`${r.stock_antes} u`}</td>
                 <td style={{color:"#00d4ff",fontSize:11}}>{histProd.unit==="kg"?fmtW(r.stock_despues):`${r.stock_despues} u`}</td>
                 <td style={{color:"#ffffff",fontSize:10}}>{r.usuario}</td>
               </tr>
             ))}</tbody>
-          </table>}
+          </table></div>}
         </div>
       </Modal>}
     </div>
