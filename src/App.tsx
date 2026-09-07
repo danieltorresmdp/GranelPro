@@ -1201,143 +1201,45 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
 }
 
 // Modal de cierre separado para evitar re-renders del historial
-function CierreModal({session,totalEf,totalDig,totalAll,byPay,isAdmin,onClose,onConfirm,saving}) {
-  const[turno,setTurno]=useState("");
-  const[cajaTotal,setCajaTotal]=useState("");
-  const[fondo,setFondo]=useState("");
-  const[retiro,setRetiro]=useState("");
-  const[otros,setOtros]=useState([{desc:"",monto:""}]);
-  const totalOtros=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
-  const fmt=(v)=>v&&parseFloat(v)>0?`$ ${Math.round(parseFloat(v)).toLocaleString("es-AR")}`:null;
-  return(
-    <Modal close={onClose} w={500}><div style={{padding:24}}>
-      <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Cerrar Caja · {session?.local}</h2>
-      <div style={{marginBottom:14}}>
-        <Lbl t="Turno *"/>
-        <div style={{display:"flex",gap:10,marginTop:6}}>
-          {["Mañana","Tarde"].map(t=>(
-            <button key={t} onClick={()=>setTurno(t)} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#192a38"}`,background:turno===t?(t==="Mañana"?"#140800":"#100a1a"):"transparent",color:turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
-              {t==="Mañana"?"🌅 Mañana":"🌙 Tarde"}
-            </button>
-          ))}
-        </div>
-        {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
-      </div>
-      {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
-        <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
-        {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
-        <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
-      </div>}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-        <div>
-          <Lbl t="Caja Total ($)"/>
-          <Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/>
-          {fmt(cajaTotal)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(cajaTotal)}</div>}
-          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Total efectivo en caja</div>
-        </div>
-        <div>
-          <Lbl t="Fondo ($)"/>
-          <Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/>
-          {fmt(fondo)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(fondo)}</div>}
-          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Queda para el próximo turno</div>
-        </div>
-        <div>
-          <Lbl t="Retiro ($)"/>
-          <Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>
-          {fmt(retiro)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(retiro)}</div>}
-          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Se retira de la caja</div>
-        </div>
-      </div>
-      <div style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <Lbl t="Otros gastos"/>
-          <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
-        </div>
-        {otros.map((o,i)=>(
-          <div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"center"}}>
-            <Inp placeholder="Descripción..." value={o.desc} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2}}/>
-            <Inp type="number" step=".01" placeholder="$0" value={o.monto} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1}}/>
-            {otros.length>1&&<button onClick={()=>setOtros(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16}}>×</button>}
-          </div>
-        ))}
-        {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
-      </div>
-      <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
-        <Btn v="gh" onClick={onClose}>Cancelar</Btn>
-        <Btn v="g" onClick={()=>onConfirm({turno,cajaTotal,fondo,retiro,otros})} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
-      </div>
-    </div></Modal>
-  );
-}
-
 function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[closing,setClosing]=useState(false);
   const[saving,setSaving]=useState(false);
   const[confirmDel,setConfirmDel]=useState(null);
   const[filtLocal,setFiltLocal]=useState("todos");
   const[filtUser,setFiltUser]=useState("todos");
-
+  // Form state — kept local to avoid re-rendering table
+  const[turno,setTurno]=useState("");
+  const[cajaTotal,setCajaTotal]=useState("");
+  const[fondo,setFondo]=useState("");
+  const[retiro,setRetiro]=useState("");
+  const[otros,setOtros]=useState([{desc:"",monto:""}]);
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
-  // Ventas sin cerrar: comparar por fecha del último cierre del local
-  // Si no hay cierres, todas las ventas del usuario están sin cerrar
-  const lastCajaByLocal={};
-  caja.forEach(d=>{
-    if(!lastCajaByLocal[d.localName]||d.id>lastCajaByLocal[d.localName].id)
-      lastCajaByLocal[d.localName]=d;
-  });
-  const mySales=isAdmin?sales:sales.filter((s)=>String(s.uid)===String(session?.id));
-  const todaySales=mySales.filter(s=>s.date===todayStr());
+  const todaySales=(isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id))).filter(s=>s.date===todayStr());
   const closedSet=new Set(caja.flatMap(d=>(d.saleIds||[]).map(String)));
   const unclosed=todaySales.filter(s=>!closedSet.has(String(s.id)));
-  const byPay=PAY_OPTS.reduce((acc,m)=>{
-    acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);
-    unclosed.filter((s)=>s.pay&&s.pay.includes(" + ")).forEach((s)=>{
-      const parts=s.pay.split(" + ");
-      if(m==="efectivo"&&parts[0]==="efectivo") acc[m]+=(s.cashAmount||0);
-      else if((m==="tarjeta"||m==="QR")&&parts[1]===m) acc[m]+=(s.cash2||0);
-    });
-    return acc;
-  },{});
+  const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter(s=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
   const totalEf=byPay["efectivo"]||0;
-  const totalDig=(byPay["tarjeta"]||0)+(byPay["QR"]||0);
+  const totalDig=(byPay["debito"]||0)+(byPay["credito"]||0)+(byPay["QR"]||0);
   const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=myCaja[myCaja.length-1];
-  const lastByLocal=[...caja].reverse().find((d)=>d.localName===(session?.local||""));
-  const filteredCaja=[...myCaja].reverse().filter((d)=>{
-    const matchLocal=filtLocal==="todos"||d.localName===filtLocal;
-    const matchUser=filtUser==="todos"||String(d.closedBy)===filtUser;
-    return matchLocal&&matchUser;
+  const lastByLocal=[...caja].reverse().find(d=>d.localName===(session?.local||""));
+  const filteredCaja=[...myCaja].reverse().filter(d=>{
+    if(filtLocal!=="todos"&&d.localName!==filtLocal) return false;
+    if(filtUser!=="todos"&&String(d.closedBy)!==filtUser) return false;
+    return true;
   });
   const cajaLocales=[...new Set(myCaja.map(d=>d.localName).filter(Boolean))];
-  const cajaUsers=[...new Set(myCaja.map(d=>({id:String(d.closedBy),name:d.closedByName})).map(u=>JSON.stringify(u)))].map(s=>JSON.parse(s));
-
+  const cajaUsers=[...new Set(myCaja.map(d=>JSON.stringify({id:String(d.closedBy),name:d.closedByName})))].map(s=>JSON.parse(s));
   const totalOtros=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
 
   const imprimirCierre=(data)=>{
-    const {turno,cajaTotal,fondo,retiro,otros,totalEf,totalDig,totalAll,local,nombre,fecha}=data;
+    const{turno,cajaTotal,fondo,retiro,otros,totalEf,totalDig,totalAll,local,nombre,fecha}=data;
     const totalOtrosP=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre de Caja</title>
-    <style>
-      body{font-family:Arial,sans-serif;padding:20px;max-width:380px;margin:0 auto;color:#000;font-size:13px}
-      h1{text-align:center;font-size:16px;margin-bottom:2px}
-      .sub{text-align:center;color:#555;font-size:10px;margin-bottom:16px}
-      .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
-      .label{color:#555;font-size:12px}
-      .value{font-weight:700;font-size:13px}
-      .total{display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #000;margin-top:4px;font-size:15px;font-weight:900}
-      .otros{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:8px;margin:8px 0}
-      .otros-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
-      .no-print{text-align:center;margin-bottom:12px}
-      .firma{border-top:1px solid #000;margin-top:40px;padding-top:6px;text-align:center;font-size:10px;color:#555}
-      @media print{.no-print{display:none}}
-    </style></head><body>
-    <div class="no-print">
-      <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir</button>
-      <button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button>
-    </div>
-    <h1>🐾 Masc🐾tas Pet Shop</h1>
-    <div class="sub">Cierre de Caja</div>
+    <style>body{font-family:Arial,sans-serif;padding:20px;max-width:380px;margin:0 auto;color:#000;font-size:13px}h1{text-align:center;font-size:16px;margin-bottom:2px}.sub{text-align:center;color:#555;font-size:10px;margin-bottom:16px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}.label{color:#555;font-size:12px}.value{font-weight:700;font-size:13px}.otros{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:8px;margin:8px 0}.otros-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}.no-print{text-align:center;margin-bottom:12px}.firma{border-top:1px solid #000;margin-top:40px;padding-top:6px;text-align:center;font-size:10px;color:#555}@media print{.no-print{display:none}}</style></head><body>
+    <div class="no-print"><button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;padding:8px 20px;border-radius:5px;font-size:13px;cursor:pointer;margin-right:8px">🖨️ Imprimir</button><button onclick="window.close()" style="background:#666;color:#fff;border:none;padding:8px 14px;border-radius:5px;font-size:13px;cursor:pointer">✕ Cerrar</button></div>
+    <h1>🐾 Mascotas Pet Shop</h1><div class="sub">Cierre de Caja</div>
     <div class="row"><span class="label">Fecha</span><span class="value">${fecha}</span></div>
     <div class="row"><span class="label">Local</span><span class="value">${local}</span></div>
     <div class="row"><span class="label">Turno</span><span class="value">${turno}</span></div>
@@ -1348,149 +1250,181 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     <div class="row"><span class="label">Retiro</span><span class="value" style="color:#cc0000">$${(parseFloat(retiro)||0).toLocaleString("es-AR")}</span></div>
     <div class="firma">Firma y aclaración: ___________________</div>
     </body></html>`;
-    const win=window.open("","_blank");
-    if(win){win.document.write(html);win.document.close();}
+    const win=window.open("","_blank");if(win){win.document.write(html);win.document.close();}
   };
 
-  const doClose=async({turno,cajaTotal,fondo,retiro,otros})=>{
+  const doClose=async()=>{
+    if(!turno){notify("Seleccioná el turno antes de cerrar","err");return;}
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
-    setSaving(true);
     setSaving(true);
     const otrosStr=otros.filter(o=>o.desc||o.monto).map(o=>`${o.desc}: $${o.monto}`).join(" | ");
     try{
       await sb.from("gp_caja").insert([{
         id:Date.now(),closed_by:session.id,closed_by_name:session.name,
-        sale_ids:unclosed.map((s)=>s.id),by_pay:byPay,
+        sale_ids:unclosed.map(s=>s.id),by_pay:byPay,
         total_ef:totalEf,total_dig:totalDig,total_all:totalAll,
         opening_amount:parseFloat(fondo)||0,
         retiro_efectivo:parseFloat(retiro)||0,
-        notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [Otros: ${otrosStr||"—"}] ${notes}`,
+        notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [Otros: ${otrosStr||"—"}]`,
         sales_count:unclosed.length,local_name:session.local||""
       }]);
       notify(`Caja cerrada · Turno ${turno} · ${fmtM(totalAll)}`);
       imprimirCierre({turno,cajaTotal,fondo,retiro,otros,totalEf,totalDig,totalAll,local:session.local||"",nombre:session.name,fecha:new Date().toLocaleString("es-AR")});
-      setClosing(false);setSaving(false);loadAll();
+      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
 
-  const delCierre=async(id)=>{
-    await sb.from("gp_caja").delete().eq("id",id);
-    notify("Cierre eliminado");setConfirmDel(null);loadAll();
-  };
+  const delCierre=async(id)=>{await sb.from("gp_caja").delete().eq("id",id);notify("Cierre eliminado");setConfirmDel(null);loadAll();};
 
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleDateString("es-AR")+" "+new Date(last.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}`:"SIN CIERRES"}</p></div>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleDateString("es-AR")} ${new Date(last.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}`:"SIN CIERRES"}</p></div>
         <Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn>
       </div>
       {lastByLocal&&<Card sx={{padding:"12px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,background:"#03120a",border:"1px solid #00882233"}}>
         <Ic n="cash" s={20} c="#00cc55"/>
         <div>
           <div style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase",marginBottom:3}}>Fondo del turno anterior · {lastByLocal.localName}</div>
-          <div style={{fontSize:22,fontWeight:800,color:"#00cc55"}}>{fmtM((lastByLocal.openingAmount||0))}</div>
-          <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleDateString("es-AR")+" "+new Date(lastByLocal.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#00cc55"}}>{fmtM(lastByLocal.openingAmount||0)}</div>
+          <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleDateString("es-AR")} {new Date(lastByLocal.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>
         </div>
       </Card>}
       {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
-        <Stat label="Sin Cerrar" value={unclosed.length} sub="ventas" color="#00d4ff" icon="hist"/>
-        <Stat label="Efectivo" value={`${fmtM(totalEf)}`} sub="físico" color="#00cc55" icon="cash"/>
-        <Stat label="Tarjeta" value={`${fmtM((byPay["tarjeta"]||0))}`} sub="POS" color="#3388ff" icon="star"/>
-        <Stat label="QR" value={`${fmtM((byPay["QR"]||0))}`} sub="digital" color="#ccdd00" icon="trend"/>
+        <Stat label="Sin Cerrar" value={unclosed.length} sub="ventas hoy" color="#00d4ff" icon="hist"/>
+        <Stat label="Efectivo" value={fmtM(totalEf)} sub="físico" color="#00cc55" icon="cash"/>
+        <Stat label="Digital" value={fmtM(totalDig)} sub="POS/QR" color="#3388ff" icon="star"/>
+        <Stat label="Total" value={fmtM(totalAll)} sub="del turno" color="#ff9900" icon="trend"/>
       </div>}
-      {/* Panel locales sin cierre hoy — solo admin */}
+
+      {/* Panel locales sin cierre hoy */}
       {isAdmin&&(()=>{
         const hoyStr=new Date().toLocaleDateString("es-AR");
-        const cierresHoy=myCaja.filter(d=>{
-          try{return new Date(d.closedAt).toLocaleDateString("es-AR")===hoyStr;}catch{return false;}
-        });
+        const cierresHoy=myCaja.filter(d=>{try{return new Date(d.closedAt).toLocaleDateString("es-AR")===hoyStr;}catch{return false;}});
         const localesConCierre=new Set(cierresHoy.map(d=>(d.localName||"").toUpperCase()));
         const todosLocales=[...new Set(myCaja.map(d=>d.localName).filter(l=>l&&!l.toUpperCase().includes("DEPOSIT")))];
-        const localesSinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase()));
-        if(localesSinCierre.length===0) return(
-          <Card sx={{padding:"10px 16px",marginBottom:12,background:"#021408",border:"1px solid #00882233",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:14}}>✅</span>
-            <span style={{fontSize:11,color:"#00cc55",fontWeight:700}}>Todos los locales hicieron al menos un cierre hoy</span>
-          </Card>
-        );
-        return(
-          <Card sx={{padding:"10px 16px",marginBottom:12,background:"#110305",border:"1px solid #ff333333"}}>
-            <div style={{fontSize:11,fontWeight:800,color:"#ff4444",marginBottom:6}}>⚠ Locales sin cierre hoy ({localesSinCierre.length})</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {localesSinCierre.map(l=>(
-                <span key={l} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#1a0305",border:"1px solid #ff444433",color:"#ff6666"}}>📍 {l}</span>
-              ))}
-            </div>
-          </Card>
-        );
+        const sinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase()));
+        if(sinCierre.length===0) return <Card sx={{padding:"8px 16px",marginBottom:12,background:"#021408",border:"1px solid #00882233",display:"flex",alignItems:"center",gap:8}}><span>✅</span><span style={{fontSize:11,color:"#00cc55",fontWeight:700}}>Todos los locales hicieron cierre hoy</span></Card>;
+        return <Card sx={{padding:"10px 16px",marginBottom:12,background:"#110305",border:"1px solid #ff333333"}}><div style={{fontSize:11,fontWeight:800,color:"#ff4444",marginBottom:6}}>⚠ Sin cierre hoy ({sinCierre.length})</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{sinCierre.map(l=><span key={l} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#1a0305",border:"1px solid #ff444433",color:"#ff6666"}}>📍 {l}</span>)}</div></Card>;
       })()}
+
       {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
           <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
             <Sel value={filtLocal} onChange={(e)=>setFiltLocal(e.target.value)} sx={{width:130,fontSize:10,padding:"4px 8px"}}>
-              <option value="todos">📍 Todos los locales</option>
+              <option value="todos">📍 Todos</option>
               {cajaLocales.map(l=><option key={l} value={l}>{l}</option>)}
             </Sel>
             <Sel value={filtUser} onChange={(e)=>setFiltUser(e.target.value)} sx={{width:150,fontSize:10,padding:"4px 8px"}}>
-              <option value="todos">👤 Todos los vendedores</option>
+              <option value="todos">👤 Todos</option>
               {cajaUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
             </Sel>
             {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
           </div>
         </div>
-        {/* Leyenda arriba */}
-        <div style={{padding:"6px 14px",fontSize:9,borderBottom:"1px solid #192a38",background:"#060f1a",display:"flex",gap:16,alignItems:"center"}}>
-          <span style={{color:"#00cc55",fontWeight:700}}>✓ OK = cuadra (diferencia &lt; $100)</span>
-          <span style={{color:"#ff4444",fontWeight:700}}>🔴 Rojo = falta efectivo</span>
-          <span style={{color:"#ff9900",fontWeight:700}}>🟠 Naranja = sobra efectivo</span>
-          <span style={{color:"#ffffff"}}>— = sin monto declarado</span>
+        {/* Leyenda */}
+        <div style={{padding:"5px 14px",fontSize:9,background:"#060f1a",borderBottom:"1px solid #192a38",display:"flex",gap:14}}>
+          <span style={{color:"#00cc55",fontWeight:700}}>✓ OK = cuadra</span>
+          <span style={{color:"#ff4444",fontWeight:700}}>Rojo = falta</span>
+          <span style={{color:"#ff9900",fontWeight:700}}>Naranja = sobra</span>
+          <span style={{color:"#ffffff"}}>— = sin declarar</span>
         </div>
-        {/* Tabla historial con scroll */}
         <div style={{overflowX:"auto"}}>
-          <table style={{minWidth:900}}><thead><tr style={{position:"sticky",top:0}}><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
-          <tbody>{filteredCaja.map((d,idx)=>{
+        <table style={{minWidth:920}}>
+          <thead><tr>
+            <th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th>
+            <th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th>
+            <th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th>
+          </tr></thead>
+          <tbody>{filteredCaja.map((d)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
             const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
-            // Fondo del cierre anterior del mismo local
             const prevCierre=[...myCaja].reverse().filter(c=>c.localName===d.localName&&c.id<d.id).slice(-1)[0];
             const fondoAnterior=prevCierre?.openingAmount||0;
             const esperado=d.totalEf+fondoAnterior;
             const diferencia=cajaTotalDec-esperado;
             const diffColor=Math.abs(diferencia)<100?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
-            const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:`${fmtM(diferencia)}`;
+            const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:fmtM(diferencia);
             return(<tr key={d.id}>
-              <td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
+              <td style={{fontSize:10}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
               <td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td>
               <td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td>
               <td style={{fontSize:10,fontWeight:700,color:turnoNote==="Mañana"?"#ff9900":turnoNote==="Tarde"?"#cc44ff":"#ffffff"}}>{turnoNote}</td>
               <td>{d.salesCount}</td>
-              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM((d.totalEf||0))}</td>
-              <td style={{color:"#3388ff",fontWeight:700}}>{fmtM((d.totalDig||0))}</td>
-              <td style={{fontWeight:800,color:"#00cc55"}}>{fmtM((d.totalAll||0))}</td>
-              <td style={{color:"#00cc55",fontSize:11}}>{fmtM((d.openingAmount||0))}</td>
-              <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?fmtM((d.retiro_efectivo)):"—"}</td>
-              <td style={{fontWeight:700,color:diffColor,fontSize:11}}>
-                {cajaTotalDec>0?<span title={`Esperado: ${fmtM(esperado)} (Ef: ${fmtM(d.totalEf)} + Fondo ant: ${fmtM(fondoAnterior)})\nDeclarado: ${fmtM(cajaTotalDec)}`}>{diffLabel}</span>:"—"}
-              </td>
+              <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(d.totalEf||0)}</td>
+              <td style={{color:"#3388ff",fontWeight:700}}>{fmtM(d.totalDig||0)}</td>
+              <td style={{fontWeight:800,color:"#00cc55"}}>{fmtM(d.totalAll||0)}</td>
+              <td style={{color:"#00cc55",fontSize:11}}>{fmtM(d.openingAmount||0)}</td>
+              <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?fmtM(d.retiro_efectivo):"—"}</td>
+              <td style={{fontWeight:700,color:diffColor,fontSize:11}}>{cajaTotalDec>0?<span title={`Esperado: ${fmtM(esperado)} | Declarado: ${fmtM(cajaTotalDec)}`}>{diffLabel}</span>:"—"}</td>
               <td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>
             </tr>);
           })}
-          {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
+          {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados</td></tr>}
           </tbody>
         </table>
         </div>
       </Card>}
 
       {/* Modal cierre */}
-      {closing&&<CierreModal session={session} totalEf={totalEf} totalDig={totalDig} totalAll={totalAll} byPay={byPay} isAdmin={isAdmin} saving={saving} onClose={()=>setClosing(false)} onConfirm={doClose}/>}
+      {closing&&<Modal close={()=>setClosing(false)} w={500}><div style={{padding:24}}>
+        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Cerrar Caja · {session?.local}</h2>
+        <div style={{marginBottom:14}}>
+          <Lbl t="Turno *"/>
+          <div style={{display:"flex",gap:10,marginTop:6}}>
+            {["Mañana","Tarde"].map(t=>(
+              <button key={t} onClick={()=>setTurno(t)} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#192a38"}`,background:turno===t?(t==="Mañana"?"#140800":"#100a1a"):"transparent",color:turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+                {t==="Mañana"?"🌅 Mañana":"🌙 Tarde"}
+              </button>
+            ))}
+          </div>
+          {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
+        </div>
+        {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
+          {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM(byPay[m]||0)}</span></div>))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
+        </div>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Efectivo en caja</div></div>
+          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo</div></div>
+          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira</div></div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <Lbl t="Otros gastos"/>
+            <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
+          </div>
+          {otros.map((o,i)=>(
+            <div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"center"}}>
+              <Inp placeholder="Descripción..." value={o.desc} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2}}/>
+              <Inp type="number" step=".01" placeholder="$0" value={o.monto} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1}}/>
+              {otros.length>1&&<button onClick={()=>setOtros(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16}}>×</button>}
+            </div>
+          ))}
+          {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
+          <Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn>
+          <Btn v="g" onClick={doClose} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
+        </div>
+      </div></Modal>}
 
-      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#ffffff"}}>{new Date(confirmDel.closedAt).toLocaleDateString("es-AR")+" "+new Date(confirmDel.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>🗑️</div>
+        <h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2>
+        <p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong>{new Date(confirmDel.closedAt).toLocaleDateString("es-AR")}</strong></p>
+        <p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn>
+          <Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn>
+        </div>
+      </div></Modal>}
     </div>
   );
 }
-
 
 function Products({prods,notify,loadAll}) {
   const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[q,setQ]=useState("");const[catF,setCatF]=useState("Todas");const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
