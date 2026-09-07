@@ -1815,6 +1815,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
               const esAjuste=ajusteVals[p.id]===true;
               const inputVal=edited?parseFloat(vals[p.id])||0:0;
               const preview=edited?(esAjuste?inputVal:stk<0?inputVal+stk:stk+inputVal):null;
+              const bajMin=min>0&&stk<=min;
               return(
                 <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
                   <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
