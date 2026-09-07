@@ -1358,9 +1358,13 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
       </div>}
       {/* Panel locales sin cierre hoy — solo admin */}
       {isAdmin&&(()=>{
-        const cierresHoy=myCaja.filter(d=>new Date(d.closedAt).toLocaleDateString("es-AR")===new Date().toLocaleDateString("es-AR"));
-        const localesConCierre=new Set(cierresHoy.map(d=>d.localName?.toUpperCase()));
-        const localesSinCierre=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")&&!localesConCierre.has(l.toUpperCase()));
+        const hoyStr=new Date().toLocaleDateString("es-AR");
+        const cierresHoy=myCaja.filter(d=>{
+          try{return new Date(d.closedAt).toLocaleDateString("es-AR")===hoyStr;}catch{return false;}
+        });
+        const localesConCierre=new Set(cierresHoy.map(d=>(d.localName||"").toUpperCase()));
+        const todosLocales=[...new Set(myCaja.map(d=>d.localName).filter(l=>l&&!l.toUpperCase().includes("DEPOSIT")))];
+        const localesSinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase()));
         if(localesSinCierre.length===0) return(
           <Card sx={{padding:"10px 16px",marginBottom:12,background:"#021408",border:"1px solid #00882233",display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:14}}>✅</span>
