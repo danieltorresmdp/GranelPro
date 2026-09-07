@@ -3847,3 +3847,257 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     </div>
   );
 }
+
+// ─── LOCAL MGT ─────────────────────────────────────────────────────────────
+
+function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
+  const[modal,setModal]=useState(false);const[form,setForm]=useState(null);const[saving,setSaving]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[savingCuotas,setSavingCuotas]=useState(false);
+  const[localInteres,setLocalInteres]=useState({...cuotasConfig?.interes});
+  const[localMinCuota,setLocalMinCuota]=useState({...cuotasConfig?.minLocal});
+  useEffect(()=>{setLocalInteres({...cuotasConfig?.interes});setLocalMinCuota({...cuotasConfig?.minLocal});},[JSON.stringify(cuotasConfig)]);
+
+  const openNew=()=>{setForm({name:""});setModal(true);};
+  const openEdit=(l)=>{setForm({...l});setModal(true);};
+  const save=async()=>{
+    if(!form.name.trim()){notify("Nombre requerido","err");return;}
+    setSaving(true);
+    try{
+      if(form.id) await sb.from("gp_locales").update({name:form.name.trim()}).eq("id",form.id);
+      else await sb.from("gp_locales").insert([{name:form.name.trim()}]);
+      notify(form.id?"Local actualizado":"Local creado");loadAll();setModal(false);
+    }catch(e){notify("Error","err");}
+    setSaving(false);
+  };
+  const del=async(id)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
+
+  const saveCuotas=async()=>{
+    setSavingCuotas(true);
+    try{
+      await sb.from("gp_config").upsert([{key:"cuotas_interes",value:localInteres,updated_at:new Date().toISOString()}]);
+      await sb.from("gp_config").upsert([{key:"cuotas_min_local",value:localMinCuota,updated_at:new Date().toISOString()}]);
+      setCuotasConfig({interes:localInteres,minLocal:localMinCuota});
+      notify("Configuración de cuotas guardada");
+    }catch(e){notify("Error","err");}
+    setSavingCuotas(false);
+  };
+
+  return(
+    <div className="fade">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Locales</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>PUNTOS DE VENTA</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Local</Btn></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:20}}>
+        {locales.map((l)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
+        {locales.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay locales.</div>}
+      </div>
+      <Card sx={{padding:20,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#cc44ff",marginBottom:16}}>💳 Configuración de Cuotas</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10}}>INTERÉS POR CUOTAS (global)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {["1","2","3","4","5","6"].map(n=>(
+                <div key={n} style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"10px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"#cc44ff",fontWeight:700,marginBottom:4}}>{n}c</div>
+                  <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
+                    <input type="number" min="0" max="100" step="0.1" value={localInteres[n]??0} onChange={(e)=>setLocalInteres(prev=>({...prev,[n]:parseFloat(e.target.value)||0}))} style={{width:48,background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 5px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,textAlign:"center",outline:"none"}}/>
+                    <span style={{fontSize:10,color:"#ffffff"}}>%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#ffffff",marginBottom:10}}>CUOTA MÍNIMA POR LOCAL</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>(
+                <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#060f1a",border:"1px solid #192a38",borderRadius:7,padding:"8px 12px"}}>
+                  <span style={{fontSize:12,color:"#ffffff",fontWeight:700}}>📍 {l.name}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,color:"#ffffff"}}>desde</span>
+                    <select value={localMinCuota[l.name]||"1"} onChange={(e)=>setLocalMinCuota(prev=>({...prev,[l.name]:e.target.value}))} style={{background:"#030810",border:"1px solid #cc44ff55",color:"#cc44ff",padding:"4px 8px",borderRadius:5,fontFamily:"inherit",fontSize:12,fontWeight:700,outline:"none",cursor:"pointer"}}>
+                      {["1","2","3"].map(n=><option key={n} value={n}>{n}c</option>)}
+                    </select>
+                    <span style={{fontSize:10,color:"#ffffff"}}>hasta 6</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
+          <Btn v="pu" onClick={saveCuotas} disabled={savingCuotas}>{savingCuotas?"Guardando...":"💾 Guardar Configuración"}</Btn>
+        </div>
+      </Card>
+      {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar local?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+    </div>
+  );
+}
+
+// ─── REPORTES ──────────────────────────────────────────────────────────────
+
+function Reportes({sales,users,localeNames}) {
+  const[tab,setTab]=useState("mensual");
+  const[localSel,setLocalSel]=useState("todos");
+  const[monthData,setMonthData]=useState([]);
+  const[loading,setLoading]=useState(true);
+
+  const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const names=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${names[parseInt(m)-1]} ${y}`;};
+
+  useEffect(()=>{
+    const load=async()=>{
+      setLoading(true);
+      try{
+        let all=[];let from=0;const size=1000;
+        while(true){
+          const{data,error}=await sb.from("gp_sales").select("date,total,pay,local_name").order("date",{ascending:false}).range(from,from+size-1);
+          if(error||!data||data.length===0) break;
+          all=[...all,...data];
+          if(data.length<size) break;
+          from+=size;
+        }
+        const map={};
+        all.forEach(s=>{
+          const ym=s.date?s.date.slice(0,7):"";if(!ym) return;
+          if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};
+          map[ym].total+=Number(s.total)||0;map[ym].count++;
+          if(s.pay==="efectivo") map[ym].ef+=Number(s.total)||0;
+          else map[ym].dig+=Number(s.total)||0;
+          const loc=s.local_name||"Sin local";
+          if(!map[ym].byLocal[loc]) map[ym].byLocal[loc]={count:0,total:0,ef:0,dig:0};
+          map[ym].byLocal[loc].count++;map[ym].byLocal[loc].total+=Number(s.total)||0;
+          if(s.pay==="efectivo") map[ym].byLocal[loc].ef+=Number(s.total)||0;
+          else map[ym].byLocal[loc].dig+=Number(s.total)||0;
+        });
+        const cur=currentYmAR();
+        const arNow=nowAR();
+        const p1m=new Date(arNow);p1m.setMonth(arNow.getMonth()-1);
+        const p2m=new Date(arNow);p2m.setMonth(arNow.getMonth()-2);
+        [cur,p1m.toISOString().slice(0,7),p2m.toISOString().slice(0,7)].forEach(ym=>{if(!map[ym]) map[ym]={ym,total:0,count:0,ef:0,dig:0,byLocal:{}};});
+        setMonthData(Object.values(map).sort((a,b)=>b.ym.localeCompare(a.ym)));
+      }catch(e){}
+      setLoading(false);
+    };
+    load();
+  },[]);
+
+  const totalGeneral=monthData.reduce((a,b)=>a+b.total,0);
+  const efGeneral=monthData.reduce((a,b)=>a+b.ef,0);
+  const digGeneral=monthData.reduce((a,b)=>a+b.dig,0);
+  const allMonths=monthData.map(d=>d.ym);
+  const localesVis=localSel==="todos"?localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")):[localSel];
+  const totalByMonth=(ym)=>{const d=monthData.find(m=>m.ym===ym);if(!d) return 0;if(localSel==="todos") return d.total;return d.byLocal[localSel]?.total||0;};
+  const countByMonth=(ym)=>{const d=monthData.find(m=>m.ym===ym);if(!d) return 0;if(localSel==="todos") return d.count;return d.byLocal[localSel]?.count||0;};
+  const efByMonth=(ym)=>{const d=monthData.find(m=>m.ym===ym);if(!d) return 0;if(localSel==="todos") return d.ef;return d.byLocal[localSel]?.ef||0;};
+  const digByMonth=(ym)=>{const d=monthData.find(m=>m.ym===ym);if(!d) return 0;if(localSel==="todos") return d.dig;return d.byLocal[localSel]?.dig||0;};
+  const maxMonth=allMonths.length>0?Math.max(...allMonths.map(ym=>totalByMonth(ym))):1;
+  const maxMonthVal=maxMonth||1;
+
+  // Por local
+  const byLocal=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")).map(l=>{
+    const total=monthData.reduce((a,b)=>a+(b.byLocal[l]?.total||0),0);
+    const count=monthData.reduce((a,b)=>a+(b.byLocal[l]?.count||0),0);
+    return{name:l,count,total};
+  }).filter(l=>l.count>0).sort((a,b)=>b.total-a.total);
+  const byUser=users.map((u)=>{const us=sales.filter((s)=>String(s.uid)===String(u.id));return{name:u.name,local:u.local,role:u.role,count:us.length,total:us.reduce((a,b)=>a+b.total,0)};}).filter((u)=>u.count>0).sort((a,b)=>b.total-a.total);
+  const maxLocal=byLocal.length>0?Math.max(...byLocal.map(l=>l.total)):1;
+
+  const lColors=["#00cc55","#3388ff","#cc44ff","#ff9900","#00d4ff","#ff4444","#ccdd00","#ff6699"];
+
+  return(
+    <div className="fade">
+      <Card sx={{padding:"14px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:9,color:"#ffffff",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Total General · Todo el historial</div>
+          <div style={{fontSize:28,fontWeight:800,color:"#00cc55"}}>{loading?"Cargando...":fmtM(totalGeneral)}</div>
+          <div style={{display:"flex",gap:14,marginTop:4}}>
+            <span style={{fontSize:10,color:"#00cc55"}}>💵 Efectivo: <strong>{fmtM(efGeneral)}</strong></span>
+            <span style={{fontSize:10,color:"#3388ff"}}>🏦 Digital: <strong>{fmtM(digGeneral)}</strong></span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn v={tab==="mensual"?"cy":"gh"} onClick={()=>setTab("mensual")}><Ic n="trend" s={13}/>Mensual</Btn>
+          <Btn v={tab==="local"?"cy":"gh"} onClick={()=>setTab("local")}><Ic n="loc" s={13}/>Por Local</Btn>
+          <Btn v={tab==="user"?"cy":"gh"} onClick={()=>setTab("user")}><Ic n="usr" s={13}/>Por Usuario</Btn>
+        </div>
+      </Card>
+      {tab==="mensual"&&<>
+        <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
+          <Sel value={localSel} onChange={(e)=>setLocalSel(e.target.value)} sx={{width:180}}>
+            <option value="todos">Todos los locales</option>
+            {localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")).map(l=><option key={l}>{l}</option>)}
+          </Sel>
+        </div>
+        <Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Comparativo Mensual</span></div>
+          {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando historial completo...</div>}
+          {!loading&&allMonths.map((ym,idx)=>{
+            const total=totalByMonth(ym);const count=countByMonth(ym);
+            const prev=idx<allMonths.length-1?totalByMonth(allMonths[idx+1]):null;
+            const diff=prev!=null&&prev>0?(total-prev)/prev*100:null;
+            const barW=maxMonthVal>0?(total/maxMonthVal*100):0;
+            const isCurrentMonth=ym===currentYmAR();
+            return(
+              <div key={ym} style={{padding:"12px 16px",borderBottom:"1px solid #192a3814"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:13,fontWeight:800,color:isCurrentMonth?"#00d4ff":"#ffffff",minWidth:80}}>{fmtMonth(ym)}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    {diff!=null&&<span style={{fontSize:10,fontWeight:700,color:diff>=0?"#00cc55":"#ff4444"}}>{diff>=0?"▲":"▼"} {Math.abs(diff).toFixed(1)}% vs mes ant.</span>}
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:14,fontWeight:800,color:"#00cc55"}}>{fmtM(total)}</div>
+                      <div style={{fontSize:9,color:"#ffffff"}}>{count} ventas</div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:16,marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:9,color:"#00cc55"}}>💵 Efectivo:</span><span style={{fontSize:11,fontWeight:700,color:"#00cc55"}}>{fmtM(efByMonth(ym))}</span>{total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(efByMonth(ym)/total*100).toFixed(0)}%)</span>}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:9,color:"#3388ff"}}>🏦 Digital:</span><span style={{fontSize:11,fontWeight:700,color:"#3388ff"}}>{fmtM(digByMonth(ym))}</span>{total>0&&<span style={{fontSize:8,color:"#ffffff"}}>({(digByMonth(ym)/total*100).toFixed(0)}%)</span>}</div>
+                </div>
+                <div style={{height:8,background:"#192a38",borderRadius:4,overflow:"hidden",marginBottom:localSel==="todos"?6:0}}>
+                  <div style={{height:"100%",background:isCurrentMonth?"#00d4ff":"#00cc55",width:`${barW}%`,borderRadius:4,transition:"width .4s"}}/>
+                </div>
+                {localSel==="todos"&&<div style={{paddingLeft:4}}>
+                  {localesVis.map((l,li)=>{
+                    const ld=monthData.find(m=>m.ym===ym)?.byLocal?.[l];
+                    if(!ld||ld.total===0) return null;
+                    const lBarW=maxMonthVal>0?(ld.total/maxMonthVal*100):0;
+                    return(
+                      <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}>
+                        <span style={{fontSize:9,color:lColors[li%8],minWidth:80}}>📍 {l}</span>
+                        <div style={{flex:1,height:4,background:"#192a38",borderRadius:2,overflow:"hidden"}}>
+                          <div style={{height:"100%",background:lColors[li%8],width:`${lBarW}%`,borderRadius:2,opacity:.7}}/>
+                        </div>
+                        <span style={{fontSize:10,color:lColors[li%8],fontWeight:700,minWidth:90,textAlign:"right"}}>{fmtM(ld.total)}</span>
+                        <span style={{fontSize:9,color:"#ffffff",minWidth:30}}>{ld.count}v</span>
+                      </div>
+                    );
+                  })}
+                </div>}
+              </div>
+            );
+          })}
+        </Card>
+      </>}
+      {tab==="local"&&<Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Por Local · Todo el historial</span></div>
+        {byLocal.map((l,i)=>{const barW=maxLocal>0?(l.total/maxLocal*100):0;return(
+          <div key={l.name} style={{padding:"10px 16px",borderBottom:"1px solid #192a3814"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <span style={{fontSize:12,fontWeight:700,color:lColors[i%8]}}>📍 {l.name}</span>
+              <div style={{textAlign:"right"}}><div style={{fontSize:13,fontWeight:800,color:lColors[i%8]}}>{fmtM(l.total)}</div><div style={{fontSize:9,color:"#ffffff"}}>{l.count}v</div></div>
+            </div>
+            <div style={{height:6,background:"#192a38",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:"100%",background:lColors[i%8],width:`${barW}%`,borderRadius:3}}/>
+            </div>
+          </div>
+        );})}
+      </Card>}
+      {tab==="user"&&<Card sx={{overflow:"hidden"}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Por Usuario · Últimos 90 días</span></div>
+        <table><thead><tr><th>Vendedor</th><th>Local</th><th>Ventas</th><th>Total</th></tr></thead>
+          <tbody>{byUser.map((u,i)=>(<tr key={i}><td style={{fontWeight:700,color:"#ffffff"}}>{u.name}</td><td style={{color:"#00d4ff",fontSize:11}}>{u.local}</td><td>{u.count}</td><td style={{color:"#00cc55",fontWeight:700}}>{fmtM(u.total)}</td></tr>))}</tbody>
+        </table>
+      </Card>}
+    </div>
+  );
+}
