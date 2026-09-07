@@ -1201,7 +1201,7 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
 }
 
 // Modal de cierre separado para evitar re-renders del historial
-const CierreModal=React.memo(({session,totalEf,totalDig,totalAll,byPay,isAdmin,onClose,onConfirm,saving})=>{
+function CierreModal({session,totalEf,totalDig,totalAll,byPay,isAdmin,onClose,onConfirm,saving}) {
   const[turno,setTurno]=useState("");
   const[cajaTotal,setCajaTotal]=useState("");
   const[fondo,setFondo]=useState("");
@@ -1268,7 +1268,7 @@ const CierreModal=React.memo(({session,totalEf,totalDig,totalAll,byPay,isAdmin,o
       </div>
     </div></Modal>
   );
-});
+}
 
 function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[closing,setClosing]=useState(false);
