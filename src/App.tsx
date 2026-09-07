@@ -1200,20 +1200,83 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
   );
 }
 
-function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
-  const[closing,setClosing]=useState(false);
+// Modal de cierre separado para evitar re-renders del historial
+const CierreModal=React.memo(({session,totalEf,totalDig,totalAll,byPay,isAdmin,onClose,onConfirm,saving})=>{
   const[turno,setTurno]=useState("");
   const[cajaTotal,setCajaTotal]=useState("");
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
-
-  // Campo de dinero: input normal de número con preview formateado abajo
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
-  const[notes,setNotes]=useState("");
+  const totalOtros=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
+  const fmt=(v)=>v&&parseFloat(v)>0?`$ ${Math.round(parseFloat(v)).toLocaleString("es-AR")}`:null;
+  return(
+    <Modal close={onClose} w={500}><div style={{padding:24}}>
+      <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Cerrar Caja · {session?.local}</h2>
+      <div style={{marginBottom:14}}>
+        <Lbl t="Turno *"/>
+        <div style={{display:"flex",gap:10,marginTop:6}}>
+          {["Mañana","Tarde"].map(t=>(
+            <button key={t} onClick={()=>setTurno(t)} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#192a38"}`,background:turno===t?(t==="Mañana"?"#140800":"#100a1a"):"transparent",color:turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+              {t==="Mañana"?"🌅 Mañana":"🌙 Tarde"}
+            </button>
+          ))}
+        </div>
+        {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
+      </div>
+      {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
+        <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
+        {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
+        <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
+      </div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+        <div>
+          <Lbl t="Caja Total ($)"/>
+          <Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/>
+          {fmt(cajaTotal)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(cajaTotal)}</div>}
+          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Total efectivo en caja</div>
+        </div>
+        <div>
+          <Lbl t="Fondo ($)"/>
+          <Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/>
+          {fmt(fondo)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(fondo)}</div>}
+          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Queda para el próximo turno</div>
+        </div>
+        <div>
+          <Lbl t="Retiro ($)"/>
+          <Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>
+          {fmt(retiro)&&<div style={{fontSize:12,fontWeight:900,color:"#00cc55",marginTop:2}}>{fmt(retiro)}</div>}
+          <div style={{fontSize:9,color:"#ffffff",marginTop:1}}>Se retira de la caja</div>
+        </div>
+      </div>
+      <div style={{marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <Lbl t="Otros gastos"/>
+          <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
+        </div>
+        {otros.map((o,i)=>(
+          <div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"center"}}>
+            <Inp placeholder="Descripción..." value={o.desc} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2}}/>
+            <Inp type="number" step=".01" placeholder="$0" value={o.monto} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1}}/>
+            {otros.length>1&&<button onClick={()=>setOtros(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16}}>×</button>}
+          </div>
+        ))}
+        {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
+      </div>
+      <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
+        <Btn v="gh" onClick={onClose}>Cancelar</Btn>
+        <Btn v="g" onClick={()=>onConfirm({turno,cajaTotal,fondo,retiro,otros})} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
+      </div>
+    </div></Modal>
+  );
+});
+
+function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
+  const[closing,setClosing]=useState(false);
   const[saving,setSaving]=useState(false);
   const[confirmDel,setConfirmDel]=useState(null);
   const[filtLocal,setFiltLocal]=useState("todos");
   const[filtUser,setFiltUser]=useState("todos");
+
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
   // Ventas sin cerrar: comparar por fecha del último cierre del local
@@ -1289,9 +1352,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     if(win){win.document.write(html);win.document.close();}
   };
 
-  const doClose=async()=>{
-    if(!turno){notify("Seleccioná el turno antes de cerrar","err");return;}
+  const doClose=async({turno,cajaTotal,fondo,retiro,otros})=>{
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
+    setSaving(true);
     setSaving(true);
     const otrosStr=otros.filter(o=>o.desc||o.monto).map(o=>`${o.desc}: $${o.monto}`).join(" | ");
     try{
@@ -1305,14 +1368,8 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         sales_count:unclosed.length,local_name:session.local||""
       }]);
       notify(`Caja cerrada · Turno ${turno} · ${fmtM(totalAll)}`);
-      // Imprimir comprobante automáticamente
-      imprimirCierre({
-        turno,cajaTotal,fondo,retiro,otros,
-        totalEf,totalDig,totalAll,
-        local:session.local||"",nombre:session.name,
-        fecha:new Date().toLocaleString("es-AR")
-      });
-      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);setNotes("");loadAll();
+      imprimirCierre({turno,cajaTotal,fondo,retiro,otros,totalEf,totalDig,totalAll,local:session.local||"",nombre:session.name,fecha:new Date().toLocaleString("es-AR")});
+      setClosing(false);setSaving(false);loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -1427,56 +1484,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
       </Card>}
 
       {/* Modal cierre */}
-      {closing&&(<Modal close={()=>setClosing(false)} w={500}><div style={{padding:24}}>
-        <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>Cerrar Caja · {session?.local}</h2>
-
-        {/* Selector turno — OBLIGATORIO */}
-        <div style={{marginBottom:14}}>
-          <Lbl t="Turno *"/>
-          <div style={{display:"flex",gap:10,marginTop:6}}>
-            {["Mañana","Tarde"].map(t=>(
-              <button key={t} onClick={()=>setTurno(t)} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#192a38"}`,background:turno===t?(t==="Mañana"?"#140800":"#100a1a"):"transparent",color:turno===t?(t==="Mañana"?"#ff9900":"#cc44ff"):"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
-                {t==="Mañana"?"🌅 Mañana":"🌙 Tarde"}
-              </button>
-            ))}
-          </div>
-          {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
-        </div>
-
-        {/* Resumen ventas — solo admin */}
-        {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
-          <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
-          {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM((byPay[m]||0))}</span></div>))}
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
-        </div>}
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Total efectivo en caja</div></div>
-          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo turno</div></div>
-          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira de la caja</div></div>
-        </div>
-
-        {/* Otros gastos */}
-        <div style={{marginBottom:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <Lbl t="Otros gastos"/>
-            <Btn v="gh" sx={{padding:"2px 8px",fontSize:9}} onClick={()=>setOtros(prev=>[...prev,{desc:"",monto:""}])}>+ Agregar</Btn>
-          </div>
-          {otros.map((o,i)=>(
-            <div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"center"}}>
-              <Inp placeholder="Descripción..." value={o.desc} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,desc:e.target.value}:x))} sx={{flex:2}}/>
-              <Inp type="number" step=".01" placeholder="$0" value={o.monto} onChange={(e)=>setOtros(prev=>prev.map((x,xi)=>xi===i?{...x,monto:e.target.value}:x))} sx={{flex:1}}/>
-              {otros.length>1&&<button onClick={()=>setOtros(prev=>prev.filter((_,xi)=>xi!==i))} style={{background:"none",border:"none",color:"#ff4444",cursor:"pointer",fontSize:16}}>×</button>}
-            </div>
-          ))}
-          {totalOtros>0&&<div style={{fontSize:11,color:"#ff6666",textAlign:"right"}}>Total otros: {fmtM(totalOtros)}</div>}
-        </div>
-
-        <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
-          <Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn>
-          <Btn v="g" onClick={doClose} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
-        </div>
-      </div></Modal>)}
+      {closing&&<CierreModal session={session} totalEf={totalEf} totalDig={totalDig} totalAll={totalAll} byPay={byPay} isAdmin={isAdmin} saving={saving} onClose={()=>setClosing(false)} onConfirm={doClose}/>}
 
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#ffffff"}}>{new Date(confirmDel.closedAt).toLocaleDateString("es-AR")+" "+new Date(confirmDel.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
