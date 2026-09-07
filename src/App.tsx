@@ -1207,27 +1207,21 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
 
-  // Formatea número mientras se escribe: solo dígitos, muestra con puntos de miles
-  const MoneyInp=({value,onChange,placeholder})=>{
-    const fmt=(v)=>{
-      const digits=v.replace(/\D/g,"");
-      if(!digits) return "";
-      return parseInt(digits,10).toLocaleString("es-AR");
-    };
-    const raw=(v)=>v.replace(/\D/g,"");
-    return(
-      <div style={{position:"relative"}}>
-        <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#00cc55",fontWeight:700,fontSize:14,pointerEvents:"none"}}>$</span>
-        <input
-          type="text" inputMode="numeric"
-          value={fmt(value)}
-          placeholder={placeholder||"0"}
-          onChange={(e)=>onChange(raw(e.target.value))}
-          style={{background:"#060f1a",border:"1px solid #192a38",color:"#00cc55",padding:"10px 12px 10px 22px",borderRadius:6,fontFamily:"inherit",fontSize:16,fontWeight:800,width:"100%",outline:"none",boxSizing:"border-box",letterSpacing:1}}
-        />
-      </div>
-    );
-  };
+  // Campo de dinero: input normal de número con preview formateado abajo
+  const MoneyInp=({value,onChange,placeholder})=>(
+    <div>
+      <input
+        type="text" inputMode="numeric" pattern="[0-9]*"
+        value={value}
+        placeholder={placeholder||"0"}
+        onChange={(e)=>{const v=e.target.value.replace(/[^0-9]/g,"");onChange(v);}}
+        style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:15,fontWeight:700,width:"100%",outline:"none",boxSizing:"border-box"}}
+      />
+      {value&&parseInt(value)>0&&<div style={{fontSize:14,fontWeight:900,color:"#00cc55",marginTop:3}}>
+        $ {parseInt(value).toLocaleString("es-AR")}
+      </div>}
+    </div>
+  );
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
   const[notes,setNotes]=useState("");
   const[saving,setSaving]=useState(false);
@@ -1236,9 +1230,17 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[filtUser,setFiltUser]=useState("todos");
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
-  const closedIds=new Set(caja.flatMap((d)=>(d.saleIds||[]).map(String)));
+  // Ventas sin cerrar: comparar por fecha del último cierre del local
+  // Si no hay cierres, todas las ventas del usuario están sin cerrar
+  const lastCajaByLocal={};
+  caja.forEach(d=>{
+    if(!lastCajaByLocal[d.localName]||d.id>lastCajaByLocal[d.localName].id)
+      lastCajaByLocal[d.localName]=d;
+  });
   const mySales=isAdmin?sales:sales.filter((s)=>String(s.uid)===String(session?.id));
-  const unclosed=mySales.filter((s)=>!closedIds.has(String(s.id)));
+  const todaySales=mySales.filter(s=>s.date===todayStr());
+  const closedSet=new Set(caja.flatMap(d=>(d.saleIds||[]).map(String)));
+  const unclosed=todaySales.filter(s=>!closedSet.has(String(s.id)));
   const byPay=PAY_OPTS.reduce((acc,m)=>{
     acc[m]=unclosed.filter((s)=>s.pay===m).reduce((a,b)=>a+b.total,0);
     unclosed.filter((s)=>s.pay&&s.pay.includes(" + ")).forEach((s)=>{
@@ -1337,7 +1339,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleString("es-AR")}`:"SIN CIERRES"}</p></div>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Cierre de Caja</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{last?`ÚLTIMO: ${new Date(last.closedAt).toLocaleDateString("es-AR")+" "+new Date(last.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}`:"SIN CIERRES"}</p></div>
         <Btn v="g" onClick={()=>setClosing(true)}><Ic n="cash" s={14}/>Cerrar Caja</Btn>
       </div>
       {lastByLocal&&<Card sx={{padding:"12px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,background:"#03120a",border:"1px solid #00882233"}}>
@@ -1345,7 +1347,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         <div>
           <div style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase",marginBottom:3}}>Fondo del turno anterior · {lastByLocal.localName}</div>
           <div style={{fontSize:22,fontWeight:800,color:"#00cc55"}}>{fmtM((lastByLocal.openingAmount||0))}</div>
-          <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleString("es-AR")}</div>
+          <div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Dejado por {lastByLocal.closedByName} · {new Date(lastByLocal.closedAt).toLocaleDateString("es-AR")+" "+new Date(lastByLocal.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>
         </div>
       </Card>}
       {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
@@ -1354,6 +1356,28 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         <Stat label="Tarjeta" value={`${fmtM((byPay["tarjeta"]||0))}`} sub="POS" color="#3388ff" icon="star"/>
         <Stat label="QR" value={`${fmtM((byPay["QR"]||0))}`} sub="digital" color="#ccdd00" icon="trend"/>
       </div>}
+      {/* Panel locales sin cierre hoy — solo admin */}
+      {isAdmin&&(()=>{
+        const cierresHoy=myCaja.filter(d=>new Date(d.closedAt).toLocaleDateString("es-AR")===new Date().toLocaleDateString("es-AR"));
+        const localesConCierre=new Set(cierresHoy.map(d=>d.localName?.toUpperCase()));
+        const localesSinCierre=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT")&&!localesConCierre.has(l.toUpperCase()));
+        if(localesSinCierre.length===0) return(
+          <Card sx={{padding:"10px 16px",marginBottom:12,background:"#021408",border:"1px solid #00882233",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:14}}>✅</span>
+            <span style={{fontSize:11,color:"#00cc55",fontWeight:700}}>Todos los locales hicieron al menos un cierre hoy</span>
+          </Card>
+        );
+        return(
+          <Card sx={{padding:"10px 16px",marginBottom:12,background:"#110305",border:"1px solid #ff333333"}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#ff4444",marginBottom:6}}>⚠ Locales sin cierre hoy ({localesSinCierre.length})</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {localesSinCierre.map(l=>(
+                <span key={l} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#1a0305",border:"1px solid #ff444433",color:"#ff6666"}}>📍 {l}</span>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
       {isAdmin&&myCaja.length>0&&<Card sx={{padding:0,overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
@@ -1376,8 +1400,10 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           <span style={{color:"#ff9900",fontWeight:700}}>🟠 Naranja = sobra efectivo</span>
           <span style={{color:"#ffffff"}}>— = sin monto declarado</span>
         </div>
-        <div style={{overflowX:"auto"}}>
-        <table style={{minWidth:900}}><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
+        {/* Tabla con scroll — barra arriba via overflow-x en wrapper con flex column invertido */}
+        <div style={{display:"flex",flexDirection:"column-reverse"}}>
+          <div id="caja-scroll" style={{overflowX:"auto"}}>
+            <table style={{minWidth:900}}><thead><tr><th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th><th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th><th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th></tr></thead>
           <tbody>{filteredCaja.map((d,idx)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
             const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
@@ -1389,7 +1415,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             const diffColor=Math.abs(diferencia)<100?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
             const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:`${fmtM(diferencia)}`;
             return(<tr key={d.id}>
-              <td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleString("es-AR")}</td>
+              <td style={{fontSize:11}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
               <td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td>
               <td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td>
               <td style={{fontSize:10,fontWeight:700,color:turnoNote==="Mañana"?"#ff9900":turnoNote==="Tarde"?"#cc44ff":"#ffffff"}}>{turnoNote}</td>
@@ -1408,6 +1434,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados para ese filtro</td></tr>}
           </tbody>
         </table>
+          </div>
         </div>
       </Card>}
 
@@ -1463,7 +1490,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>
       </div></Modal>)}
 
-      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#ffffff"}}>{new Date(confirmDel.closedAt).toLocaleString("es-AR")}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
+      {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={380}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🗑️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar cierre?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:4}}>Cierre del <strong style={{color:"#ffffff"}}>{new Date(confirmDel.closedAt).toLocaleDateString("es-AR")+" "+new Date(confirmDel.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</strong></p><p style={{color:"#ff9900",fontSize:11,marginBottom:20}}>⚠ Las ventas asociadas quedarán sin cerrar</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>delCierre(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
 }
