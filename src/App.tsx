@@ -4055,4 +4055,4 @@ function Reportes({sales,users,localeNames}) {
       </Card>}
     </div>
   );
-}// v2
+}// v-$
