@@ -1388,9 +1388,9 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
         </div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Efectivo en caja</div></div>
-          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Queda para el próximo</div></div>
-          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:9,color:"#ffffff",marginTop:2}}>Se retira</div></div>
+          <div><Lbl t="Caja Total ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={cajaTotal} onChange={(e)=>setCajaTotal(e.target.value)}/><div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginTop:2,minHeight:16}}>{cajaTotal&&Number(cajaTotal)>0?`$ ${Math.round(Number(cajaTotal)).toLocaleString("es-AR")}`:"Efectivo en caja"}</div></div>
+          <div><Lbl t="Fondo ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={fondo} onChange={(e)=>setFondo(e.target.value)}/><div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginTop:2,minHeight:16}}>{fondo&&Number(fondo)>0?`$ ${Math.round(Number(fondo)).toLocaleString("es-AR")}`:"Queda para el próximo"}</div></div>
+          <div><Lbl t="Retiro ($)"/><Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/><div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginTop:2,minHeight:16}}>{retiro&&Number(retiro)>0?`$ ${Math.round(Number(retiro)).toLocaleString("es-AR")}`:"Se retira"}</div></div>
         </div>
         <div style={{marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
