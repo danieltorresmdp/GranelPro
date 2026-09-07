@@ -1660,6 +1660,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
   const[vals,setVals]=useState({});
   const[minVals,setMinVals]=useState({});
   const[maxVals,setMaxVals]=useState({});
+  const[ajusteVals,setAjusteVals]=useState({}); // true = ajuste (reemplaza), false/undefined = ingreso (suma)
   const[saving,setSaving]=useState(null);
   const[loading,setLoading]=useState(false);
   const[histProd,setHistProd]=useState(null);
@@ -1701,7 +1702,8 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
       const realStk=rows&&rows.length>0?Number(rows[0].stk)||0:0;
       const newStk=hasStk?parseFloat(inputVal):realStk;
       if(hasStk&&isNaN(newStk)){notify("Valor inválido","err");setSaving(null);return;}
-      const finalStk=hasStk?(realStk<0?newStk+realStk:newStk):realStk;
+      const esAjuste=ajusteVals[prod.id]===true;
+      const finalStk=hasStk?(esAjuste?newStk:(realStk<0?newStk+realStk:realStk+newStk)):realStk;
       const newMin=hasMin?parseFloat(minVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].min_stk)||0:0);
       const newMax=hasMax?parseFloat(maxVals[prod.id])||0:(rows&&rows.length>0?Number(rows[0].max_stk)||0:0);
       const updatePayload={min_stk:newMin,max_stk:newMax,...(hasStk?{stk:finalStk}:{})};
@@ -1722,6 +1724,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
       setVals(v=>({...v,[prod.id]:undefined}));
       setMinVals(v=>({...v,[prod.id]:undefined}));
       setMaxVals(v=>({...v,[prod.id]:undefined}));
+      setAjusteVals(v=>({...v,[prod.id]:undefined}));
     }catch(e){notify("Error: "+e.message,"err");}
     setSaving(null);
   };
@@ -1762,7 +1765,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
         <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#3d5060",marginBottom:8}}>Seleccioná un local para ajustar stock</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {localesSinDepo.map(l=>(
-            <button key={l} onClick={()=>{setLocalF(l);setVals({});setMinVals({});setMaxVals({});}} style={{padding:"7px 16px",borderRadius:7,border:`2px solid ${localF===l?"#00d4ff":"#192a38"}`,background:localF===l?"#021520":"transparent",color:localF===l?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:localF===l?800:400}}>
+            <button key={l} onClick={()=>{setLocalF(l);setVals({});setMinVals({});setMaxVals({});setAjusteVals({});}} style={{padding:"7px 16px",borderRadius:7,border:`2px solid ${localF===l?"#00d4ff":"#192a38"}`,background:localF===l?"#021520":"transparent",color:localF===l?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:localF===l?800:400}}>
               📍 {l}
             </button>
           ))}
@@ -1802,7 +1805,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
               <th>Producto</th><th>Cat.</th><th>Stock Actual</th>
               <th style={{color:"#00cc55"}}>Mín.</th>
               <th style={{color:"#00d4ff"}}>Máx.</th>
-              <th>Ingreso</th><th>Quedará</th><th></th>
+              <th>Modo</th><th>Cantidad</th><th>Quedará</th><th></th>
             </tr></thead>
             <tbody>{filtered.map((p)=>{
               const stk=getStk(p.id);
@@ -1810,9 +1813,9 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
               const max=getMax(p.id);
               const[,,catTx,catEm]=CAT_STYLE[p.cat]||["","","#fff",""];
               const edited=vals[p.id]!==undefined;
+              const esAjuste=ajusteVals[p.id]===true;
               const inputVal=edited?parseFloat(vals[p.id])||0:0;
-              const preview=stk<0&&edited?inputVal+stk:null;
-              const bajMin=min>0&&stk<=min;
+              const preview=edited?(esAjuste?inputVal:stk<0?inputVal+stk:stk+inputVal):null;
               return(
                 <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
                   <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
@@ -1833,11 +1836,21 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
                       style={{width:64,fontSize:11,background:maxVals[p.id]!==undefined?"#021520":"#060f1a",border:`1px solid ${maxVals[p.id]!==undefined?"#00d4ff66":"#192a38"}`,color:"#00d4ff",padding:"4px 6px",borderRadius:5,fontFamily:"inherit",outline:"none",textAlign:"center"}}/>
                   </td>
                   <td>
+                    <button onClick={()=>setAjusteVals(v=>({...v,[p.id]:!v[p.id]}))}
+                      style={{fontSize:9,fontWeight:800,padding:"4px 8px",borderRadius:6,
+                        border:`1px solid ${ajusteVals[p.id]?"#ff990055":"#00882255"}`,
+                        background:ajusteVals[p.id]?"#140800":"#021408",
+                        color:ajusteVals[p.id]?"#ff9900":"#00cc55",
+                        cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {ajusteVals[p.id]?"= Ajuste":"+ Ingreso"}
+                    </button>
+                  </td>
+                  <td>
                     <input type="number" step={p.unit==="kg"?".5":"1"}
                       value={edited?vals[p.id]:0}
                       onChange={(e)=>setVals(v=>({...v,[p.id]:e.target.value}))}
                       onFocus={(e)=>e.target.select()}
-                      style={{width:90,fontSize:12,background:edited?"#021408":"#060f1a",border:`1px solid ${edited?"#00cc55":"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
+                      style={{width:90,fontSize:12,background:edited?(ajusteVals[p.id]?"#140800":"#021408"):"#060f1a",border:`1px solid ${edited?(ajusteVals[p.id]?"#ff990055":"#00cc55"):"#192a38"}`,color:"#ffffff",padding:"6px 8px",borderRadius:6,fontFamily:"inherit",outline:"none"}}/>
                   </td>
                   <td>
                     {preview!==null
@@ -4055,4 +4068,4 @@ function Reportes({sales,users,localeNames}) {
       </Card>}
     </div>
   );
-}// v-$
+}
