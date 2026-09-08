@@ -1212,6 +1212,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
+  const[verMas,setVerMas]=useState(20);
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
   const todaySales=(isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id))).filter(s=>s.date===todayStr());
@@ -1312,15 +1313,15 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>Historial · {filteredCaja.length} cierres</span>
           <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
-            <Sel value={filtLocal} onChange={(e)=>setFiltLocal(e.target.value)} sx={{width:130,fontSize:10,padding:"4px 8px"}}>
+            <Sel value={filtLocal} onChange={(e)=>{setFiltLocal(e.target.value);setVerMas(20);}} sx={{width:130,fontSize:10,padding:"4px 8px"}}>
               <option value="todos">📍 Todos</option>
               {cajaLocales.map(l=><option key={l} value={l}>{l}</option>)}
             </Sel>
-            <Sel value={filtUser} onChange={(e)=>setFiltUser(e.target.value)} sx={{width:150,fontSize:10,padding:"4px 8px"}}>
+            <Sel value={filtUser} onChange={(e)=>{setFiltUser(e.target.value);setVerMas(20);}} sx={{width:150,fontSize:10,padding:"4px 8px"}}>
               <option value="todos">👤 Todos</option>
               {cajaUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
             </Sel>
-            {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");}}>Limpiar</Btn>}
+            {(filtLocal!=="todos"||filtUser!=="todos")&&<Btn v="gh" sx={{padding:"3px 8px",fontSize:9}} onClick={()=>{setFiltLocal("todos");setFiltUser("todos");setVerMas(20);}}>Limpiar</Btn>}
           </div>
         </div>
         {/* Leyenda */}
@@ -1330,14 +1331,21 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           <span style={{color:"#ff9900",fontWeight:700}}>Naranja = sobra efectivo</span>
           <span style={{color:"#ffffff"}}>— = sin declarar</span>
         </div>
-        <div style={{overflowX:"auto"}}>
-        <table style={{minWidth:920}}>
+        <div style={{overflowX:"auto",maxHeight:"55vh",overflowY:"auto"}}>
+        <table style={{minWidth:820,fontSize:11}}>
           <thead><tr>
-            <th>Fecha</th><th>Por</th><th>Local</th><th>Turno</th><th>V.</th>
-            <th>Efectivo</th><th>Digital</th><th>Total</th><th>Fondo</th><th>Retiro</th>
-            <th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th><th></th>
+            <th>Fecha</th><th>Local</th><th>Turno</th>
+            <th style={{color:"#00cc55"}}>Efectivo</th>
+            <th style={{color:"#00cc55"}}>Fondo</th>
+            <th style={{color:"#00d4ff",minWidth:90}}>Diferencia</th>
+            <th style={{color:"#ff9900"}}>Retiro</th>
+            <th>Por</th>
+            <th style={{color:"#3388ff"}}>Digital</th>
+            <th>Total</th>
+            <th>V.</th>
+            <th></th>
           </tr></thead>
-          <tbody>{filteredCaja.map((d)=>{
+          <tbody>{filteredCaja.slice(0,verMas).map((d)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
             const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
             const prevCierre=[...myCaja].reverse().filter(c=>c.localName===d.localName&&c.id<d.id).slice(-1)[0];
@@ -1347,24 +1355,29 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             const diffColor=Math.abs(diferencia)<100?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
             const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:fmtM(diferencia);
             return(<tr key={d.id}>
-              <td style={{fontSize:10}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
-              <td style={{color:"#ffffff",fontSize:11}}>{d.closedByName}</td>
-              <td style={{color:"#00d4ff",fontSize:11}}>{d.localName||"—"}</td>
+              <td style={{fontSize:10,whiteSpace:"nowrap"}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
+              <td style={{color:"#00d4ff",fontSize:10}}>{d.localName||"—"}</td>
               <td style={{fontSize:10,fontWeight:700,color:turnoNote==="Mañana"?"#ff9900":turnoNote==="Tarde"?"#cc44ff":"#ffffff"}}>{turnoNote}</td>
-              <td>{d.salesCount}</td>
               <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(d.totalEf||0)}</td>
+              <td style={{color:"#00cc55",fontSize:10}}>{fmtM(d.openingAmount||0)}</td>
+              <td style={{fontWeight:700,color:diffColor,fontSize:10}}>{cajaTotalDec>0?<span title={`Esperado: ${fmtM(esperado)} | Declarado: ${fmtM(cajaTotalDec)}`}>{diffLabel}</span>:"—"}</td>
+              <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontSize:10}}>{d.retiro_efectivo>0?fmtM(d.retiro_efectivo):"—"}</td>
+              <td style={{color:"#ffffff",fontSize:10}}>{d.closedByName}</td>
               <td style={{color:"#3388ff",fontWeight:700}}>{fmtM(d.totalDig||0)}</td>
-              <td style={{fontWeight:800,color:"#00cc55"}}>{fmtM(d.totalAll||0)}</td>
-              <td style={{color:"#00cc55",fontSize:11}}>{fmtM(d.openingAmount||0)}</td>
-              <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontWeight:d.retiro_efectivo>0?700:400,fontSize:11}}>{d.retiro_efectivo>0?fmtM(d.retiro_efectivo):"—"}</td>
-              <td style={{fontWeight:700,color:diffColor,fontSize:11}}>{cajaTotalDec>0?<span title={`Esperado: ${fmtM(esperado)} | Declarado: ${fmtM(cajaTotalDec)}`}>{diffLabel}</span>:"—"}</td>
-              <td><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={11}/></Btn></td>
+              <td style={{fontWeight:700,color:"#00cc55"}}>{fmtM(d.totalAll||0)}</td>
+              <td style={{fontSize:10}}>{d.salesCount}</td>
+              <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={10}/></Btn></td>
             </tr>);
           })}
           {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados</td></tr>}
           </tbody>
         </table>
         </div>
+        {filteredCaja.length>verMas&&<div style={{padding:"8px 14px",borderTop:"1px solid #192a38",textAlign:"center"}}>
+          <Btn v="gh" sx={{fontSize:10,padding:"5px 16px"}} onClick={()=>setVerMas(v=>v+20)}>
+            Ver más ({filteredCaja.length-verMas} restantes)
+          </Btn>
+        </div>}
       </Card>}
 
       {/* Modal cierre */}
