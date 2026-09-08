@@ -1818,7 +1818,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
               const bajMin=min>0&&stk<=min;
               return(
                 <tr key={p.id} style={{background:bajMin?"#0d0205":"transparent"}}>
-                  <td style={{fontWeight:700,color:"#ffffff"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
+                  <td style={{fontWeight:700,color:"#ffffff",maxWidth:130,wordBreak:"break-word"}}>{catEm} {p.name}{p.code&&<span style={{marginLeft:6,fontFamily:"monospace",fontSize:10,color:"#00d4ff"}}>#{p.code}</span>}{bajMin&&<span style={{marginLeft:6,fontSize:9,color:"#ff4444",fontWeight:900}}>⚠ BAJO MÍN.</span>}</td>
                   <td><span style={{fontSize:9,background:"#192a38",color:catTx,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{p.cat}</span></td>
                   <td><span style={{fontWeight:800,color:stk<0?"#ff4444":bajMin?"#ff6666":"#00cc55"}}>{p.unit==="kg"?fmtW(stk):`${stk} u`}{stk<0?" ⚠":""}</span></td>
                   <td>
