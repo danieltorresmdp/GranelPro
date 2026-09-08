@@ -971,7 +971,7 @@ function History({sales,clients,users,isAdmin,notify,loadAll,session}) {
     setLoading(true);
     try{
       let query=sb.from("gp_sales").select("*",{count:"exact"});
-      if(!isAdmin) query=query.eq("uid",session?.id);
+      if(!isAdmin){query=query.eq("uid",session?.id).eq("date",todayStr());}
       if(pf!=="todos") query=query.eq("pay",pf);
       if(localF!=="todos") query=query.eq("local_name",localF);
       if(vendF!=="todos") query=query.eq("uid",vendF);
