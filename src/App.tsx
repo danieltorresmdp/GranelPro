@@ -3512,7 +3512,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
       const hastaDate=new Date(parseInt(mes.split("-")[0]),parseInt(mes.split("-")[1]),0);
       const hasta=hastaDate.toISOString().split("T")[0];
       // Solo facturas en blanco del mes para IVA crédito fiscal
-      const{data}=await sb.from("gp_prov_facturas").select("monto,es_blanco").gte("fecha",desde).lte("fecha",hasta).eq("es_blanco",true);
+      const{data}=await sb.from("gp_prov_facturas").select("monto,es_blanco,razon_social").gte("fecha",desde).lte("fecha",hasta).eq("es_blanco",true);
       setFactBlanco(data||[]);
       setLoading(false);
     };
