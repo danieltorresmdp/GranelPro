@@ -1215,6 +1215,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[filtLocal,setFiltLocal]=useState("todos");
   const[filtUser,setFiltUser]=useState("todos");
   const[turno,setTurno]=useState("");
+  const[localCierre,setLocalCierre]=useState(""); // admin selecciona qué local cerrar
   const[cajaTotal,setCajaTotal]=useState("");
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
@@ -1228,7 +1229,14 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   // Incluye ventas de hoy Y de ayer sin cerrar (para cierres tardíos después de las 21hs)
   const todaySales=mySales.filter(s=>s.date===todayAR()||s.date===yesterdayAR());
   const closedSet=new Set(caja.flatMap(d=>(d.saleIds||[]).map(String)));
-  const unclosed=todaySales.filter(s=>!closedSet.has(String(s.id)));
+  const unclosed=todaySales.filter(s=>{
+    if(!closedSet.has(String(s.id))) {
+      // Admin: filtrar por local seleccionado si hay uno elegido
+      if(isAdmin&&localCierre) return s.localName===localCierre;
+      return true;
+    }
+    return false;
+  });
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter(s=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
   const totalEf=byPay["efectivo"]||0;
   const totalDig=(byPay["debito"]||0)+(byPay["credito"]||0)+(byPay["QR"]||0);
@@ -1266,6 +1274,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
 
   const doClose=async()=>{
     if(!turno){notify("Seleccioná el turno antes de cerrar","err");return;}
+    if(isAdmin&&!localCierre){notify("Seleccioná el local a cerrar","err");return;}
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     setSaving(true);
     const otrosStr=otros.filter(o=>o.desc||o.monto).map(o=>`${o.desc}: $${o.monto}`).join(" | ");
@@ -1277,11 +1286,11 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         opening_amount:parseFloat(fondo)||0,
         retiro_efectivo:parseFloat(retiro)||0,
         notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [Otros: ${otrosStr||"—"}]`,
-        sales_count:unclosed.length,local_name:session.local||""
+        sales_count:unclosed.length,local_name:isAdmin?localCierre:(session.local||"")
       }]);
       notify(`Caja cerrada · Turno ${turno} · ${fmtM(totalAll)}`);
       imprimirCierre({turno,cajaTotal,fondo,retiro,otros,local:session.local||"",nombre:session.name,fecha:new Date().toLocaleString("es-AR")});
-      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);loadAll();
+      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);setLocalCierre("");loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -1407,8 +1416,22 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           </div>
           {!turno&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el turno para poder cerrar</div>}
         </div>
+        {isAdmin&&<div style={{marginBottom:14}}>
+          <Lbl t="Local a cerrar *"/>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
+            {locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>{
+              const vSinCerrar=todaySales.filter(s=>s.localName===l.name&&!closedSet.has(String(s.id))).length;
+              return(
+                <button key={l.id} onClick={()=>setLocalCierre(l.name)}
+                  style={{padding:"7px 14px",borderRadius:7,border:`2px solid ${localCierre===l.name?"#00d4ff":"#192a38"}`,background:localCierre===l.name?"#021520":"transparent",color:localCierre===l.name?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:localCierre===l.name?800:400}}>
+                  📍 {l.name}{vSinCerrar>0?<span style={{marginLeft:5,fontSize:9,color:"#ff9900",fontWeight:700}}>({vSinCerrar})</span>:null}
+                </button>
+              );
+            })}
+          </div>
+          {!localCierre&&<div style={{fontSize:10,color:"#ff4444",marginTop:4}}>⚠ Seleccioná el local para poder cerrar</div>}
+        </div>}
         {isAdmin&&<div style={{background:"#040c16",borderRadius:9,padding:14,marginBottom:14}}>
-          <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:8}}>VENTAS DEL TURNO</div>
           {PAY_OPTS.filter(m=>(byPay[m]||0)>0).map(m=>(<div key={m} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #192a3818",alignItems:"center"}}><Chip t={m}/><span style={{fontWeight:700,color:"#00cc55"}}>{fmtM(byPay[m]||0)}</span></div>))}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,fontWeight:800,fontSize:14,borderTop:"1px solid #192a38",marginTop:4}}><span style={{color:"#ffffff"}}>TOTAL</span><span style={{color:"#00cc55"}}>{fmtM(totalAll)}</span></div>
         </div>}
@@ -1445,7 +1468,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         </div>
         <div style={{display:"flex",gap:9,justifyContent:"flex-end"}}>
           <Btn v="gh" onClick={()=>setClosing(false)}>Cancelar</Btn>
-          <Btn v="g" onClick={doClose} disabled={saving||!turno}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
+          <Btn v="g" onClick={doClose} disabled={saving||!turno||(isAdmin&&!localCierre)}>{saving?"Cerrando...":"🖨️ Cerrar e Imprimir"}</Btn>
         </div>
       </div></Modal>}
 
