@@ -1202,6 +1202,8 @@ function Clients({clients,sales,notify,isAdmin,loadAll}) {
 
 // Modal de cierre separado para evitar re-renders del historial
 function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
+  // Fecha hoy en hora Argentina — evita bug de timezone a las 21hs
+  const todayAR=()=>{const d=nowAR();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
   const[closing,setClosing]=useState(false);
   const[saving,setSaving]=useState(false);
   const[confirmDel,setConfirmDel]=useState(null);
@@ -1215,7 +1217,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[verMas,setVerMas]=useState(20);
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
-  const todaySales=(isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id))).filter(s=>s.date===todayStr());
+  const todaySales=(isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id))).filter(s=>s.date===todayAR());
   const closedSet=new Set(caja.flatMap(d=>(d.saleIds||[]).map(String)));
   const unclosed=todaySales.filter(s=>!closedSet.has(String(s.id)));
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter(s=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
@@ -1300,11 +1302,11 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
 
       {/* Panel locales sin cierre hoy — solo admin */}
       {isAdmin&&(()=>{
-        const hoyStr=new Date().toLocaleDateString("es-AR");
-        const cierresHoy=myCaja.filter(d=>{try{return new Date(d.closedAt).toLocaleDateString("es-AR")===hoyStr;}catch{return false;}});
+        const hoyStr=todayAR();
+        const cierresHoy=myCaja.filter(d=>{try{const ar=nowAR(new Date(d.closedAt));const ds=`${ar.getFullYear()}-${String(ar.getMonth()+1).padStart(2,"0")}-${String(ar.getDate()).padStart(2,"0")}`;return ds===hoyStr;}catch{return false;}});
         const localesConCierre=new Set(cierresHoy.map(d=>(d.localName||"").toUpperCase()));
-        const todosLocales=[...new Set(myCaja.map(d=>d.localName).filter(l=>l&&!l.toUpperCase().includes("DEPOSIT")))];
-        const sinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase()));
+        const todosLocales=locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>l.name);
+        const sinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase())&&l);
         if(sinCierre.length===0) return <Card sx={{padding:"8px 16px",marginBottom:12,background:"#021408",border:"1px solid #00882233",display:"flex",alignItems:"center",gap:8}}><span>✅</span><span style={{fontSize:11,color:"#00cc55",fontWeight:700}}>Todos los locales hicieron cierre hoy</span></Card>;
         return <Card sx={{padding:"10px 16px",marginBottom:12,background:"#110305",border:"1px solid #ff333333"}}><div style={{fontSize:11,fontWeight:800,color:"#ff4444",marginBottom:6}}>⚠ Sin cierre hoy ({sinCierre.length})</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{sinCierre.map(l=><span key={l} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#1a0305",border:"1px solid #ff444433",color:"#ff6666"}}>📍 {l}</span>)}</div></Card>;
       })()}
@@ -1347,13 +1349,15 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
           </tr></thead>
           <tbody>{filteredCaja.slice(0,verMas).map((d)=>{
             const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
-            const cajaTotalDec=parseFloat(d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0")||0;
-            const prevCierre=[...myCaja].reverse().filter(c=>c.localName===d.localName&&c.id<d.id).slice(-1)[0];
-            const fondoAnterior=prevCierre?.openingAmount||0;
-            const esperado=d.totalEf+fondoAnterior;
+            const cajaTotalDec=parseFloat((d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0").trim())||0;
+            // Fondo recibido = opening_amount del cierre inmediatamente anterior del mismo local
+            const prevCierre=[...myCaja].filter(c=>c.localName===d.localName&&c.id<d.id).sort((a,b)=>b.id-a.id)[0];
+            const fondoRecibido=prevCierre?.openingAmount||0;
+            // Esperado = ventas efectivo + fondo recibido
+            const esperado=d.totalEf+fondoRecibido;
             const diferencia=cajaTotalDec-esperado;
-            const diffColor=Math.abs(diferencia)<100?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
-            const diffLabel=Math.abs(diferencia)<100?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:fmtM(diferencia);
+            const diffColor=Math.abs(diferencia)<500?"#00cc55":diferencia>0?"#ff9900":"#ff4444";
+            const diffLabel=Math.abs(diferencia)<500?"✓ OK":diferencia>0?`+${fmtM(diferencia)}`:fmtM(diferencia);
             return(<tr key={d.id}>
               <td style={{fontSize:10,whiteSpace:"nowrap"}}>{new Date(d.closedAt).toLocaleDateString("es-AR")} <span style={{color:"#00d4ff"}}>{new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false})}</span></td>
               <td style={{color:"#00d4ff",fontSize:10}}>{d.localName||"—"}</td>
