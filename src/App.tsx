@@ -1217,7 +1217,11 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[verMas,setVerMas]=useState(20);
 
   const myCaja=isAdmin?caja:caja.filter((d)=>String(d.closedBy)===String(session?.id));
-  const todaySales=(isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id))).filter(s=>s.date===todayAR());
+  // Fecha de ayer en Argentina
+  const yesterdayAR=()=>{const d=nowAR();d.setDate(d.getDate()-1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+  const mySales=isAdmin?sales:sales.filter(s=>String(s.uid)===String(session?.id));
+  // Incluye ventas de hoy Y de ayer sin cerrar (para cierres tardíos después de las 21hs)
+  const todaySales=mySales.filter(s=>s.date===todayAR()||s.date===yesterdayAR());
   const closedSet=new Set(caja.flatMap(d=>(d.saleIds||[]).map(String)));
   const unclosed=todaySales.filter(s=>!closedSet.has(String(s.id)));
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter(s=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
