@@ -249,7 +249,12 @@ const[view,setView]=useState("dash");
           }
           return all;
         } else {
-          const{data}=await sb.from("gp_sales").select("*").eq("date",todayStr()).order("id",{ascending:false});
+          // Vendedor: carga hoy + ayer (para permitir cierres tardíos después de las 21hs)
+          const hoy=todayStr();
+          const ayerD=new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
+          ayerD.setDate(ayerD.getDate()-1);
+          const ayer=`${ayerD.getFullYear()}-${String(ayerD.getMonth()+1).padStart(2,"0")}-${String(ayerD.getDate()).padStart(2,"0")}`;
+          const{data}=await sb.from("gp_sales").select("*").in("date",[hoy,ayer]).eq("uid",session?.id).order("id",{ascending:false});
           return data||[];
         }
       };
