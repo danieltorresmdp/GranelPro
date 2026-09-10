@@ -1321,7 +1321,14 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
       {/* Panel locales sin cierre hoy — solo admin */}
       {isAdmin&&(()=>{
         const hoyStr=todayAR();
-        const cierresHoy=myCaja.filter(d=>{try{const ar=nowAR(new Date(d.closedAt));const ds=`${ar.getFullYear()}-${String(ar.getMonth()+1).padStart(2,"0")}-${String(ar.getDate()).padStart(2,"0")}`;return ds===hoyStr;}catch{return false;}});
+        const cierresHoy=myCaja.filter(d=>{
+          try{
+            // Convertir closedAt (UTC) a fecha Argentina
+            const utc=new Date(d.closedAt);
+            const arStr=utc.toLocaleDateString("en-CA",{timeZone:"America/Argentina/Buenos_Aires"});
+            return arStr===hoyStr;
+          }catch{return false;}
+        });
         const localesConCierre=new Set(cierresHoy.map(d=>(d.localName||"").toUpperCase()));
         const todosLocales=locales.filter(l=>!l.name.toUpperCase().includes("DEPOSIT")).map(l=>l.name);
         const sinCierre=todosLocales.filter(l=>!localesConCierre.has(l.toUpperCase())&&l);
