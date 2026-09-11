@@ -1769,7 +1769,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
         await sb.from("gp_stock").insert([{product_id:prod.id,local_name:localF,stk:finalStk,min_stk:newMin,max_stk:newMax}]);
       }
       if(hasStk){
-        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:"ingreso",cantidad:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
+        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:prod.id,local_name:localF,tipo:esAjuste?"ajuste":"ingreso",cantidad:esAjuste?finalStk-realStk:newStk,stock_antes:realStk,stock_despues:finalStk,usuario:session?.name||"admin",fecha:new Date().toISOString()}]);
       }
       setStockMgt(prev=>{
         const exists=prev.find(s=>s.productId===prod.id&&s.localName===localF);
@@ -1830,9 +1830,10 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
 
       {localF&&<>
         {/* Banner */}
-        <div style={{background:"#021520",border:"1px solid #00d4ff44",borderRadius:8,padding:"7px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:11,fontWeight:800,color:"#00d4ff"}}>📍 Editando stock de: {localF}</span>
-          <span style={{fontSize:10,color:"#ffffff",marginLeft:4}}>{filtered.length} productos</span>
+        <div style={{background:"#021520",border:"2px solid #00d4ff66",borderRadius:10,padding:"14px 20px",marginBottom:12,textAlign:"center"}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"#00d4ff",textTransform:"uppercase",marginBottom:4}}>Stock activo</div>
+          <div style={{fontSize:22,fontWeight:900,color:"#00d4ff",letterSpacing:1}}>📍 {localF}</div>
+          <div style={{fontSize:10,color:"#ffffff",marginTop:4}}>{filtered.length} productos</div>
         </div>
 
         {/* Búsqueda */}
@@ -1910,7 +1911,12 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
                   </td>
                   <td>
                     {preview!==null
-                      ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>{p.unit==="kg"?fmtW(preview):`${preview} u`}</span>
+                      ?<span style={{fontWeight:800,fontSize:12,color:preview<0?"#ff4444":"#00cc55"}}>
+                        {p.unit==="kg"?fmtW(preview):`${preview} u`}
+                        {esAjuste&&edited&&<span style={{fontSize:10,marginLeft:4,color:preview-stk>0?"#00cc55":preview-stk<0?"#ff4444":"#ffffff",fontWeight:700}}>
+                          ({preview-stk>0?"+":""}{p.unit==="kg"?fmtW(preview-stk):`${preview-stk} u`})
+                        </span>}
+                      </span>
                       :<span style={{color:"#ffffff",fontSize:11}}>—</span>}
                   </td>
                   <td>
