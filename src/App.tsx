@@ -1724,7 +1724,7 @@ function StockMgt({prods,notify,localeNames,stockMgt,setStockMgt,session}) {
   const[histLoading,setHistLoading]=useState(false);
 
   const localesSinDepo=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
-  useEffect(()=>{if(!localF&&localesSinDepo.length>0) setLocalF(localesSinDepo[0]);},[localeNames]);
+  // No auto-seleccionar local — el usuario elige
 
   const fetchAll=async()=>{
     setLoading(true);
