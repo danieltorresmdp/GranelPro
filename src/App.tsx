@@ -452,7 +452,7 @@ const[view,setView]=useState("dash");
               <span style={{fontSize:12}}>Conectando...</span>
             </div>
           ):<>
-            {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView} stock={stock} localeNames={localeNames}/>}
+            {view==="dash"    &&<Dashboard prods={prodsWithStk} clients={clients} sales={sales} users={users} session={session} isAdmin={isAdmin} setView={setView} stock={stock} localeNames={localeNames} caja={caja}/>}
             {view==="sale"    &&<NewSale prods={prodsWithStk} clients={clients} notify={notify} session={session} stock={stock} loadAll={loadAll} isAdmin={isAdmin} persistCart={persistCart} setPersistCart={setPersistCart} persistCid={persistCid} setPersistCid={setPersistCid} persistCliQ={persistCliQ} setPersistCliQ={setPersistCliQ} persistPay={persistPay} setPersistPay={setPersistPay} cuotasConfig={cuotasConfig} setCuotasConfig={setCuotasConfig}/>}
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll} session={session}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
@@ -477,7 +477,7 @@ const[view,setView]=useState("dash");
   );
 }
 
-function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,localeNames}) {
+function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,localeNames,caja}) {
   const td=todayStr();
   const st=sales.filter((s)=>s.date===td);
   const hoy=st.reduce((a,b)=>a+b.total,0);
@@ -3551,12 +3551,12 @@ function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel}) {
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
       {[["🏢 TORRES",totalCfT,totalDfT,"#cc44ff"],["🏢 PEÑA LOZA",totalCfP,totalDfP,"#3388ff"]].map(([label,cf,df,col])=>{
-        const neto=(cf as number)-(df as number);
-        return(<Card key={label as string} sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`}}>
-          <div style={{fontSize:11,fontWeight:800,color:col as string,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col as string}}>{fmtM(cf as number)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtM(df as number)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:neto>=0?col as string:"#ff4444"}}>{neto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(neto))}</span></div>
+        const neto=cf-df;
+        return(<Card key={String(label)} sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`}}>
+          <div style={{fontSize:11,fontWeight:800,color:col,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col}}>{fmtM(cf)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtMdf}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:neto>=0?col:"#ff4444"}}>{neto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(neto))}</span></div>
         </Card>);
       })}
     </div>
