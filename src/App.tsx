@@ -3555,7 +3555,7 @@ function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel}) {
         return(<Card key={String(label)} sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`}}>
           <div style={{fontSize:11,fontWeight:800,color:col,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col}}>{fmtM(cf)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtMdf}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtM(df)}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:neto>=0?col:"#ff4444"}}>{neto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(neto))}</span></div>
         </Card>);
       })}
