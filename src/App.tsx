@@ -513,18 +513,54 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub="todos los locales" color="#ff9900" icon="warn"/>
         <Stat label="Stock Negativo" value={critical.filter((p)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
       </div>}
-      {isAdmin&&<Card sx={{overflow:"hidden",marginBottom:14}}>
-        <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>⚠ Stock Crítico</span></div>
-        {critical.length===0?<div style={{padding:20,color:"#ffffff",textAlign:"center",fontSize:12}}>✓ Todo normal</div>
-          :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
-          {critical.slice(0,12).map((p,i)=>{const[,,,em]=CAT_STYLE[p.cat]||["","","#fff",""];return(
-            <div key={i} style={{padding:"7px 15px",borderBottom:"1px solid #192a3810",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div><div style={{fontSize:11,fontWeight:700,color:"#ffffff"}}>{em} {p.name}</div><div style={{fontSize:9,color:"#ffffff"}}>{p.cat}{p.localName?` · ${p.localName}`:""}</div></div>
-              <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:12,color:p.isNeg?"#ff4444":"#ff9900"}}>{p.unit==="kg"?fmtW(p.stk):`${p.stk} u`}{p.isNeg?" ⚠":""}</div></div>
+      {isAdmin&&(()=>{
+        // Cierres con diferencia negativa — últimos 7 días
+        const hace7=new Date();hace7.setDate(hace7.getDate()-7);
+        const cierresNeg=[...caja].filter(d=>{
+          try{
+            const cajaTotalDec=parseFloat((d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0").trim())||0;
+            if(cajaTotalDec<=0) return false;
+            const fechaCierre=new Date(d.closedAt);
+            if(fechaCierre<hace7) return false;
+            // Fondo recibido = openingAmount del cierre inmediatamente anterior del mismo local
+            const prev=[...caja].filter(c=>c.localName===d.localName&&c.id<d.id).sort((a,b)=>b.id-a.id)[0];
+            const fondoRec=prev?.openingAmount||0;
+            const esperado=d.totalEf+fondoRec;
+            return(cajaTotalDec-esperado)<-500; // negativo significativo
+          }catch{return false;}
+        }).sort((a,b)=>b.id-a.id).slice(0,30);
+        return(
+          <Card sx={{overflow:"hidden",marginBottom:14}}>
+            <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ff4444",textTransform:"uppercase"}}>🔴 Cierres con Diferencia Negativa · Últimos 7 días</span>
+              <span style={{fontSize:10,color:"#ffffff"}}>{cierresNeg.length} cierres</span>
             </div>
-          );})}
-          </div>}
-      </Card>}
+            {cierresNeg.length===0
+              ?<div style={{padding:16,color:"#00cc55",textAlign:"center",fontSize:12}}>✓ Sin cierres negativos en los últimos 7 días</div>
+              :<table>
+                <thead><tr><th>Fecha</th><th>Local</th><th>Turno</th><th>Ef. Ventas</th><th>Declarado</th><th style={{color:"#ff4444"}}>Diferencia</th></tr></thead>
+                <tbody>{cierresNeg.map((d,i)=>{
+                  const cajaTotalDec=parseFloat((d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0").trim())||0;
+                  const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
+                  const prev=[...caja].filter(c=>c.localName===d.localName&&c.id<d.id).sort((a,b)=>b.id-a.id)[0];
+                  const fondoRec=prev?.openingAmount||0;
+                  const esperado=d.totalEf+fondoRec;
+                  const dif=cajaTotalDec-esperado;
+                  const fechaAR=new Date(d.closedAt).toLocaleDateString("es-AR");
+                  const horaAR=new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false});
+                  return(<tr key={i}>
+                    <td style={{fontSize:10}}>{fechaAR} <span style={{color:"#00d4ff"}}>{horaAR}</span></td>
+                    <td style={{color:"#00d4ff",fontWeight:700,fontSize:11}}>{d.localName}</td>
+                    <td style={{fontSize:10,color:turnoNote==="Mañana"?"#ff9900":"#cc44ff"}}>{turnoNote}</td>
+                    <td style={{color:"#00cc55",fontSize:11}}>{fmtM(d.totalEf)}</td>
+                    <td style={{color:"#ffffff",fontSize:11}}>{fmtM(cajaTotalDec)}</td>
+                    <td style={{color:"#ff4444",fontWeight:800,fontSize:12}}>{fmtM(dif)}</td>
+                  </tr>);
+                })}</tbody>
+              </table>}
+          </Card>
+        );
+      })()}
       <Card sx={{overflow:"hidden"}}>
         <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38"}}><span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffffff",textTransform:"uppercase"}}>🏆 Ranking por Puntos</span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"}}>
@@ -3496,12 +3532,89 @@ function Estadisticas({prods,sales,localeNames}) {
 
 // ─── RENTABILIDAD ──────────────────────────────────────────────────────────
 
+function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel}) {
+  const TORRES_L=["CAMET","STORNI","ESTRADA"];
+  const fmtM2=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
+  let acCfT=0,acCfP=0,acDfT=0,acDfP=0;
+  const rows=ivaAnualData.map(d=>{
+    acCfT+=d.cfTorres;acCfP+=d.cfPena;acDfT+=d.dfTorres;acDfP+=d.dfPena;
+    return{...d,acCfT,acCfP,acDfT,acDfP,netoT:d.cfTorres-d.dfTorres,netoP:d.cfPena-d.dfPena,acNetoT:acCfT-acDfT,acNetoP:acCfP-acDfP};
+  });
+  const totalCfT=acCfT,totalCfP=acCfP,totalDfT=acDfT,totalDfP=acDfP;
+  return(<div>
+    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14}}>
+      <span style={{fontSize:12,color:"#ffffff"}}>Año:</span>
+      {["2024","2025","2026","2027"].map(a=>(
+        <button key={a} onClick={()=>setAnioSel(a)} style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${anioSel===a?"#00d4ff":"#192a38"}`,background:anioSel===a?"#021520":"transparent",color:anioSel===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:anioSel===a?800:400}}>{a}</button>
+      ))}
+      {loadingAnual&&<span style={{fontSize:11,color:"#ffffff"}}>Cargando...</span>}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+      {[["🏢 TORRES",totalCfT,totalDfT,"#cc44ff"],["🏢 PEÑA LOZA",totalCfP,totalDfP,"#3388ff"]].map(([label,cf,df,col])=>{
+        const neto=(cf as number)-(df as number);
+        return(<Card key={label as string} sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`}}>
+          <div style={{fontSize:11,fontWeight:800,color:col as string,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col as string}}>{fmtM(cf as number)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtM(df as number)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:neto>=0?col as string:"#ff4444"}}>{neto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(neto))}</span></div>
+        </Card>);
+      })}
+    </div>
+    <Card sx={{overflow:"hidden"}}>
+      <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",gap:20}}>
+        <span style={{fontSize:9,fontWeight:700,color:"#cc44ff",letterSpacing:1}}>🏢 TORRES</span>
+        <span style={{fontSize:9,fontWeight:700,color:"#3388ff",letterSpacing:1}}>🏢 PEÑA LOZA</span>
+        <span style={{fontSize:9,color:"#ffffff",marginLeft:"auto"}}>CF = Crédito Fiscal · DF = Débito Fiscal</span>
+      </div>
+      <div style={{overflowX:"auto"}}>
+      <table style={{minWidth:800}}>
+        <thead><tr>
+          <th>Mes</th>
+          <th style={{color:"#cc44ff"}}>CF Torres</th><th style={{color:"#ff6666"}}>DF Torres</th><th style={{color:"#cc44ff"}}>Pos. Torres</th><th style={{color:"#cc44ff"}}>Acum. Torres</th>
+          <th style={{color:"#3388ff"}}>CF Peña Loza</th><th style={{color:"#ff6666"}}>DF Peña Loza</th><th style={{color:"#3388ff"}}>Pos. Peña Loza</th><th style={{color:"#3388ff"}}>Acum. Peña Loza</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((r,i)=>(
+            <tr key={i}>
+              <td style={{fontWeight:700,color:"#ffffff"}}>{fmtM2(r.ym)}</td>
+              <td style={{color:"#cc44ff"}}>{fmtM(r.cfTorres)}</td>
+              <td style={{color:"#ff6666"}}>{fmtM(r.dfTorres)}</td>
+              <td style={{fontWeight:700,color:r.netoT>=0?"#cc44ff":"#ff4444"}}>{r.netoT>=0?"+":""}{fmtM(Math.abs(r.netoT))}</td>
+              <td style={{fontWeight:700,color:r.acNetoT>=0?"#cc44ff":"#ff4444"}}>{r.acNetoT>=0?"+":""}{fmtM(Math.abs(r.acNetoT))}</td>
+              <td style={{color:"#3388ff"}}>{fmtM(r.cfPena)}</td>
+              <td style={{color:"#ff6666"}}>{fmtM(r.dfPena)}</td>
+              <td style={{fontWeight:700,color:r.netoP>=0?"#3388ff":"#ff4444"}}>{r.netoP>=0?"+":""}{fmtM(Math.abs(r.netoP))}</td>
+              <td style={{fontWeight:700,color:r.acNetoP>=0?"#3388ff":"#ff4444"}}>{r.acNetoP>=0?"+":""}{fmtM(Math.abs(r.acNetoP))}</td>
+            </tr>
+          ))}
+          {rows.length===0&&!loadingAnual&&<tr><td colSpan={9} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin datos para {anioSel}</td></tr>}
+          {rows.length>0&&<tr style={{background:"#040c18",borderTop:"2px solid #192a38"}}>
+            <td style={{fontWeight:900,color:"#ffffff"}}>TOTAL {anioSel}</td>
+            <td style={{fontWeight:800,color:"#cc44ff"}}>{fmtM(totalCfT)}</td>
+            <td style={{fontWeight:800,color:"#ff6666"}}>{fmtM(totalDfT)}</td>
+            <td style={{fontWeight:900,color:totalCfT-totalDfT>=0?"#cc44ff":"#ff4444"}}>{totalCfT-totalDfT>=0?"+":""}{fmtM(Math.abs(totalCfT-totalDfT))}</td>
+            <td></td>
+            <td style={{fontWeight:800,color:"#3388ff"}}>{fmtM(totalCfP)}</td>
+            <td style={{fontWeight:800,color:"#ff6666"}}>{fmtM(totalDfP)}</td>
+            <td style={{fontWeight:900,color:totalCfP-totalDfP>=0?"#3388ff":"#ff4444"}}>{totalCfP-totalDfP>=0?"+":""}{fmtM(Math.abs(totalCfP-totalDfP))}</td>
+            <td></td>
+          </tr>}
+        </tbody>
+      </table>
+      </div>
+    </Card>
+  </div>);
+}
+
 function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const[mes,setMes]=useState(currentYmAR());
   const[factBlanco,setFactBlanco]=useState([]);
   const[loading,setLoading]=useState(false);
   const[umbralAlerta,setUmbralAlerta]=useState(15);
   const[activeTab,setActiveTab]=useState("global");
+  const[ivaAnualData,setIvaAnualData]=useState([]);
+  const[loadingAnual,setLoadingAnual]=useState(false);
+  const[anioSel,setAnioSel]=useState(String(new Date().getFullYear()));
   // Gastos manuales — temporales por sesión
   const[gastosGlobal,setGastosGlobal]=useState([
     {desc:"Empleados",monto:""},
@@ -3532,7 +3645,38 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     load();
   },[mes]);
 
-  const localesVenta=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
+  const TORRES_LANUAL=["CAMET","STORNI","ESTRADA"];
+  const isTorresLAnual=(loc)=>TORRES_LANUAL.includes((loc||"").toUpperCase());
+  useEffect(()=>{
+    if(activeTab!=="ivaanual") return;
+    const load=async()=>{
+      setLoadingAnual(true);
+      const desde=`${anioSel}-01-01`;
+      const hasta=`${anioSel}-12-31`;
+      const[facts,ventas]=await Promise.all([
+        sb.from("gp_prov_facturas").select("fecha,monto,razon_social").gte("fecha",desde).lte("fecha",hasta).eq("es_blanco",true),
+        sb.from("gp_sales").select("date,total,pay,local_name").gte("date",desde).lte("date",hasta),
+      ]);
+      const meses={};
+      const addMes=(ym)=>{if(!meses[ym]) meses[ym]={ym,cfTorres:0,cfPena:0,dfTorres:0,dfPena:0};};
+      (facts.data||[]).forEach(f=>{
+        const ym=f.fecha?.slice(0,7);if(!ym) return;addMes(ym);
+        const cf=Number(f.monto)/1.21*0.21;
+        if(!f.razon_social||f.razon_social==="Torres") meses[ym].cfTorres+=cf;
+        else meses[ym].cfPena+=cf;
+      });
+      (ventas.data||[]).forEach(v=>{
+        if(v.pay==="efectivo") return;
+        const ym=v.date?.slice(0,7);if(!ym) return;addMes(ym);
+        const df=Number(v.total)/1.21*0.21;
+        if(isTorresLAnual(v.local_name)) meses[ym].dfTorres+=df;
+        else meses[ym].dfPena+=df;
+      });
+      setIvaAnualData(Object.values(meses).sort((a,b)=>a.ym.localeCompare(b.ym)));
+      setLoadingAnual(false);
+    };
+    load();
+  },[anioSel,activeTab]);
   const ventasMes=sales.filter(s=>s.date?.slice(0,7)===mes&&!s.localName?.toUpperCase().includes("DEPOSIT"));
   const totalVentas=ventasMes.reduce((a,b)=>a+b.total,0);
   const ventasDig=ventasMes.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0);
@@ -3652,7 +3796,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
       </div>
 
       <div style={{display:"flex",gap:8,marginBottom:14}}>
-        {[["global","🌐 Global"],["local","📍 Por Local"],["alertas","⚠ Alertas"]].map(([k,label])=>(
+        {[["global","🌐 Global"],["local","📍 Por Local"],["alertas","⚠ Alertas"],["ivaanual","📅 IVA Anual"]].map(([k,label])=>(
           <button key={k} onClick={()=>setActiveTab(k)} style={{padding:"8px 16px",borderRadius:7,border:`1px solid ${activeTab===k?"#00d4ff":"#192a38"}`,background:activeTab===k?"#021520":"transparent",color:activeTab===k?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:activeTab===k?700:400}}>{label}</button>
         ))}
       </div>
@@ -3878,6 +4022,9 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
           ⚠ Solo se analizan productos con costo cargado. Mg. Neto = Mg. Bruto − {IMP_COMISIONES}% comisiones/impuestos.
         </div>
       </div>}
+
+      {/* ── IVA ANUAL ── */}
+      {activeTab==="ivaanual"&&<IvaAnualTab ivaAnualData={ivaAnualData} loadingAnual={loadingAnual} anioSel={anioSel} setAnioSel={setAnioSel}/>}
     </div>
   );
 }
