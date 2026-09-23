@@ -3610,16 +3610,19 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     if(!p.costo||p.costo<=0) return false;
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
     const mns=[];
+    // Evaluar bulto si tiene precio de bulto Y es producto kg
     if(p.unit==="kg"&&p.bulkPrice>0) mns.push((p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES);
+    // Evaluar granel si tiene precio por kg Y es producto kg
     if(p.unit==="kg"&&p.pricePerKg>0&&costoKg>0) mns.push((p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES);
-    if(p.unit!=="kg"&&p.unitPrice>0) mns.push((p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES);
+    // Evaluar unidad si tiene precio unitario (cualquier tipo)
+    if(p.unitPrice>0) mns.push((p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES);
     if(mns.length===0) return false;
     return Math.min(...mns)<umbralAlerta;
   }).map(p=>{
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
     const mnBulto=p.unit==="kg"&&p.bulkPrice>0?(p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES:null;
     const mnKg=p.unit==="kg"&&p.pricePerKg>0&&costoKg>0?(p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES:null;
-    const mnUnit=p.unit!=="kg"&&p.unitPrice>0?(p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES:null;
+    const mnUnit=p.unitPrice>0?(p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES:null;
     return{...p,mnBulto,mnKg,mnUnit,costoKg};
   }).sort((a,b)=>{
     const ma=Math.min(...[a.mnBulto,a.mnKg,a.mnUnit].filter(x=>x!==null));
@@ -3855,7 +3858,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
         </div>
         {alertaProds.length===0&&<Card sx={{padding:20,textAlign:"center"}}><span style={{color:"#00cc55",fontSize:13}}>✓ Todos los productos con costo cargado están sobre el {umbralAlerta}% de margen neto</span></Card>}
         {alertaProds.length>0&&<Card sx={{overflow:"hidden"}}>
-          <table><thead><tr><th>#</th><th>Producto</th><th>Cat.</th><th style={{color:"#ff9900"}}>Mg.Neto Bulto</th><th style={{color:"#00cc55"}}>Mg.Neto Granel</th><th>Costo/kg</th></tr></thead>
+          <table><thead><tr><th>#</th><th>Producto</th><th>Cat.</th><th style={{color:"#ff9900"}}>Mg.Neto Bulto</th><th style={{color:"#00cc55"}}>Mg.Neto Granel</th><th style={{color:"#cc44ff"}}>Mg.Neto Unidad</th><th>Costo/kg</th></tr></thead>
             <tbody>{alertaProds.map(p=>{
               const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
               const mc=(mn)=>mn===null?"#ffffff":mn<0?"#ff4444":mn<umbralAlerta?"#ff9900":"#00cc55";
@@ -3865,6 +3868,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
                 <td style={{fontSize:10,color:"#ffffff"}}>{p.cat}</td>
                 <td style={{fontWeight:700,color:mc(p.mnBulto)}}>{p.mnBulto!==null?pct(p.mnBulto):"—"}</td>
                 <td style={{fontWeight:700,color:mc(p.mnKg)}}>{p.mnKg!==null?pct(p.mnKg):"—"}</td>
+                <td style={{fontWeight:700,color:mc(p.mnUnit)}}>{p.mnUnit!==null?pct(p.mnUnit):"—"}</td>
                 <td style={{color:"#ff9900",fontSize:11}}>{p.costoKg>0?fmtM(p.costoKg)+"/kg":"—"}</td>
               </tr>);
             })}</tbody>
