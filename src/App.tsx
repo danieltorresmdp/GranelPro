@@ -3677,6 +3677,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     };
     load();
   },[anioSel,activeTab]);
+  const localesVenta=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
   const ventasMes=sales.filter(s=>s.date?.slice(0,7)===mes&&!s.localName?.toUpperCase().includes("DEPOSIT"));
   const totalVentas=ventasMes.reduce((a,b)=>a+b.total,0);
   const ventasDig=ventasMes.filter(s=>s.pay!=="efectivo").reduce((a,b)=>a+b.total,0);
