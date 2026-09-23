@@ -3610,15 +3610,15 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
     if(!p.costo||p.costo<=0) return false;
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
     const mns=[];
-    if(p.bulkPrice>0) mns.push((p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES);
-    if(p.pricePerKg>0&&costoKg>0) mns.push((p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES);
+    if(p.unit==="kg"&&p.bulkPrice>0) mns.push((p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES);
+    if(p.unit==="kg"&&p.pricePerKg>0&&costoKg>0) mns.push((p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES);
     if(p.unit!=="kg"&&p.unitPrice>0) mns.push((p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES);
     if(mns.length===0) return false;
     return Math.min(...mns)<umbralAlerta;
   }).map(p=>{
     const costoKg=p.bulkWeight>0?p.costo/p.bulkWeight:0;
-    const mnBulto=p.bulkPrice>0?(p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES:null;
-    const mnKg=p.pricePerKg>0&&costoKg>0?(p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES:null;
+    const mnBulto=p.unit==="kg"&&p.bulkPrice>0?(p.bulkPrice-p.costo)/p.bulkPrice*100-IMP_COMISIONES:null;
+    const mnKg=p.unit==="kg"&&p.pricePerKg>0&&costoKg>0?(p.pricePerKg-costoKg)/p.pricePerKg*100-IMP_COMISIONES:null;
     const mnUnit=p.unit!=="kg"&&p.unitPrice>0?(p.unitPrice-p.costo)/p.unitPrice*100-IMP_COMISIONES:null;
     return{...p,mnBulto,mnKg,mnUnit,costoKg};
   }).sort((a,b)=>{
