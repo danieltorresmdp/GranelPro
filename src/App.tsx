@@ -2581,25 +2581,38 @@ function Empleados({notify}) {
         </div>
 
         {/* Resumen top */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:10,marginBottom:14}}>
           <Card sx={{padding:14,background:"#040c18"}}>
             <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>INGRESO</div>
             <div style={{fontSize:13,fontWeight:800,color:"#00d4ff"}}>{detEmp.fecha_ingreso||"—"}</div>
             <div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{getAntig(detEmp.fecha_ingreso)} de antigüedad</div>
           </Card>
-          <Card sx={{padding:14,background:"#040c18"}}>
-            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>SUELDO BASE</div>
-            <div style={{fontSize:13,fontWeight:800,color:"#00cc55"}}>{detEmp.sueldo_base>0?fmtM(detEmp.sueldo_base):"—"}</div>
-          </Card>
-          <Card sx={{padding:14,background:"#040c18"}}>
-            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:6}}>VACACIONES {anioVac}</div>
-            <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
-              {["2024","2025","2026","2027"].map(a=>(
-                <button key={a} onClick={()=>setAnioVac(a)} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${anioVac===a?"#00d4ff":"#192a38"}`,background:anioVac===a?"#021520":"transparent",color:anioVac===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit"}}>{a}</button>
-              ))}
+          <Card sx={{padding:16,background:"#040c18",border:"1px solid #ff990044"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:800,color:"#ff9900",letterSpacing:1}}>🏖️ VACACIONES</div>
+              <div style={{display:"flex",gap:5}}>
+                {["2024","2025","2026","2027"].map(a=>(
+                  <button key={a} onClick={()=>setAnioVac(a)} style={{fontSize:8,padding:"2px 7px",borderRadius:4,border:`1px solid ${anioVac===a?"#ff9900":"#192a38"}`,background:anioVac===a?"#140800":"transparent",color:anioVac===a?"#ff9900":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontWeight:anioVac===a?800:400}}>{a}</button>
+                ))}
+              </div>
             </div>
-            <div style={{fontSize:12,fontWeight:700,color:"#ff9900"}}>{vDet.corresponden}d asignados</div>
-            <div style={{fontSize:11,color:"#ffffff"}}>Tomados: {vDet.tomados}d · <span style={{color:vDet.pendientes>0?"#00cc55":"#ffffff"}}>Pendientes: {vDet.pendientes}d</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div style={{textAlign:"center",background:"#0d0507",borderRadius:8,padding:"10px 6px",border:"1px solid #ff990033"}}>
+                <div style={{fontSize:22,fontWeight:900,color:"#ff9900"}}>{vDet.corresponden}</div>
+                <div style={{fontSize:9,color:"#ffffff",marginTop:2,letterSpacing:1}}>ASIGNADOS</div>
+              </div>
+              <div style={{textAlign:"center",background:"#0d0507",borderRadius:8,padding:"10px 6px",border:"1px solid #ff440033"}}>
+                <div style={{fontSize:22,fontWeight:900,color:"#ff6666"}}>{vDet.tomados}</div>
+                <div style={{fontSize:9,color:"#ffffff",marginTop:2,letterSpacing:1}}>TOMADOS</div>
+              </div>
+              <div style={{textAlign:"center",background:vDet.pendientes>0?"#03120a":"#0d0507",borderRadius:8,padding:"10px 6px",border:`1px solid ${vDet.pendientes>0?"#00882244":"#192a38"}`}}>
+                <div style={{fontSize:22,fontWeight:900,color:vDet.pendientes>0?"#00cc55":"#ffffff"}}>{vDet.pendientes}</div>
+                <div style={{fontSize:9,color:"#ffffff",marginTop:2,letterSpacing:1}}>PENDIENTES</div>
+              </div>
+            </div>
+            <div style={{fontSize:9,color:"#ffffff",marginTop:8,textAlign:"center"}}>
+              {vDet.corresponden>=5?`Corresponden ${vDet.corresponden} días (≥5 años antigüedad)`:vDet.corresponden>0?`Corresponden ${vDet.corresponden} días (<5 años antigüedad)`:"Sin vacaciones asignadas para este año"}
+            </div>
           </Card>
           <Card sx={{padding:14,background:"#040c18"}}>
             <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>TOTAL PAGADO</div>
