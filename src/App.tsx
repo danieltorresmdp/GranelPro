@@ -2622,18 +2622,19 @@ function Empleados({notify}) {
             <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",forma_pago:"efectivo",notas:""});setPagoModal(true);}}><Ic n="plus" s={11}/>Registrar Pago</Btn>
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Notas</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Forma</th><th>Monto</th><th>Notas</th><th></th></tr></thead>
             <tbody>
               {pagos.map((p,i)=>(
                 <tr key={i}>
                   <td style={{fontSize:11}}>{p.fecha}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#021408",color:"#00cc55"}}>{p.tipo}</span></td>
+                  <td style={{fontSize:11,color:p.forma_pago==="efectivo"?"#00cc55":"#3388ff"}}>{p.forma_pago==="efectivo"?"💵":"🏦"} {p.forma_pago||"efectivo"}</td>
                   <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(p.monto)}</td>
                   <td style={{fontSize:10,color:"#ffffff"}}>{p.notas||"—"}</td>
                   <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",p.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
                 </tr>
               ))}
-              {pagos.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+              {pagos.length===0&&<tr><td colSpan={6} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
             </tbody>
           </table>
         </Card>}
@@ -2704,6 +2705,9 @@ function Empleados({notify}) {
             <div><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}>
               {["sueldo","aguinaldo","adelanto","bonus","vacaciones","otro"].map(t=><option key={t}>{t}</option>)}
             </Sel></div>
+            <div><Lbl t="Forma de pago"/><Sel value={pagoForm.forma_pago||"efectivo"} onChange={(e)=>setPagoForm(f=>({...f,forma_pago:e.target.value}))}>
+              {["efectivo","transferencia","cheque"].map(t=><option key={t}>{t}</option>)}
+            </Sel></div>
             <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
           </div>
           <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
@@ -2712,7 +2716,7 @@ function Empleados({notify}) {
               if(!pagoForm.monto||!pagoForm.fecha){notify("Completá fecha y monto","err");return;}
               setSaving(true);
               try{
-                const{error}=await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:Number(pagoForm.monto),tipo:pagoForm.tipo,notas:pagoForm.notas}]);
+                const{error}=await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:Number(pagoForm.monto),tipo:pagoForm.tipo,forma_pago:pagoForm.forma_pago||"efectivo",notas:pagoForm.notas}]);
                 if(error){notify("Error: "+error.message,"err");}else{notify("Pago registrado");setPagoModal(false);loadDet(detId);}
               }catch(e){notify("Error","err");}
               setSaving(false);
