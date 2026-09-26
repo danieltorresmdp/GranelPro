@@ -2576,7 +2576,7 @@ function Empleados({notify}) {
             <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{detEmp.cargo||"Sin cargo"}{detEmp.local?` · ${detEmp.local}`:""}</p>
           </div>
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-            <Btn v="gh" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>openEdit(detEmp)}><Ic n="edit" s={11}/>Editar</Btn>
+            <Btn v="gh" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>{setTab("info");}}><Ic n="edit" s={11}/>Editar datos</Btn>
           </div>
         </div>
 
@@ -2622,19 +2622,18 @@ function Empleados({notify}) {
             <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",forma_pago:"efectivo",notas:""});setPagoModal(true);}}><Ic n="plus" s={11}/>Registrar Pago</Btn>
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Forma</th><th>Monto</th><th>Notas</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Notas</th><th></th></tr></thead>
             <tbody>
               {pagos.map((p,i)=>(
                 <tr key={i}>
                   <td style={{fontSize:11}}>{p.fecha}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#021408",color:"#00cc55"}}>{p.tipo}</span></td>
-                  <td style={{fontSize:11,color:"#ffffff"}}>{p.forma_pago}</td>
                   <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(p.monto)}</td>
                   <td style={{fontSize:10,color:"#ffffff"}}>{p.notas||"—"}</td>
                   <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",p.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
                 </tr>
               ))}
-              {pagos.length===0&&<tr><td colSpan={6} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+              {pagos.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
             </tbody>
           </table>
         </Card>}
@@ -2662,16 +2661,37 @@ function Empleados({notify}) {
           </table>
         </Card>}
 
-        {/* Tab Info */}
+        {/* Tab Info — edición inline */}
         {tab==="info"&&<Card sx={{padding:18}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[["DNI",detEmp.dni],["Celular",detEmp.celular],["Dirección",detEmp.direccion],["Local",detEmp.local],["Cargo",detEmp.cargo],["Estado",detEmp.activo?"Activo":"Inactivo"]].map(([k,v])=>(
-              <div key={k} style={{borderBottom:"1px solid #192a3820",paddingBottom:8}}>
-                <div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>{k}</div>
-                <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{v||"—"}</div>
-              </div>
-            ))}
-            {detEmp.notas&&<div style={{gridColumn:"1/-1",borderBottom:"1px solid #192a3820",paddingBottom:8}}><div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>Notas</div><div style={{fontSize:12,color:"#ffffff"}}>{detEmp.notas}</div></div>}
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Nombre completo"/><Inp value={form?.nombre||detEmp.nombre} onChange={(e)=>setForm(f=>({...(f||detEmp),nombre:e.target.value}))}/></div>
+            <div><Lbl t="DNI"/><Inp value={form?.dni??detEmp.dni??""} onChange={(e)=>setForm(f=>({...(f||detEmp),dni:e.target.value}))}/></div>
+            <div><Lbl t="Celular"/><Inp value={form?.celular??detEmp.celular??""} onChange={(e)=>setForm(f=>({...(f||detEmp),celular:e.target.value}))}/></div>
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Dirección"/><Inp value={form?.direccion??detEmp.direccion??""} onChange={(e)=>setForm(f=>({...(f||detEmp),direccion:e.target.value}))}/></div>
+            <div><Lbl t="Cargo"/><Inp value={form?.cargo??detEmp.cargo??""} onChange={(e)=>setForm(f=>({...(f||detEmp),cargo:e.target.value}))}/></div>
+            <div><Lbl t="Local"/><Inp value={form?.local??detEmp.local??""} onChange={(e)=>setForm(f=>({...(f||detEmp),local:e.target.value}))}/></div>
+            <div><Lbl t="Fecha de ingreso"/><Inp type="date" value={form?.fecha_ingreso??detEmp.fecha_ingreso??""} onChange={(e)=>setForm(f=>({...(f||detEmp),fecha_ingreso:e.target.value}))}/></div>
+            <div><Lbl t="Sueldo base ($)"/><Inp type="number" value={form?.sueldo_base??detEmp.sueldo_base??""} onChange={(e)=>setForm(f=>({...(f||detEmp),sueldo_base:e.target.value}))}/></div>
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={form?.notas??detEmp.notas??""} onChange={(e)=>setForm(f=>({...(f||detEmp),notas:e.target.value}))}/></div>
+            <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}>
+              <input type="checkbox" checked={form?.activo??detEmp.activo} onChange={(e)=>setForm(f=>({...(f||detEmp),activo:e.target.checked}))} style={{accentColor:"#00cc55"}}/>
+              <span style={{fontSize:12,color:"#ffffff"}}>Activo</span>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
+            <Btn v="gh" onClick={()=>setForm(null)}>Descartar</Btn>
+            <Btn v="g" onClick={async()=>{
+              const f=form||detEmp;
+              if(!f.nombre?.trim()){notify("Nombre requerido","err");return;}
+              setSaving(true);
+              try{
+                await sb.from("gp_empleados").update({nombre:f.nombre,dni:f.dni,direccion:f.direccion,celular:f.celular,fecha_ingreso:f.fecha_ingreso,cargo:f.cargo,sueldo_base:Number(f.sueldo_base)||0,activo:f.activo,notas:f.notas,local:f.local}).eq("id",detEmp.id);
+                const{data}=await sb.from("gp_empleados").select("*").eq("id",detEmp.id).single();
+                if(data){setDetEmp(data);setForm(null);}
+                notify("Guardado");load();
+              }catch(e){notify("Error","err");}
+              setSaving(false);
+            }} disabled={saving}>{saving?"Guardando...":"Guardar cambios"}</Btn>
           </div>
         </Card>}
 
@@ -2684,17 +2704,18 @@ function Empleados({notify}) {
             <div><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}>
               {["sueldo","aguinaldo","adelanto","bonus","vacaciones","otro"].map(t=><option key={t}>{t}</option>)}
             </Sel></div>
-            <div><Lbl t="Forma de pago"/><Sel value={pagoForm.forma_pago} onChange={(e)=>setPagoForm(f=>({...f,forma_pago:e.target.value}))}>
-              {["efectivo","transferencia","cheque"].map(t=><option key={t}>{t}</option>)}
-            </Sel></div>
             <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
           </div>
           <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
             <Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn>
             <Btn v="g" onClick={async()=>{
               if(!pagoForm.monto||!pagoForm.fecha){notify("Completá fecha y monto","err");return;}
-              await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:Number(pagoForm.monto),tipo:pagoForm.tipo,forma_pago:pagoForm.forma_pago,notas:pagoForm.notas}]);
-              notify("Pago registrado");setPagoModal(false);loadDet(detId);
+              setSaving(true);
+              try{
+                const{error}=await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:Number(pagoForm.monto),tipo:pagoForm.tipo,notas:pagoForm.notas}]);
+                if(error){notify("Error: "+error.message,"err");}else{notify("Pago registrado");setPagoModal(false);loadDet(detId);}
+              }catch(e){notify("Error","err");}
+              setSaving(false);
             }} disabled={saving}>Registrar</Btn>
           </div>
         </div></Modal>}
