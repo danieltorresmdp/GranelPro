@@ -2803,6 +2803,8 @@ function Empleados({notify}) {
   );
 }
 
+const CATEGORIAS_GASTO=["Alquiler","Servicios","Impuestos","Sueldos","Publicidad","Mantenimiento","Transporte","Otros"];
+
 function Gastos({notify}) {
   const[gastos,setGastos]=useState([]);
   const[loading,setLoading]=useState(true);
