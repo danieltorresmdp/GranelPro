@@ -2484,6 +2484,7 @@ function Empleados({notify}) {
   const[form,setForm]=useState(null);
   const[saving,setSaving]=useState(false);
   const[detId,setDetId]=useState(null);
+  const[detEmp,setDetEmp]=useState(null);
   const[pagos,setPagos]=useState([]);
   const[vacs,setVacs]=useState([]);
   const[pagoModal,setPagoModal]=useState(false);
@@ -2492,6 +2493,7 @@ function Empleados({notify}) {
   const[vacForm,setVacForm]=useState(null);
   const[tab,setTab]=useState("pagos");
   const[confirmDel,setConfirmDel]=useState(null);
+  const[anioVac,setAnioVac]=useState(String(new Date().getFullYear()));
 
   const load=async()=>{
     setLoading(true);
@@ -2511,86 +2513,260 @@ function Empleados({notify}) {
 
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setForm({nombre:"",dni:"",direccion:"",celular:"",fecha_ingreso:todayStr(),cargo:"",sueldo_base:0,activo:true,notas:""});setModal(true);};
+  const openNew=()=>{setForm({nombre:"",dni:"",direccion:"",celular:"",fecha_ingreso:todayStr(),cargo:"",sueldo_base:0,activo:true,notas:"",local:""});setModal(true);};
   const openEdit=(e)=>{setForm({...e});setModal(true);};
 
   const save=async()=>{
     if(!form.nombre.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
     try{
-      if(form.id) await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:parseFloat(form.sueldo_base)||0,activo:form.activo,notas:form.notas}).eq("id",form.id);
-      else await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:parseFloat(form.sueldo_base)||0,activo:form.activo!==false,notas:form.notas}]);
-      notify(form.id?"Empleado actualizado":"Empleado creado");setModal(false);load();
+      if(form.id) await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}).eq("id",form.id);
+      else await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}]);
+      notify("Guardado");load();setModal(false);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
 
-  const del=async(id)=>{await sb.from("gp_empleados").delete().eq("id",id);notify("Eliminado");setConfirmDel(null);load();};
-
-  const savePago=async()=>{
-    if(!pagoForm.monto||parseFloat(pagoForm.monto)<=0){notify("Monto inválido","err");return;}
-    setSaving(true);
-    try{
-      await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:parseFloat(pagoForm.monto),tipo:pagoForm.tipo,notas:(pagoForm.notas||"")+(pagoForm.forma_pago?` [${pagoForm.forma_pago}]`:"")}]);
-      notify("Pago registrado");setPagoModal(false);loadDet(detId);
-    }catch(e){notify("Error","err");}
-    setSaving(false);
+  // Calcular vacaciones por año calendario
+  const calcVac=(emp,anio,vacsEmp)=>{
+    if(!emp?.fecha_ingreso) return{corresponden:0,tomados:0,pendientes:0};
+    const ingreso=new Date(emp.fecha_ingreso);
+    const anioN=parseInt(anio);
+    const anioIngreso=ingreso.getFullYear();
+    // Antigüedad al 31/12 del año consultado
+    const diasAnt=Math.round((new Date(`${anioN}-12-31`)-ingreso)/(1000*60*60*24));
+    const aniosAnt=diasAnt/365;
+    const diasCorr=aniosAnt>=5?21:14;
+    // Si ingresó en el mismo año, proporcional
+    let corresponden=diasCorr;
+    if(anioIngreso===anioN){
+      const mesIngreso=ingreso.getMonth(); // 0-based
+      const mesesTrabajados=12-mesIngreso;
+      corresponden=Math.round(diasCorr*mesesTrabajados/12);
+    } else if(anioIngreso>anioN){
+      corresponden=0; // no había ingresado
+    }
+    // Días tomados en ese año calendario
+    const tomados=(vacsEmp||[]).filter(v=>{
+      const desde=v.fecha_desde?.slice(0,4);
+      const hasta=v.fecha_hasta?.slice(0,4);
+      return desde===anio||hasta===anio;
+    }).reduce((a,b)=>a+(Number(b.dias)||0),0);
+    return{corresponden,tomados,pendientes:Math.max(0,corresponden-tomados)};
   };
 
-  const saveVac=async()=>{
-    if(!vacForm.fecha_desde||!vacForm.fecha_hasta){notify("Fechas requeridas","err");return;}
-    setSaving(true);
-    try{
-      const dias=Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1;
-      await sb.from("gp_emp_vacaciones").insert([{empleado_id:detId,fecha_desde:vacForm.fecha_desde,fecha_hasta:vacForm.fecha_hasta,dias,notas:vacForm.notas}]);
-      notify("Vacaciones registradas");setVacModal(false);loadDet(detId);
-    }catch(e){notify("Error","err");}
-    setSaving(false);
+  const getAntig=(fechaIngreso)=>{
+    if(!fechaIngreso) return "";
+    const d=Math.round((new Date()-new Date(fechaIngreso))/(1000*60*60*24));
+    const a=Math.floor(d/365);const m=Math.floor((d%365)/30);
+    return`${a>0?`${a}a `:""}${m>0?`${m}m`:""}`.trim()||"< 1m";
   };
 
-  const detEmp=emps.find(e=>e.id===detId);
-  const totalPagos=pagos.reduce((a,b)=>a+Number(b.monto),0);
-  const totalVacDias=vacs.reduce((a,b)=>a+Number(b.dias||0),0);
-  const diasDesdeIngreso=detEmp?.fecha_ingreso?Math.round((new Date()-new Date(detEmp.fecha_ingreso))/(1000*60*60*24)):0;
+  // Panel de detalle de empleado
+  if(detId&&detEmp){
+    const vDet=calcVac(detEmp,anioVac,vacs);
+    const diasDesdeIngreso=detEmp.fecha_ingreso?Math.round((new Date()-new Date(detEmp.fecha_ingreso))/(1000*60*60*24)):0;
+    const totalPagado=pagos.reduce((a,b)=>a+Number(b.monto),0);
+    return(
+      <div className="fade">
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <Btn v="gh" onClick={()=>{setDetId(null);setDetEmp(null);}} sx={{padding:"5px 10px"}}><Ic n="x" s={13}/>← Volver</Btn>
+          <div>
+            <h1 style={{fontSize:18,fontWeight:800,margin:0}}>{detEmp.nombre}</h1>
+            <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{detEmp.cargo||"Sin cargo"}{detEmp.local?` · ${detEmp.local}`:""}</p>
+          </div>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <Btn v="gh" sx={{padding:"4px 10px",fontSize:9}} onClick={()=>openEdit(detEmp)}><Ic n="edit" s={11}/>Editar</Btn>
+          </div>
+        </div>
 
+        {/* Resumen top */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+          <Card sx={{padding:14,background:"#040c18"}}>
+            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>INGRESO</div>
+            <div style={{fontSize:13,fontWeight:800,color:"#00d4ff"}}>{detEmp.fecha_ingreso||"—"}</div>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{getAntig(detEmp.fecha_ingreso)} de antigüedad</div>
+          </Card>
+          <Card sx={{padding:14,background:"#040c18"}}>
+            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>SUELDO BASE</div>
+            <div style={{fontSize:13,fontWeight:800,color:"#00cc55"}}>{detEmp.sueldo_base>0?fmtM(detEmp.sueldo_base):"—"}</div>
+          </Card>
+          <Card sx={{padding:14,background:"#040c18"}}>
+            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:6}}>VACACIONES {anioVac}</div>
+            <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
+              {["2024","2025","2026","2027"].map(a=>(
+                <button key={a} onClick={()=>setAnioVac(a)} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${anioVac===a?"#00d4ff":"#192a38"}`,background:anioVac===a?"#021520":"transparent",color:anioVac===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit"}}>{a}</button>
+              ))}
+            </div>
+            <div style={{fontSize:12,fontWeight:700,color:"#ff9900"}}>{vDet.corresponden}d asignados</div>
+            <div style={{fontSize:11,color:"#ffffff"}}>Tomados: {vDet.tomados}d · <span style={{color:vDet.pendientes>0?"#00cc55":"#ffffff"}}>Pendientes: {vDet.pendientes}d</span></div>
+          </Card>
+          <Card sx={{padding:14,background:"#040c18"}}>
+            <div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>TOTAL PAGADO</div>
+            <div style={{fontSize:13,fontWeight:800,color:"#00cc55"}}>{fmtM(totalPagado)}</div>
+            <div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{pagos.length} pagos</div>
+          </Card>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[["pagos","💰 Pagos"],["vacaciones","🏖️ Vacaciones"],["info","📋 Info"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab===k?"#00d4ff":"#192a38"}`,background:tab===k?"#021520":"transparent",color:tab===k?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:tab===k?700:400}}>{l}</button>
+          ))}
+        </div>
+
+        {/* Tab Pagos */}
+        {tab==="pagos"&&<Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between"}}>
+            <span style={{fontSize:9,fontWeight:700,color:"#ffffff",letterSpacing:2}}>HISTORIAL DE PAGOS</span>
+            <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",forma_pago:"efectivo",notas:""});setPagoModal(true);}}><Ic n="plus" s={11}/>Registrar Pago</Btn>
+          </div>
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Forma</th><th>Monto</th><th>Notas</th><th></th></tr></thead>
+            <tbody>
+              {pagos.map((p,i)=>(
+                <tr key={i}>
+                  <td style={{fontSize:11}}>{p.fecha}</td>
+                  <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#021408",color:"#00cc55"}}>{p.tipo}</span></td>
+                  <td style={{fontSize:11,color:"#ffffff"}}>{p.forma_pago}</td>
+                  <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(p.monto)}</td>
+                  <td style={{fontSize:10,color:"#ffffff"}}>{p.notas||"—"}</td>
+                  <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",p.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                </tr>
+              ))}
+              {pagos.length===0&&<tr><td colSpan={6} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
+            </tbody>
+          </table>
+        </Card>}
+
+        {/* Tab Vacaciones */}
+        {tab==="vacaciones"&&<Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between"}}>
+            <span style={{fontSize:9,fontWeight:700,color:"#ffffff",letterSpacing:2}}>VACACIONES REGISTRADAS</span>
+            <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setVacForm({fecha_desde:"",fecha_hasta:"",notas:""});setVacModal(true);}}><Ic n="plus" s={11}/>Agregar</Btn>
+          </div>
+          <table>
+            <thead><tr><th>Desde</th><th>Hasta</th><th>Días</th><th>Notas</th><th></th></tr></thead>
+            <tbody>
+              {vacs.map((v,i)=>(
+                <tr key={i}>
+                  <td style={{fontSize:11}}>{v.fecha_desde}</td>
+                  <td style={{fontSize:11}}>{v.fecha_hasta}</td>
+                  <td style={{fontWeight:700,color:"#ff9900"}}>{v.dias}d</td>
+                  <td style={{fontSize:10,color:"#ffffff"}}>{v.notas||"—"}</td>
+                  <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_vacaciones").delete().eq("id",v.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                </tr>
+              ))}
+              {vacs.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin vacaciones registradas</td></tr>}
+            </tbody>
+          </table>
+        </Card>}
+
+        {/* Tab Info */}
+        {tab==="info"&&<Card sx={{padding:18}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {[["DNI",detEmp.dni],["Celular",detEmp.celular],["Dirección",detEmp.direccion],["Local",detEmp.local],["Cargo",detEmp.cargo],["Estado",detEmp.activo?"Activo":"Inactivo"]].map(([k,v])=>(
+              <div key={k} style={{borderBottom:"1px solid #192a3820",paddingBottom:8}}>
+                <div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>{k}</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{v||"—"}</div>
+              </div>
+            ))}
+            {detEmp.notas&&<div style={{gridColumn:"1/-1",borderBottom:"1px solid #192a3820",paddingBottom:8}}><div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>Notas</div><div style={{fontSize:12,color:"#ffffff"}}>{detEmp.notas}</div></div>}
+          </div>
+        </Card>}
+
+        {/* Modal pago */}
+        {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
+          <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago · {detEmp.nombre}</h2>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
+            <div><Lbl t="Monto ($)"/><Inp type="number" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
+            <div><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}>
+              {["sueldo","aguinaldo","adelanto","bonus","vacaciones","otro"].map(t=><option key={t}>{t}</option>)}
+            </Sel></div>
+            <div><Lbl t="Forma de pago"/><Sel value={pagoForm.forma_pago} onChange={(e)=>setPagoForm(f=>({...f,forma_pago:e.target.value}))}>
+              {["efectivo","transferencia","cheque"].map(t=><option key={t}>{t}</option>)}
+            </Sel></div>
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
+            <Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn>
+            <Btn v="g" onClick={async()=>{
+              if(!pagoForm.monto||!pagoForm.fecha){notify("Completá fecha y monto","err");return;}
+              await sb.from("gp_emp_pagos").insert([{empleado_id:detId,fecha:pagoForm.fecha,monto:Number(pagoForm.monto),tipo:pagoForm.tipo,forma_pago:pagoForm.forma_pago,notas:pagoForm.notas}]);
+              notify("Pago registrado");setPagoModal(false);loadDet(detId);
+            }} disabled={saving}>Registrar</Btn>
+          </div>
+        </div></Modal>}
+
+        {/* Modal vacaciones */}
+        {vacModal&&vacForm&&<Modal close={()=>setVacModal(false)} w={420}><div style={{padding:22}}>
+          <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Agregar Vacaciones · {detEmp.nombre}</h2>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><Lbl t="Desde"/><Inp type="date" value={vacForm.fecha_desde} onChange={(e)=>setVacForm(f=>({...f,fecha_desde:e.target.value}))}/></div>
+            <div><Lbl t="Hasta"/><Inp type="date" value={vacForm.fecha_hasta} onChange={(e)=>setVacForm(f=>({...f,fecha_hasta:e.target.value}))}/></div>
+            {vacForm.fecha_desde&&vacForm.fecha_hasta&&<div style={{gridColumn:"1/-1",background:"#021520",border:"1px solid #00d4ff33",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#00d4ff"}}>{Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1} días de vacaciones</div>}
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={vacForm.notas||""} onChange={(e)=>setVacForm(f=>({...f,notas:e.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
+            <Btn v="gh" onClick={()=>setVacModal(false)}>Cancelar</Btn>
+            <Btn v="g" onClick={async()=>{
+              if(!vacForm.fecha_desde||!vacForm.fecha_hasta){notify("Completá fechas","err");return;}
+              const dias=Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1;
+              await sb.from("gp_emp_vacaciones").insert([{empleado_id:detId,fecha_desde:vacForm.fecha_desde,fecha_hasta:vacForm.fecha_hasta,dias,notas:vacForm.notas}]);
+              notify("Vacaciones registradas");setVacModal(false);loadDet(detId);
+            }}>Registrar</Btn>
+          </div>
+        </div></Modal>}
+      </div>
+    );
+  }
+
+  // Lista de empleados
   return(
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Empleados</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{emps.length} REGISTROS</p></div>
+        <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Empleados</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{emps.filter(e=>e.activo).length} ACTIVOS · {emps.length} TOTAL</p></div>
         <Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn>
       </div>
 
       {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
-      {!loading&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-        {emps.map(e=>{
-          const dias=e.fecha_ingreso?Math.round((new Date()-new Date(e.fecha_ingreso))/(1000*60*60*24)):0;
-          const anios=Math.floor(dias/365);
-          const meses=Math.floor((dias%365)/30);
-          return(<Card key={e.id} sx={{padding:16}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{e.nombre}</div>
-                <div style={{fontSize:10,color:"#ffffff",marginTop:2}}>{e.cargo||"Sin cargo"}</div>
-                <div style={{fontSize:9,color:"#00d4ff",marginTop:2}}>Ingresó: {e.fecha_ingreso} · {anios>0?`${anios}a `:""}{meses>0?`${meses}m`:""} de antigüedad</div>
-              </div>
-              <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:e.activo?"#021408":"#130900",color:e.activo?"#00cc55":"#ff9900",border:`1px solid ${e.activo?"#00882233":"#ff990033"}`}}>{e.activo?"ACTIVO":"INACTIVO"}</span>
-            </div>
-            <div style={{fontSize:11,color:"#ffffff",marginBottom:8}}>
-              {e.dni&&<div>DNI: {e.dni}</div>}
-              {e.celular&&<div>📱 {e.celular}</div>}
-              {e.sueldo_base>0&&<div style={{color:"#00cc55",fontWeight:700}}>Sueldo base: {fmtM(e.sueldo_base)}</div>}
-            </div>
-            <div style={{display:"flex",gap:5}}>
-              <Btn v="cy" sx={{flex:1,justifyContent:"center",fontSize:9,padding:"4px"}} onClick={()=>{setDetId(e.id);setTab("pagos");loadDet(e.id);}}><Ic n="cash" s={11}/>Cuenta</Btn>
-              <Btn v="gh" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>openEdit(e)}><Ic n="edit" s={11}/></Btn>
-              <Btn v="r" sx={{padding:"4px 8px",fontSize:9}} onClick={()=>setConfirmDel(e)}><Ic n="del" s={11}/></Btn>
-            </div>
-          </Card>);
-        })}
-        {emps.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay empleados. Creá el primero.</div>}
-      </div>}
+      {!loading&&<Card sx={{overflow:"hidden"}}>
+        <table>
+          <thead><tr>
+            <th>Nombre</th><th>Cargo</th><th>Local</th><th>Ingreso</th><th>Antigüedad</th>
+            <th style={{color:"#ff9900"}}>Vac. {new Date().getFullYear()}</th>
+            <th>Estado</th><th></th>
+          </tr></thead>
+          <tbody>
+            {emps.map(e=>{
+              // Para la lista mostramos vacaciones del año actual sin cargar vacs individuales
+              // Solo mostramos los días que corresponden según antigüedad
+              const diasAnt=e.fecha_ingreso?Math.round((new Date()-new Date(e.fecha_ingreso))/(1000*60*60*24)):0;
+              const aniosAnt=diasAnt/365;
+              const diasCorr=aniosAnt>=5?21:14;
+              return(<tr key={e.id} style={{cursor:"pointer"}} onClick={()=>{setDetId(e.id);setDetEmp(e);setTab("pagos");loadDet(e.id);}}>
+                <td style={{fontWeight:700,color:"#ffffff"}}>{e.nombre}</td>
+                <td style={{fontSize:11,color:"#ffffff"}}>{e.cargo||"—"}</td>
+                <td style={{fontSize:11,color:"#00d4ff"}}>{e.local||"—"}</td>
+                <td style={{fontSize:11,color:"#ffffff"}}>{e.fecha_ingreso||"—"}</td>
+                <td style={{fontSize:11,color:"#00d4ff"}}>{getAntig(e.fecha_ingreso)}</td>
+                <td style={{fontSize:11,color:"#ff9900",fontWeight:700}}>{e.fecha_ingreso?`${diasCorr}d`:"—"}</td>
+                <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:e.activo?"#021408":"#130900",color:e.activo?"#00cc55":"#ff9900",border:`1px solid ${e.activo?"#00882233":"#ff990033"}`}}>{e.activo?"ACTIVO":"INACTIVO"}</span></td>
+                <td onClick={(ev)=>ev.stopPropagation()}>
+                  <div style={{display:"flex",gap:4}}>
+                    <Btn v="gh" sx={{padding:"2px 6px",fontSize:9}} onClick={()=>openEdit(e)}><Ic n="edit" s={10}/></Btn>
+                    <Btn v="r" sx={{padding:"2px 6px",fontSize:9}} onClick={()=>setConfirmDel(e)}><Ic n="del" s={10}/></Btn>
+                  </div>
+                </td>
+              </tr>);
+            })}
+            {emps.length===0&&<tr><td colSpan={8} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin empleados. Creá el primero.</td></tr>}
+          </tbody>
+        </table>
+      </Card>}
 
-      {/* Modal nuevo/editar empleado */}
+      {/* Modal nuevo/editar */}
       {modal&&form&&<Modal close={()=>setModal(false)} w={580}><div style={{padding:22}}>
         <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Empleado</h2>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
@@ -2598,117 +2774,34 @@ function Empleados({notify}) {
           <div><Lbl t="DNI"/><Inp value={form.dni||""} onChange={(e)=>setForm(f=>({...f,dni:e.target.value}))}/></div>
           <div><Lbl t="Celular"/><Inp value={form.celular||""} onChange={(e)=>setForm(f=>({...f,celular:e.target.value}))}/></div>
           <div style={{gridColumn:"1/-1"}}><Lbl t="Dirección"/><Inp value={form.direccion||""} onChange={(e)=>setForm(f=>({...f,direccion:e.target.value}))}/></div>
-          <div><Lbl t="Cargo"/><Inp value={form.cargo||""} onChange={(e)=>setForm(f=>({...f,cargo:e.target.value}))} placeholder="ej: Vendedor, Encargado..."/></div>
+          <div><Lbl t="Cargo"/><Inp value={form.cargo||""} onChange={(e)=>setForm(f=>({...f,cargo:e.target.value}))}/></div>
+          <div><Lbl t="Local"/><Inp value={form.local||""} onChange={(e)=>setForm(f=>({...f,local:e.target.value}))}/></div>
           <div><Lbl t="Fecha de ingreso"/><Inp type="date" value={form.fecha_ingreso||""} onChange={(e)=>setForm(f=>({...f,fecha_ingreso:e.target.value}))}/></div>
-          <div><Lbl t="Sueldo base ($)"/><Inp type="number" step=".01" value={form.sueldo_base||0} onChange={(e)=>setForm(f=>({...f,sueldo_base:e.target.value}))}/></div>
-          <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:20}}><input type="checkbox" checked={form.activo!==false} onChange={(e)=>setForm(f=>({...f,activo:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#ffffff"}}>Activo</span></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><textarea value={form.notas||""} onChange={(e)=>setForm(f=>({...f,notas:e.target.value}))} style={{background:"#060f1a",border:"1px solid #192a38",color:"#ffffff",padding:"9px 12px",borderRadius:6,fontFamily:"inherit",fontSize:13,width:"100%",resize:"vertical",minHeight:60,outline:"none",boxSizing:"border-box"}}/></div>
+          <div><Lbl t="Sueldo base ($)"/><Inp type="number" value={form.sueldo_base||""} onChange={(e)=>setForm(f=>({...f,sueldo_base:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={form.notas||""} onChange={(e)=>setForm(f=>({...f,notas:e.target.value}))}/></div>
+          <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}>
+            <input type="checkbox" checked={form.activo} onChange={(e)=>setForm(f=>({...f,activo:e.target.checked}))} style={{accentColor:"#00cc55"}}/>
+            <span style={{fontSize:12,color:"#ffffff"}}>Activo</span>
+          </div>
         </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div>
+        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
+          <Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn>
+          <Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn>
+        </div>
       </div></Modal>}
 
-      {/* Modal cuenta empleado */}
-      {detId&&detEmp&&<Modal close={()=>setDetId(null)} w={640}><div style={{padding:22}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div>
-            <h2 style={{margin:0,fontSize:16,fontWeight:800}}>{detEmp.nombre}</h2>
-            <div style={{fontSize:10,color:"#ffffff",marginTop:3}}>{detEmp.cargo} · {detEmp.celular&&`📱 ${detEmp.celular}`} · Antigüedad: {Math.floor(diasDesdeIngreso/365)}a {Math.floor((diasDesdeIngreso%365)/30)}m</div>
-          </div>
-          <Btn v="gh" sx={{padding:"3px 8px"}} onClick={()=>setDetId(null)}><Ic n="x" s={13}/></Btn>
+      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
+        <h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar empleado?</h2>
+        <p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong>{confirmDel.nombre}</strong></p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn>
+          <Btn v="r" onClick={async()=>{await sb.from("gp_empleados").delete().eq("id",confirmDel.id);notify("Empleado eliminado");setConfirmDel(null);load();}}><Ic n="del" s={13}/>Eliminar</Btn>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-          <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>SUELDO BASE</div><div style={{fontSize:16,fontWeight:800,color:"#00cc55"}}>{fmtM(detEmp.sueldo_base||0)}</div></div>
-          <div style={{background:"#021408",border:"1px solid #00882233",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>TOTAL PAGADO</div><div style={{fontSize:16,fontWeight:800,color:"#00cc55"}}>{fmtM(totalPagos)}</div></div>
-          <div style={{background:"#021520",border:"1px solid #00d4ff33",borderRadius:8,padding:"10px 12px",textAlign:"center"}}><div style={{fontSize:9,color:"#ffffff",letterSpacing:1,marginBottom:4}}>DÍAS VACACIONES</div><div style={{fontSize:16,fontWeight:800,color:"#00d4ff"}}>{totalVacDias}d</div></div>
-        </div>
-        <div style={{display:"flex",gap:8,marginBottom:12}}>
-          <button onClick={()=>setTab("pagos")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="pagos"?"#00cc55":"#192a38"}`,background:tab==="pagos"?"#021408":"transparent",color:tab==="pagos"?"#00cc55":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>💰 Pagos ({pagos.length})</button>
-          <button onClick={()=>setTab("vacaciones")} style={{flex:1,padding:"7px 0",borderRadius:6,border:`1px solid ${tab==="vacaciones"?"#00d4ff":"#192a38"}`,background:tab==="vacaciones"?"#021520":"transparent",color:tab==="vacaciones"?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>🏖️ Vacaciones ({vacs.length})</button>
-        </div>
-        {tab==="pagos"&&<>
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <Btn v="g" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setPagoForm({fecha:todayStr(),monto:"",tipo:"sueldo",forma_pago:"efectivo",notas:""});setPagoModal(true);}}><Ic n="plus" s={12}/>Registrar Pago</Btn>
-          </div>
-          <Card sx={{overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
-            <table><thead><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Forma pago</th><th>Notas</th><th></th></tr></thead>
-              <tbody>{pagos.map(pg=>(<tr key={pg.id}>
-                <td style={{fontSize:11}}>{pg.fecha}</td>
-                <td style={{color:"#00cc55",fontWeight:700}}>{fmtM(pg.monto)}</td>
-                <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,background:pg.tipo==="sueldo"?"#021408":pg.tipo==="premio"?"#140800":"#030810",color:pg.tipo==="sueldo"?"#00cc55":pg.tipo==="premio"?"#ff9900":"#3388ff",border:"1px solid #19293820"}}>{pg.tipo==="sueldo"?"💼 Sueldo":pg.tipo==="premio"?"🏆 Premio":"💸 "+pg.tipo}</span></td>
-                <td style={{fontSize:11,color:pg.notas?.includes("transferencia")?"#3388ff":"#00cc55"}}>{pg.notas?.includes("transferencia")?"🏦 Transf.":"💵 Efectivo"}</td>
-                <td style={{fontSize:10,color:"#ffffff"}}>{pg.notas?.replace(/\[.*?\]/g,"").trim()||"—"}</td>
-                <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_pagos").delete().eq("id",pg.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
-              </tr>))}
-              {pagos.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin pagos registrados</td></tr>}
-              </tbody>
-            </table>
-          </Card>
-        </>}
-        {tab==="vacaciones"&&<>
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <Btn v="cy" sx={{padding:"5px 12px",fontSize:10}} onClick={()=>{setVacForm({fecha_desde:todayStr(),fecha_hasta:todayStr(),notas:""});setVacModal(true);}}><Ic n="plus" s={12}/>Registrar Vacaciones</Btn>
-          </div>
-          <Card sx={{overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
-            <table><thead><tr><th>Desde</th><th>Hasta</th><th>Días</th><th>Notas</th><th></th></tr></thead>
-              <tbody>{vacs.map(v=>(<tr key={v.id}>
-                <td style={{fontSize:11}}>{v.fecha_desde}</td>
-                <td style={{fontSize:11}}>{v.fecha_hasta}</td>
-                <td style={{color:"#00d4ff",fontWeight:700}}>{v.dias}d</td>
-                <td style={{fontSize:10,color:"#ffffff"}}>{v.notas||"—"}</td>
-                <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_vacaciones").delete().eq("id",v.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
-              </tr>))}
-              {vacs.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin vacaciones registradas</td></tr>}
-              </tbody>
-            </table>
-          </Card>
-        </>}
       </div></Modal>}
-
-      {/* Modal pago empleado */}
-      {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
-        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Pago — {detEmp?.nombre}</h2>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
-          <div><Lbl t="Fecha"/><Inp type="date" value={pagoForm.fecha} onChange={(e)=>setPagoForm(f=>({...f,fecha:e.target.value}))}/></div>
-          <div><Lbl t="Monto ($)"/><Inp type="number" step=".01" placeholder="0.00" value={pagoForm.monto} onChange={(e)=>setPagoForm(f=>({...f,monto:e.target.value}))}/></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl t="Tipo"/><Sel value={pagoForm.tipo} onChange={(e)=>setPagoForm(f=>({...f,tipo:e.target.value}))}><option value="sueldo">💼 Sueldo</option><option value="premio">🏆 Premio / Extra</option><option value="adelanto">💸 Adelanto</option><option value="otro">Otro</option></Sel></div>
-          <div style={{gridColumn:"1/-1"}}>
-            <Lbl t="Forma de pago"/>
-            <div style={{display:"flex",gap:16,marginTop:6}}>
-              {["efectivo","transferencia"].map(t=>(
-                <label key={t} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
-                  <input type="radio" checked={pagoForm.forma_pago===t} onChange={()=>setPagoForm(f=>({...f,forma_pago:t}))} style={{accentColor:"#00cc55"}}/>
-                  <span style={{fontSize:12,color:pagoForm.forma_pago===t?"#00cc55":"#ffffff",fontWeight:pagoForm.forma_pago===t?700:400}}>{t==="efectivo"?"💵 Efectivo":"🏦 Transferencia"}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={pagoForm.notas||""} onChange={(e)=>setPagoForm(f=>({...f,notas:e.target.value}))}/></div>
-        </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setPagoModal(false)}>Cancelar</Btn><Btn v="g" onClick={savePago} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
-      </div></Modal>}
-
-      {/* Modal vacaciones */}
-      {vacModal&&vacForm&&<Modal close={()=>setVacModal(false)} w={400}><div style={{padding:22}}>
-        <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Vacaciones — {detEmp?.nombre}</h2>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
-          <div><Lbl t="Desde"/><Inp type="date" value={vacForm.fecha_desde} onChange={(e)=>setVacForm(f=>({...f,fecha_desde:e.target.value}))}/></div>
-          <div><Lbl t="Hasta"/><Inp type="date" value={vacForm.fecha_hasta} onChange={(e)=>setVacForm(f=>({...f,fecha_hasta:e.target.value}))}/></div>
-          {vacForm.fecha_desde&&vacForm.fecha_hasta&&<div style={{gridColumn:"1/-1",background:"#021520",border:"1px solid #00d4ff33",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#00d4ff"}}>{Math.round((new Date(vacForm.fecha_hasta)-new Date(vacForm.fecha_desde))/(1000*60*60*24))+1} días de vacaciones</div>}
-          <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={vacForm.notas||""} onChange={(e)=>setVacForm(f=>({...f,notas:e.target.value}))}/></div>
-        </div>
-        <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setVacModal(false)}>Cancelar</Btn><Btn v="cy" onClick={saveVac} disabled={saving}>{saving?"Guardando...":"Registrar"}</Btn></div>
-      </div></Modal>}
-
-      {confirmDel&&<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar empleado?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}>{confirmDel.nombre}</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>}
     </div>
   );
 }
-
-
-// ─── GASTOS GENERALES ──────────────────────────────────────────────────────
-
-const CATEGORIAS_GASTO=["Alquiler","Servicios","Impuestos","Sueldos","Publicidad","Mantenimiento","Transporte","Otros"];
-const CAT_COLORS_G={"Alquiler":"#ff6666","Servicios":"#ff9900","Impuestos":"#ff4444","Sueldos":"#cc44ff","Publicidad":"#3388ff","Mantenimiento":"#ffaa00","Transporte":"#00d4ff","Otros":"#8ab4c8"};
 
 function Gastos({notify}) {
   const[gastos,setGastos]=useState([]);
