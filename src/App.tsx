@@ -2804,6 +2804,7 @@ function Empleados({notify}) {
 }
 
 const CATEGORIAS_GASTO=["Alquiler","Servicios","Impuestos","Sueldos","Publicidad","Mantenimiento","Transporte","Otros"];
+const CAT_COLORS_G={"Alquiler":"#ff6666","Servicios":"#ff9900","Impuestos":"#ff4444","Sueldos":"#cc44ff","Publicidad":"#3388ff","Mantenimiento":"#ffaa00","Transporte":"#00d4ff","Otros":"#8ab4c8"};
 
 function Gastos({notify}) {
   const[gastos,setGastos]=useState([]);
