@@ -2500,26 +2500,39 @@ function Empleados({notify}) {
   const[vacs,setVacs]=useState([]);
   const[pagoModal,setPagoModal]=useState(false);
   const[vacModal,setVacModal]=useState(false);
+  const[inasModal,setInasModal]=useState(false);
   const[pagoForm,setPagoForm]=useState(null);
   const[vacForm,setVacForm]=useState(null);
+  const[inasForm,setInasForm]=useState(null);
+  const[inasistencias,setInasistencias]=useState([]);
   const[tab,setTab]=useState("pagos");
   const[confirmDel,setConfirmDel]=useState(null);
   const[anioVac,setAnioVac]=useState(String(new Date().getFullYear()));
+
+  const[inasCount,setInasCount]=useState({});
 
   const load=async()=>{
     setLoading(true);
     const{data}=await sb.from("gp_empleados").select("*").order("nombre");
     setEmps(data||[]);
+    // Load inasistencias count for all employees for current year
+    const anio=new Date().getFullYear();
+    const{data:inas}=await sb.from("gp_emp_inasistencias").select("empleado_id").gte("fecha",`${anio}-01-01`).lte("fecha",`${anio}-12-31`);
+    const counts={};
+    (inas||[]).forEach(i=>{counts[i.empleado_id]=(counts[i.empleado_id]||0)+1;});
+    setInasCount(counts);
     setLoading(false);
   };
 
   const loadDet=async(id)=>{
-    const[pg,vc]=await Promise.all([
+    const[pg,vc,in2]=await Promise.all([
       sb.from("gp_emp_pagos").select("*").eq("empleado_id",id).order("fecha",{ascending:false}),
       sb.from("gp_emp_vacaciones").select("*").eq("empleado_id",id).order("fecha_desde",{ascending:false}),
+      sb.from("gp_emp_inasistencias").select("*").eq("empleado_id",id).order("fecha",{ascending:false}),
     ]);
     setPagos(pg.data||[]);
     setVacs(vc.data||[]);
+    setInasistencias(in2.data||[]);
   };
 
   useEffect(()=>{load();},[]);
@@ -2634,7 +2647,7 @@ function Empleados({notify}) {
 
         {/* Tabs */}
         <div style={{display:"flex",gap:8,marginBottom:12}}>
-          {[["pagos","💰 Pagos"],["vacaciones","🏖️ Vacaciones"],["info","📋 Info"]].map(([k,l])=>(
+          {[["pagos","💰 Pagos"],["vacaciones","🏖️ Vacaciones"],["inasistencias","❌ Inasistencias"],["info","📋 Info"]].map(([k,l])=>(
             <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab===k?"#00d4ff":"#192a38"}`,background:tab===k?"#021520":"transparent",color:tab===k?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:tab===k?700:400}}>{l}</button>
           ))}
         </div>
@@ -2686,6 +2699,31 @@ function Empleados({notify}) {
           </table>
         </Card>}
 
+        {/* Tab Inasistencias */}
+        {tab==="inasistencias"&&<Card sx={{overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:9,fontWeight:700,color:"#ffffff",letterSpacing:2}}>INASISTENCIAS / FALTAS</span>
+              {inasistencias.length>0&&<span style={{fontSize:11,fontWeight:800,color:"#ff4444",background:"#110305",padding:"2px 8px",borderRadius:10,border:"1px solid #ff444433"}}>{inasistencias.length} registradas</span>}
+            </div>
+            <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setInasForm({fecha:todayStr(),tipo:"inasistencia",notas:""});setInasModal(true);}}><Ic n="plus" s={11}/>Registrar</Btn>
+          </div>
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
+            <tbody>
+              {inasistencias.map((i,idx)=>(
+                <tr key={idx}>
+                  <td style={{fontSize:11}}>{i.fecha}</td>
+                  <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#110305",color:"#ff4444",border:"1px solid #ff444433"}}>{i.tipo}</span></td>
+                  <td style={{fontSize:10,color:"#ffffff"}}>{i.notas||"—"}</td>
+                  <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_inasistencias").delete().eq("id",i.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
+                </tr>
+              ))}
+              {inasistencias.length===0&&<tr><td colSpan={4} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin inasistencias registradas</td></tr>}
+            </tbody>
+          </table>
+        </Card>}
+
         {/* Tab Info — edición inline */}
         {tab==="info"&&<Card sx={{padding:18}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -2719,6 +2757,26 @@ function Empleados({notify}) {
             }} disabled={saving}>{saving?"Guardando...":"Guardar cambios"}</Btn>
           </div>
         </Card>}
+
+        {/* Modal inasistencias */}
+        {inasModal&&inasForm&&<Modal close={()=>setInasModal(false)} w={420}><div style={{padding:22}}>
+          <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Inasistencia · {detEmp.nombre}</h2>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><Lbl t="Fecha"/><Inp type="date" value={inasForm.fecha} onChange={(e)=>setInasForm(f=>({...f,fecha:e.target.value}))}/></div>
+            <div><Lbl t="Tipo"/><Sel value={inasForm.tipo} onChange={(e)=>setInasForm(f=>({...f,tipo:e.target.value}))}>
+              {["inasistencia","llegada tarde","licencia","suspensión","otro"].map(t=><option key={t}>{t}</option>)}
+            </Sel></div>
+            <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={inasForm.notas||""} onChange={(e)=>setInasForm(f=>({...f,notas:e.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
+            <Btn v="gh" onClick={()=>setInasModal(false)}>Cancelar</Btn>
+            <Btn v="r" onClick={async()=>{
+              if(!inasForm.fecha){notify("Completá la fecha","err");return;}
+              const{error}=await sb.from("gp_emp_inasistencias").insert([{empleado_id:detId,fecha:inasForm.fecha,tipo:inasForm.tipo,notas:inasForm.notas}]);
+              if(error){notify("Error: "+error.message,"err");}else{notify("Inasistencia registrada");setInasModal(false);loadDet(detId);}
+            }}>Registrar</Btn>
+          </div>
+        </div></Modal>}
 
         {/* Modal pago */}
         {pagoModal&&pagoForm&&<Modal close={()=>setPagoModal(false)} w={420}><div style={{padding:22}}>
@@ -2785,6 +2843,7 @@ function Empleados({notify}) {
           <thead><tr>
             <th>Nombre</th><th>Cargo</th><th>Local</th><th>Ingreso</th><th>Antigüedad</th>
             <th style={{color:"#ff9900"}}>Vac. {new Date().getFullYear()}</th>
+            <th style={{color:"#ff4444"}}>Faltas</th>
             <th>Estado</th><th></th>
           </tr></thead>
           <tbody>
@@ -2801,6 +2860,7 @@ function Empleados({notify}) {
                 <td style={{fontSize:11,color:"#ffffff"}}>{e.fecha_ingreso||"—"}</td>
                 <td style={{fontSize:11,color:"#00d4ff"}}>{getAntig(e.fecha_ingreso)}</td>
                 <td style={{fontSize:11,color:"#ff9900",fontWeight:700}}>{e.fecha_ingreso?`${diasCorr}d`:"—"}</td>
+                <td style={{fontWeight:700,color:inasCount[e.id]>0?"#ff4444":"#ffffff",fontSize:inasCount[e.id]>0?13:11}}>{inasCount[e.id]>0?`⚠ ${inasCount[e.id]}`:"0"}</td>
                 <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:e.activo?"#021408":"#130900",color:e.activo?"#00cc55":"#ff9900",border:`1px solid ${e.activo?"#00882233":"#ff990033"}`}}>{e.activo?"ACTIVO":"INACTIVO"}</span></td>
                 <td onClick={(ev)=>ev.stopPropagation()}>
                   <div style={{display:"flex",gap:4}}>
