@@ -2706,20 +2706,22 @@ function Empleados({notify}) {
               <span style={{fontSize:9,fontWeight:700,color:"#ffffff",letterSpacing:2}}>INASISTENCIAS / FALTAS</span>
               {inasistencias.length>0&&<span style={{fontSize:11,fontWeight:800,color:"#ff4444",background:"#110305",padding:"2px 8px",borderRadius:10,border:"1px solid #ff444433"}}>{inasistencias.length} registradas</span>}
             </div>
-            <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setInasForm({fecha:todayStr(),tipo:"inasistencia",notas:""});setInasModal(true);}}><Ic n="plus" s={11}/>Registrar</Btn>
+            <Btn v="g" sx={{padding:"3px 10px",fontSize:9}} onClick={()=>{setInasForm({fecha:todayStr(),fecha_hasta:"",tipo:"inasistencia",notas:""});setInasModal(true);}}><Ic n="plus" s={11}/>Registrar</Btn>
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
+            <thead><tr><th>Desde</th><th>Hasta</th><th>Días</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
             <tbody>
               {inasistencias.map((i,idx)=>(
                 <tr key={idx}>
                   <td style={{fontSize:11}}>{i.fecha}</td>
+                  <td style={{fontSize:11,color:"#ffffff"}}>{i.fecha_hasta||i.fecha}</td>
+                  <td style={{fontWeight:700,color:"#ff4444"}}>{i.dias||1}</td>
                   <td><span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#110305",color:"#ff4444",border:"1px solid #ff444433"}}>{i.tipo}</span></td>
                   <td style={{fontSize:10,color:"#ffffff"}}>{i.notas||"—"}</td>
                   <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={async()=>{await sb.from("gp_emp_inasistencias").delete().eq("id",i.id);loadDet(detId);}}><Ic n="del" s={10}/></Btn></td>
                 </tr>
               ))}
-              {inasistencias.length===0&&<tr><td colSpan={4} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin inasistencias registradas</td></tr>}
+              {inasistencias.length===0&&<tr><td colSpan={6} style={{textAlign:"center",padding:16,color:"#ffffff"}}>Sin inasistencias registradas</td></tr>}
             </tbody>
           </table>
         </Card>}
@@ -2762,17 +2764,26 @@ function Empleados({notify}) {
         {inasModal&&inasForm&&<Modal close={()=>setInasModal(false)} w={420}><div style={{padding:22}}>
           <h2 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Registrar Inasistencia · {detEmp.nombre}</h2>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><Lbl t="Fecha"/><Inp type="date" value={inasForm.fecha} onChange={(e)=>setInasForm(f=>({...f,fecha:e.target.value}))}/></div>
+            <div><Lbl t="Desde (fecha inicio)"/><Inp type="date" value={inasForm.fecha} onChange={(e)=>setInasForm(f=>({...f,fecha:e.target.value}))}/></div>
+            <div><Lbl t="Hasta (dejar vacío si es 1 día)"/><Inp type="date" value={inasForm.fecha_hasta||""} onChange={(e)=>setInasForm(f=>({...f,fecha_hasta:e.target.value}))}/></div>
+            {inasForm.fecha&&<div style={{gridColumn:"1/-1",background:"#021520",border:"1px solid #00d4ff33",borderRadius:6,padding:"6px 12px",fontSize:11,color:"#00d4ff"}}>
+              {inasForm.fecha_hasta&&inasForm.fecha_hasta>=inasForm.fecha
+                ?`${Math.round((new Date(inasForm.fecha_hasta)-new Date(inasForm.fecha))/(1000*60*60*24))+1} días de inasistencia`
+                :"1 día de inasistencia"}
+            </div>}
             <div><Lbl t="Tipo"/><Sel value={inasForm.tipo} onChange={(e)=>setInasForm(f=>({...f,tipo:e.target.value}))}>
               {["inasistencia","llegada tarde","licencia","suspensión","otro"].map(t=><option key={t}>{t}</option>)}
             </Sel></div>
+            <div style={{gridColumn:"2"}}></div>
             <div style={{gridColumn:"1/-1"}}><Lbl t="Notas"/><Inp value={inasForm.notas||""} onChange={(e)=>setInasForm(f=>({...f,notas:e.target.value}))}/></div>
           </div>
           <div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}>
             <Btn v="gh" onClick={()=>setInasModal(false)}>Cancelar</Btn>
             <Btn v="r" onClick={async()=>{
               if(!inasForm.fecha){notify("Completá la fecha","err");return;}
-              const{error}=await sb.from("gp_emp_inasistencias").insert([{empleado_id:detId,fecha:inasForm.fecha,tipo:inasForm.tipo,notas:inasForm.notas}]);
+              const hasta=inasForm.fecha_hasta&&inasForm.fecha_hasta>=inasForm.fecha?inasForm.fecha_hasta:inasForm.fecha;
+              const dias=Math.round((new Date(hasta)-new Date(inasForm.fecha))/(1000*60*60*24))+1;
+              const{error}=await sb.from("gp_emp_inasistencias").insert([{empleado_id:detId,fecha:inasForm.fecha,fecha_hasta:hasta,dias,tipo:inasForm.tipo,notas:inasForm.notas}]);
               if(error){notify("Error: "+error.message,"err");}else{notify("Inasistencia registrada");setInasModal(false);loadDet(detId);}
             }}>Registrar</Btn>
           </div>
