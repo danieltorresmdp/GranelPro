@@ -2517,9 +2517,9 @@ function Empleados({notify}) {
     setEmps(data||[]);
     // Load inasistencias count for all employees for current year
     const anio=new Date().getFullYear();
-    const{data:inas}=await sb.from("gp_emp_inasistencias").select("empleado_id").gte("fecha",`${anio}-01-01`).lte("fecha",`${anio}-12-31`);
+    const{data:inas}=await sb.from("gp_emp_inasistencias").select("empleado_id,dias").gte("fecha",`${anio}-01-01`).lte("fecha",`${anio}-12-31`);
     const counts={};
-    (inas||[]).forEach(i=>{counts[i.empleado_id]=(counts[i.empleado_id]||0)+1;});
+    (inas||[]).forEach(i=>{counts[i.empleado_id]=(counts[i.empleado_id]||0)+(Number(i.dias)||1);});
     setInasCount(counts);
     setLoading(false);
   };
@@ -2871,7 +2871,7 @@ function Empleados({notify}) {
                 <td style={{fontSize:11,color:"#ffffff"}}>{e.fecha_ingreso||"—"}</td>
                 <td style={{fontSize:11,color:"#00d4ff"}}>{getAntig(e.fecha_ingreso)}</td>
                 <td style={{fontSize:11,color:"#ff9900",fontWeight:700}}>{e.fecha_ingreso?`${diasCorr}d`:"—"}</td>
-                <td style={{fontWeight:700,color:inasCount[e.id]>0?"#ff4444":"#ffffff",fontSize:inasCount[e.id]>0?13:11}}>{inasCount[e.id]>0?`⚠ ${inasCount[e.id]}`:"0"}</td>
+                <td style={{fontWeight:700,color:inasCount[e.id]>0?"#ff4444":"#ffffff",fontSize:inasCount[e.id]>0?13:11}}>{inasCount[e.id]>0?`⚠ ${inasCount[e.id]}d`:"0"}</td>
                 <td><span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,background:e.activo?"#021408":"#130900",color:e.activo?"#00cc55":"#ff9900",border:`1px solid ${e.activo?"#00882233":"#ff990033"}`}}>{e.activo?"ACTIVO":"INACTIVO"}</span></td>
                 <td onClick={(ev)=>ev.stopPropagation()}>
                   <div style={{display:"flex",gap:4}}>
