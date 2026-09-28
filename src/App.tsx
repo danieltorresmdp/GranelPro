@@ -2236,7 +2236,18 @@ function Proveedores({notify}) {
         <div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Proveedores</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>{provs.length} REGISTROS</p></div>
         <Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo</Btn>
       </div>
-      <div style={{position:"relative",marginBottom:12}}><Inp placeholder="Buscar por nombre o vendedor..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={13}/></span></div>
+      <div style={{position:"relative",marginBottom:8}}><Inp placeholder="Buscar por nombre o vendedor..." value={q} onChange={(e)=>setQ(e.target.value)} sx={{paddingLeft:34}}/><span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.5}}><Ic n="srch" s={13}/></span></div>
+      {(()=>{
+        const deudaTotal=Object.values(saldos).reduce((a,b)=>a+(b.deuda||0),0);
+        if(deudaTotal<=0) return null;
+        return(
+          <div style={{display:"flex",alignItems:"center",gap:10,background:"#110305",border:"1px solid #ff444433",borderRadius:8,padding:"8px 14px",marginBottom:12}}>
+            <span style={{fontSize:11,color:"#ffffff"}}>Deuda total a proveedores:</span>
+            <span style={{fontSize:16,fontWeight:900,color:"#ff4444"}}>{fmtM(deudaTotal)}</span>
+            <span style={{fontSize:9,color:"#ffffff",marginLeft:4}}>{Object.values(saldos).filter(s=>s.deuda>0).length} proveedores con deuda</span>
+          </div>
+        );
+      })()}
 
       {loading&&<div style={{padding:20,textAlign:"center",color:"#ffffff"}}>Cargando...</div>}
       {!loading&&<Card sx={{overflow:"hidden"}}>
