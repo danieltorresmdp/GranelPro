@@ -1274,8 +1274,11 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     return false;
   });
   const byPay=PAY_OPTS.reduce((acc,m)=>{acc[m]=unclosed.filter(s=>s.pay===m).reduce((a,b)=>a+b.total,0);return acc;},{});
+  // Ventas mixtas (ej: "efectivo + QR") — sumar al medio digital para que totalEf+totalDig = totalAll
+  const mixedSales=unclosed.filter(s=>s.pay&&s.pay.includes("+"));
+  const mixedTotal=mixedSales.reduce((a,b)=>a+b.total,0);
   const totalEf=byPay["efectivo"]||0;
-  const totalDig=(byPay["debito"]||0)+(byPay["credito"]||0)+(byPay["QR"]||0);
+  const totalDig=(byPay["debito"]||0)+(byPay["credito"]||0)+(byPay["QR"]||0)+mixedTotal;
   const totalAll=unclosed.reduce((a,b)=>a+b.total,0);
   const last=myCaja[myCaja.length-1];
   const lastByLocal=[...caja].reverse().find(d=>d.localName===(session?.local||""));
