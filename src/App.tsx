@@ -4069,6 +4069,10 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
             <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",background:"#0d0518"}}><span style={{fontSize:10,fontWeight:800,color:"#cc44ff"}}>🏢 TORRES · Camet · Storni · Estrada · IVA {fmtMonth(mes)}</span></div>
             <Row label="CF — Facturas en blanco" value={fmtM(ivaCreditoTorres)} color="#cc44ff" bold/>
             <Row label="DF — Ventas digitales" value={fmtM(ivaDebitoTorres)} color="#ff9966" indent neg/>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"4px 24px 6px",borderBottom:"1px solid #192a38",background:"#060f1a"}}>
+              <span style={{fontSize:9,color:"#ffffff"}}>Volumen ventas digitales Torres</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#ffffff"}}>{fmtM(ventasDigTorres)}</span>
+            </div>
             <div style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:ivaNetoTorres>=0?"#030d14":"#110305"}}>
               <span style={{fontSize:12,fontWeight:800,color:ivaNetoTorres>=0?"#cc44ff":"#ff4444"}}>{ivaNetoTorres>=0?"✓ Saldo a favor":"⚠ A pagar"}</span>
               <span style={{fontSize:15,fontWeight:900,color:ivaNetoTorres>=0?"#cc44ff":"#ff4444"}}>{ivaNetoTorres>=0?"":"-"}{fmtM(Math.abs(ivaNetoTorres))}</span>
@@ -4079,6 +4083,10 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
             <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",background:"#030d1a"}}><span style={{fontSize:10,fontWeight:800,color:"#3388ff"}}>🏢 PEÑA LOZA · Cataluña · Tejedor · Feria 180 · Pedraza · IVA {fmtMonth(mes)}</span></div>
             <Row label="CF — Facturas en blanco" value={fmtM(ivaCreditoPena)} color="#3388ff" bold/>
             <Row label="DF — Ventas digitales" value={fmtM(ivaDebitoPena)} color="#ff9966" indent neg/>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"4px 24px 6px",borderBottom:"1px solid #192a38",background:"#060f1a"}}>
+              <span style={{fontSize:9,color:"#ffffff"}}>Volumen ventas digitales Peña Loza</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#ffffff"}}>{fmtM(ventasDigPena)}</span>
+            </div>
             <div style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:ivaNetoPena>=0?"#030d14":"#110305"}}>
               <span style={{fontSize:12,fontWeight:800,color:ivaNetoPena>=0?"#3388ff":"#ff4444"}}>{ivaNetoPena>=0?"✓ Saldo a favor":"⚠ A pagar"}</span>
               <span style={{fontSize:15,fontWeight:900,color:ivaNetoPena>=0?"#3388ff":"#ff4444"}}>{ivaNetoPena>=0?"":"-"}{fmtM(Math.abs(ivaNetoPena))}</span>
