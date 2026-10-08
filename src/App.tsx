@@ -3244,6 +3244,7 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
   const[pedidoAuto,setPedidoAuto]=useState(false);
   const[localAuto,setLocalAuto]=useState("");
   const[itemsAuto,setItemsAuto]=useState([]);
+  const[fechaTraslado,setFechaTraslado]=useState(()=>new Date().toISOString().slice(0,10));
 
   const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
 
@@ -3395,7 +3396,7 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
     if(items.length===0){notify("Agregá al menos un producto","err");return;}
     setSaving(true);
     const remitoId=Date.now().toString().slice(-8);
-    const now=new Date().toISOString();
+    const now=fechaTraslado?`${fechaTraslado}T12:00:00.000Z`:new Date().toISOString();
     const usuario=`${session?.name||"admin"} · remito:${remitoId} · ${origen} → ${destino}`;
     try{
       for(const it of items){
@@ -3448,9 +3449,13 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
         {/* Panel izquierdo — armar orden manual */}
         <Card sx={{padding:18}}>
           <div style={{fontSize:12,fontWeight:800,color:"#ffffff",marginBottom:14}}>📦 Nueva Orden de Traslado</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
             <div><Lbl t="Origen"/><Sel value={origen} onChange={(e)=>setOrigen(e.target.value)}>{localeNames.map(l=><option key={l}>{l}</option>)}</Sel></div>
             <div><Lbl t="Destino"/><Sel value={destino} onChange={(e)=>setDestino(e.target.value)}><option value="">— Seleccioná —</option>{localeNames.filter(l=>l!==origen).map(l=><option key={l}>{l}</option>)}</Sel></div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <Lbl t="Fecha del traslado"/>
+            <Inp type="date" value={fechaTraslado} onChange={(e)=>setFechaTraslado(e.target.value)}/>
           </div>
           <div style={{background:"#060f1a",border:"1px solid #192a38",borderRadius:8,padding:12,marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:"#00d4ff",marginBottom:8}}>Agregar producto:</div>
