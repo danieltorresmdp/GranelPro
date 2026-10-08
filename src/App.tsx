@@ -461,7 +461,7 @@ const[view,setView]=useState("dash");
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
             {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll} stockMgt={stockMgt}/>}
             {isAdmin&&view==="rentab"        &&<Rentabilidad prods={prods} sales={sales} stock={stock} localeNames={localeNames} stockMgt={stockMgt}/>}
-            {isAdmin&&view==="estadisticas"  &&<Estadisticas prods={prods} sales={sales} localeNames={localeNames}/>}
+            {isAdmin&&view==="estadisticas"  &&<Estadisticas prods={prods} sales={sales} localeNames={localeNames} stock={stock}/>}
             {isAdmin&&view==="proveedores" &&<Proveedores notify={notify}/>}
             {isAdmin&&view==="rpt_prov"    &&<ReporteProveedores sales={sales}/>}
             {isAdmin&&view==="gastos"      &&<Gastos notify={notify}/>}
@@ -3614,10 +3614,13 @@ function Traslados({prods,localeNames,notify,session,loadAll,stockMgt}) {
 
 // ─── ESTADÍSTICAS DE VENTA ─────────────────────────────────────────────────
 
-function Estadisticas({prods,sales,localeNames}) {
+function Estadisticas({prods,sales,localeNames,stock}) {
   const[prodSel,setProdSel]=useState("");
   const[q,setQ]=useState("");
   const[localSel,setLocalSel]=useState("todos");
+  const[tab,setTab]=useState("estadistica");
+  const[rotLocal,setRotLocal]=useState("");
+  const[rotMeses,setRotMeses]=useState(3);
 
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
 
@@ -3661,6 +3664,35 @@ function Estadisticas({prods,sales,localeNames}) {
 
   const CAT_EM={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
 
+  // ── Sin Rotación ──────────────────────────────────────────────────────────
+  const localesSinDepoRot=localeNames.filter(l=>!l.toUpperCase().includes("DEPOSIT"));
+  const sinRotacion=(()=>{
+    if(!rotLocal) return[];
+    const hoy=new Date();
+    const corte=new Date(hoy);
+    corte.setMonth(corte.getMonth()-rotMeses);
+    const corteStr=corte.toISOString().slice(0,10);
+    // Productos con stock > 0 en ese local
+    const conStock=(stock||[]).filter(s=>s.local_name===rotLocal&&(s.stk||0)>0);
+    // Ids que sí tuvieron ventas en el período
+    const vendidos=new Set();
+    (sales||[]).forEach(s=>{
+      if(s.localName!==rotLocal) return;
+      if(!s.date||s.date<corteStr) return;
+      (s.items||[]).forEach(it=>{vendidos.add(it.pid);});
+    });
+    return conStock
+      .map(s=>{
+        const p=prods.find(pr=>pr.id===s.product_id);
+        if(!p) return null;
+        if(vendidos.has(s.product_id)) return null;
+        return{id:s.product_id,name:p.name,cat:p.cat,unit:p.unit,stk:s.stk,code:p.code||""};
+      })
+      .filter(Boolean)
+      .sort((a,b)=>a.name.localeCompare(b.name));
+  })();
+  const CAT_EM2={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+
   return(
     <div className="fade">
       <div style={{marginBottom:16}}>
@@ -3668,6 +3700,16 @@ function Estadisticas({prods,sales,localeNames}) {
         <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>CONSUMO MENSUAL POR PRODUCTO · SIN DEPÓSITO</p>
       </div>
 
+      {/* Tab switcher */}
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[["estadistica","📊 Por Producto"],["sinrotacion","⚠️ Sin Rotación"]].map(([k,lbl])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 18px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===k?"#00cc55":"#192a38",color:tab===k?"#000":"#ffffff"}}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {tab==="estadistica"&&<>
       <Card sx={{padding:18,marginBottom:14}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:12,alignItems:"end"}}>
           <div>
@@ -3744,6 +3786,66 @@ function Estadisticas({prods,sales,localeNames}) {
             );
           })}
         </Card>
+      </>}
+      </>}
+
+      {tab==="sinrotacion"&&<>
+        <Card sx={{padding:18,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"end"}}>
+            <div>
+              <Lbl t="Local a analizar"/>
+              <Sel value={rotLocal} onChange={(e)=>setRotLocal(e.target.value)}>
+                <option value="">— Seleccioná un local —</option>
+                {localesSinDepoRot.map(l=><option key={l}>{l}</option>)}
+              </Sel>
+            </div>
+            <div>
+              <Lbl t="Período sin ventas"/>
+              <Sel value={rotMeses} onChange={(e)=>setRotMeses(Number(e.target.value))}>
+                <option value={3}>Últimos 3 meses</option>
+                <option value={6}>Últimos 6 meses</option>
+                <option value={12}>Últimos 12 meses</option>
+              </Sel>
+            </div>
+          </div>
+        </Card>
+
+        {!rotLocal&&<div style={{textAlign:"center",padding:40,color:"#ffffff",fontSize:13}}>Seleccioná un local para ver los productos sin rotación</div>}
+
+        {rotLocal&&<>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <div style={{background:"#1a0505",border:"1px solid #ff444433",borderRadius:8,padding:"8px 16px",display:"flex",gap:12,alignItems:"center"}}>
+              <span style={{fontSize:22,fontWeight:900,color:"#ff4444"}}>{sinRotacion.length}</span>
+              <span style={{fontSize:11,color:"#ffffff"}}>productos con stock sin venta en los últimos <strong style={{color:"#ffffff"}}>{rotMeses} meses</strong> en <strong style={{color:"#ffffff"}}>{rotLocal}</strong></span>
+            </div>
+          </div>
+
+          {sinRotacion.length===0&&<div style={{textAlign:"center",padding:32,color:"#00cc55",fontSize:13,fontWeight:700}}>✅ Todos los productos con stock tuvieron ventas en el período</div>}
+
+          {sinRotacion.length>0&&<Card sx={{overflow:"hidden"}}>
+            <div style={{padding:"10px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ff4444",textTransform:"uppercase"}}>⚠️ Sin Rotación · {rotLocal} · Últimos {rotMeses} meses</span>
+              <span style={{fontSize:9,color:"#ffffff"}}>{sinRotacion.length} productos</span>
+            </div>
+            {sinRotacion.map((p,i)=>(
+              <div key={p.id} style={{display:"grid",gridTemplateColumns:"32px 1fr auto auto",gap:10,alignItems:"center",padding:"10px 16px",borderBottom:"1px solid #192a3814",background:i%2===0?"transparent":"#192a3808"}}>
+                <span style={{fontSize:18,textAlign:"center"}}>{CAT_EM2[p.cat]||"📦"}</span>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#ffffff"}}>{p.name}</div>
+                  {p.code&&<div style={{fontSize:9,color:"#ffffff"}}>#{p.code}</div>}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:9,color:"#ffffff",marginBottom:2}}>STOCK</div>
+                  <div style={{fontSize:14,fontWeight:900,color:"#ff9900"}}>{p.unit==="kg"?`${(p.stk||0).toFixed(1)} kg`:`${p.stk||0} u`}</div>
+                </div>
+                <div style={{textAlign:"center",background:"#1a0505",border:"1px solid #ff444433",borderRadius:6,padding:"4px 8px"}}>
+                  <div style={{fontSize:8,color:"#ff4444",fontWeight:700}}>SIN VENTAS</div>
+                  <div style={{fontSize:8,color:"#ffffff"}}>{rotMeses}m</div>
+                </div>
+              </div>
+            ))}
+          </Card>}
+        </>}
       </>}
     </div>
   );
