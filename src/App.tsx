@@ -3626,6 +3626,9 @@ function Estadisticas({prods,sales,localeNames,stock}) {
   const[tab,setTab]=useState("estadistica");
   const[rotLocal,setRotLocal]=useState("");
   const[rotMeses,setRotMeses]=useState(3);
+  const[rankLocal,setRankLocal]=useState("");
+  const[rankPeriodo,setRankPeriodo]=useState(3);
+  const[rankTop,setRankTop]=useState(20);
 
   const fmtMonth=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
 
@@ -3707,7 +3710,7 @@ function Estadisticas({prods,sales,localeNames,stock}) {
 
       {/* Tab switcher */}
       <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {[["estadistica","📊 Por Producto"],["sinrotacion","⚠️ Sin Rotación"]].map(([k,lbl])=>(
+        {[["estadistica","📊 Por Producto"],["sinrotacion","⚠️ Sin Rotación"],["ranking","🏆 Ranking por Local"]].map(([k,lbl])=>(
           <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 18px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===k?"#00cc55":"#192a38",color:tab===k?"#000":"#ffffff"}}>
             {lbl}
           </button>
@@ -3852,6 +3855,115 @@ function Estadisticas({prods,sales,localeNames,stock}) {
           </Card>}
         </>}
       </>}
+
+      {tab==="ranking"&&(()=>{
+        // Calcular ranking
+        const hoy=new Date();
+        const corteR=new Date(hoy);
+        corteR.setMonth(corteR.getMonth()-rankPeriodo);
+        const corteRStr=corteR.toISOString().slice(0,10);
+        const acum={};
+        (sales||[]).forEach(s=>{
+          if(rankLocal&&s.localName!==rankLocal) return;
+          if(!s.date||s.date<corteRStr) return;
+          (s.items||[]).forEach(it=>{
+            if(!acum[it.pid]) acum[it.pid]={pid:it.pid,qty:0,monto:0,txn:0};
+            acum[it.pid].qty+=(it.qty||1);
+            acum[it.pid].monto+=(it.sub||0);
+            acum[it.pid].txn++;
+          });
+        });
+        const ranking=Object.values(acum)
+          .map(r=>{const p=prods.find(pr=>pr.id===r.pid);return p?{...r,name:p.name,cat:p.cat,unit:p.unit,code:p.code||""}:null;})
+          .filter(Boolean)
+          .sort((a,b)=>b.qty-a.qty)
+          .slice(0,rankTop);
+        const maxQtyR=ranking.length>0?ranking[0].qty:1;
+        const totalQtyR=ranking.reduce((a,r)=>a+r.qty,0);
+        const totalMontoR=ranking.reduce((a,r)=>a+r.monto,0);
+        const CAT_EM3={"Perro":"🐶","Gato":"🐱","Accesorios":"🛍️","Granja":"🌾","Golosinas":"🍬"};
+        const RANK_COLORS=["#ffd700","#c0c0c0","#cd7f32","#00cc55","#00d4ff","#cc44ff","#ff9900","#3388ff","#ff4444","#ffffff"];
+        return(<>
+          <Card sx={{padding:18,marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:12,alignItems:"end"}}>
+              <div>
+                <Lbl t="Local"/>
+                <Sel value={rankLocal} onChange={(e)=>setRankLocal(e.target.value)}>
+                  <option value="">Todos los locales</option>
+                  {localesSinDepo.map(l=><option key={l}>{l}</option>)}
+                </Sel>
+              </div>
+              <div>
+                <Lbl t="Período"/>
+                <Sel value={rankPeriodo} onChange={(e)=>setRankPeriodo(Number(e.target.value))}>
+                  <option value={1}>Último mes</option>
+                  <option value={3}>Últimos 3 meses</option>
+                  <option value={6}>Últimos 6 meses</option>
+                  <option value={12}>Último año</option>
+                </Sel>
+              </div>
+              <div>
+                <Lbl t="Top"/>
+                <Sel value={rankTop} onChange={(e)=>setRankTop(Number(e.target.value))}>
+                  <option value={10}>Top 10</option>
+                  <option value={20}>Top 20</option>
+                  <option value={50}>Top 50</option>
+                </Sel>
+              </div>
+            </div>
+          </Card>
+
+          {ranking.length===0&&<div style={{textAlign:"center",padding:40,color:"#ffffff",fontSize:13}}>Sin datos de ventas para el período seleccionado</div>}
+
+          {ranking.length>0&&<>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>
+              <Stat label="Productos rankeados" value={ranking.length} sub="referencias" color="#ffd700" icon="star"/>
+              <Stat label="Unidades totales" value={ranking[0]?.unit==="kg"?`${totalQtyR.toFixed(1)} kg`:`${totalQtyR} u`} sub="período" color="#00cc55" icon="trend"/>
+              <Stat label="Facturación total" value={fmtM(totalMontoR)} sub="período" color="#ff9900" icon="cash"/>
+            </div>
+
+            <Card sx={{overflow:"hidden"}}>
+              <div style={{padding:"10px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ffd700",textTransform:"uppercase"}}>🏆 Ranking · {rankLocal||"Todos los locales"} · Últimos {rankPeriodo} {rankPeriodo===1?"mes":"meses"}</span>
+                <span style={{fontSize:9,color:"#ffffff"}}>{ranking.length} productos</span>
+              </div>
+              {ranking.map((r,i)=>{
+                const barW=maxQtyR>0?(r.qty/maxQtyR*100):0;
+                const pctQty=totalQtyR>0?((r.qty/totalQtyR)*100).toFixed(1):0;
+                const color=RANK_COLORS[Math.min(i,9)];
+                const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`;
+                return(
+                  <div key={r.pid} style={{padding:"10px 16px",borderBottom:"1px solid #192a3814"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"36px 1fr auto auto auto",gap:10,alignItems:"center",marginBottom:5}}>
+                      <div style={{fontSize:i<3?20:13,fontWeight:900,color,textAlign:"center",minWidth:36}}>{medal}</div>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>{CAT_EM3[r.cat]||"📦"} {r.name}</div>
+                        {r.code&&<div style={{fontSize:9,color:"#ffffff"}}>#{r.code}</div>}
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:9,color:"#ffffff"}}>CANTIDAD</div>
+                        <div style={{fontSize:13,fontWeight:900,color:"#00cc55"}}>{r.unit==="kg"?`${r.qty.toFixed(1)} kg`:`${r.qty} u`}</div>
+                        <div style={{fontSize:9,color:"#ffffff"}}>{pctQty}% del total</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:9,color:"#ffffff"}}>FACTURADO</div>
+                        <div style={{fontSize:13,fontWeight:900,color:"#ff9900"}}>{fmtM(r.monto)}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:9,color:"#ffffff"}}>TRANSACC.</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#00d4ff"}}>{r.txn}</div>
+                      </div>
+                    </div>
+                    <div style={{height:4,background:"#192a38",borderRadius:2,overflow:"hidden"}}>
+                      <div style={{height:"100%",background:color,width:`${barW}%`,borderRadius:2,opacity:0.8,transition:"width .4s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </>}
+        </>);
+      })()}
     </div>
   );
 }
