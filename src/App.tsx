@@ -3971,12 +3971,69 @@ function Estadisticas({prods,sales,localeNames,stock}) {
 // ─── RENTABILIDAD ──────────────────────────────────────────────────────────
 
 function IvaManualTab() {
-  const anio=new Date().getFullYear();
+  const HOY_ANIO=new Date().getFullYear();
   const mesesN=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-  // rows: {mes, cfT, dfT, cfP, dfP}
-  const[rows,setRows]=useState(()=>mesesN.map(m=>({mes:m,cfT:"",dfT:"",cfP:"",dfP:""})));
-  const setField=(i,field,val)=>setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));
+  const[anioSel,setAnioSel]=useState(String(HOY_ANIO));
+  const[aniosDisp,setAniosDisp]=useState([String(HOY_ANIO)]);
+  const[rows,setRows]=useState(()=>mesesN.map((m,i)=>({mes:m,idx:i+1,cfT:"",dfT:"",cfP:"",dfP:""})));
+  const[loading,setLoading]=useState(false);
+  const[saving,setSaving]=useState(false);
+  const[confirmDel,setConfirmDel]=useState(false);
+
+  // Carga años disponibles + datos del año seleccionado
+  const loadAnio=async(a)=>{
+    setLoading(true);
+    const{data}=await sb.from("gp_iva_manual").select("mes_num,empresa,cf,df").eq("anio",a);
+    const base=mesesN.map((m,i)=>({mes:m,idx:i+1,cfT:"",dfT:"",cfP:"",dfP:""}));
+    (data||[]).forEach(row=>{
+      const r=base[row.mes_num-1];if(!r) return;
+      if(row.empresa==="torres"){r.cfT=row.cf!=null?String(row.cf):"";r.dfT=row.df!=null?String(row.df):"";}
+      else{r.cfP=row.cf!=null?String(row.cf):"";r.dfP=row.df!=null?String(row.df):"";}
+    });
+    setRows(base);setLoading(false);
+  };
+
+  const loadAniosDisp=async()=>{
+    const{data}=await sb.from("gp_iva_manual").select("anio");
+    const set=new Set((data||[]).map(r=>r.anio));
+    set.add(String(HOY_ANIO));
+    setAniosDisp([...set].sort());
+  };
+
+  useEffect(()=>{loadAniosDisp();},[]);
+  useEffect(()=>{loadAnio(anioSel);},[anioSel]);
+
   const parseN=(v)=>{const n=parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?0:n;};
+
+  // Guarda fila al salir del input (onBlur)
+  const saveField=async(i,field,val)=>{
+    const r=rows[i];
+    const empresa=field.endsWith("T")?"torres":"pena";
+    const esCf=field.startsWith("cf");
+    const cfVal=esCf?parseN(val):parseN(field.endsWith("T")?r.cfT:r.cfP);
+    const dfVal=!esCf?parseN(val):parseN(field.endsWith("T")?r.dfT:r.dfP);
+    setSaving(true);
+    await sb.from("gp_iva_manual").upsert([{
+      id:`${anioSel}-${String(r.idx).padStart(2,"0")}-${empresa}`,
+      anio:anioSel,mes_num:r.idx,empresa,cf:cfVal,df:dfVal,
+      updated_at:new Date().toISOString()
+    }],{onConflict:"id"});
+    setSaving(false);
+    await loadAniosDisp();
+  };
+
+  const setField=(i,field,val)=>setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));
+
+  const eliminarAnio=async()=>{
+    setSaving(true);
+    await sb.from("gp_iva_manual").delete().eq("anio",anioSel);
+    setConfirmDel(false);setSaving(false);
+    const nuevo=aniosDisp.filter(a=>a!==anioSel);
+    const siguiente=nuevo.length>0?nuevo[nuevo.length-1]:String(HOY_ANIO);
+    setAniosDisp(nuevo.length>0?nuevo:[String(HOY_ANIO)]);
+    setAnioSel(siguiente);
+  };
+
   let acNetoT=0,acNetoP=0;
   const rowsCalc=rows.map(r=>{
     const cfT=parseN(r.cfT),dfT=parseN(r.dfT),cfP=parseN(r.cfP),dfP=parseN(r.dfP);
@@ -3992,19 +4049,34 @@ function IvaManualTab() {
   const totDfP=rowsCalc.reduce((a,r)=>a+r.dfP,0);
   const totNetoT=totCfT-totDfT,totNetoP=totCfP-totDfP;
   const colT="#cc44ff",colP="#3388ff";
-  const inp=(val,onChange,col)=>(
-    <input type="text" value={val} onChange={onChange} placeholder="0"
+  const inp=(val,onChg,onBlur,col)=>(
+    <input type="text" value={val}
+      onChange={onChg} onBlur={onBlur} placeholder="0"
       style={{width:"100%",background:"#0a1a2e",border:"1px solid #192a38",borderRadius:5,color:col,padding:"4px 6px",fontSize:11,fontFamily:"inherit",textAlign:"right"}}/>
   );
   return(<div>
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-      <span style={{fontSize:13,fontWeight:800,color:"#00d4ff"}}>📋 IVA Manual {anio}</span>
-      <span style={{fontSize:10,color:"#ffffff",opacity:0.6}}>Datos de DDJJ del contador · sesión temporal</span>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:14}}>
+      <span style={{fontSize:13,fontWeight:800,color:"#00d4ff"}}>📋 IVA Manual</span>
+      {aniosDisp.map(a=>(
+        <button key={a} onClick={()=>setAnioSel(a)} style={{padding:"4px 13px",borderRadius:6,border:`1px solid ${anioSel===a?"#00d4ff":"#192a38"}`,background:anioSel===a?"#021520":"transparent",color:anioSel===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:anioSel===a?800:400}}>{a}</button>
+      ))}
+      {saving&&<span style={{fontSize:10,color:"#00cc55"}}>💾 Guardando...</span>}
+      {loading&&<span style={{fontSize:10,color:"#ffffff",opacity:0.6}}>Cargando...</span>}
+      <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+        {confirmDel
+          ?<><span style={{fontSize:11,color:"#ff4444"}}>¿Eliminar todos los datos de {anioSel}?</span>
+            <button onClick={eliminarAnio} style={{padding:"4px 12px",borderRadius:6,border:"1px solid #ff4444",background:"#ff4444",color:"#fff",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>Confirmar</button>
+            <button onClick={()=>setConfirmDel(false)} style={{padding:"4px 12px",borderRadius:6,border:"1px solid #192a38",background:"transparent",color:"#ffffff",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>Cancelar</button>
+          </>
+          :<button onClick={()=>setConfirmDel(true)} style={{padding:"4px 12px",borderRadius:6,border:"1px solid #ff444444",background:"transparent",color:"#ff6666",cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>🗑 Eliminar {anioSel}</button>
+        }
+      </div>
     </div>
     <Card sx={{overflow:"hidden"}}>
       <div style={{padding:"8px 14px",borderBottom:"1px solid #192a38",display:"flex",gap:24}}>
         <span style={{fontSize:9,fontWeight:800,color:colT,letterSpacing:1}}>🏢 TORRES — CAMET · STORNI · ESTRADA</span>
         <span style={{fontSize:9,fontWeight:800,color:colP,letterSpacing:1}}>🏢 PEÑA LOZA — CATALUÑA · TEJEDOR · FERIA 180 · PEDRAZA</span>
+        <span style={{fontSize:9,color:"#ffffff",marginLeft:"auto",opacity:0.5}}>Los datos se guardan al salir de cada campo</span>
       </div>
       <div style={{overflowX:"auto"}}>
       <table style={{minWidth:900}}>
@@ -4027,14 +4099,14 @@ function IvaManualTab() {
           {rowsCalc.map((r,i)=>(
             <tr key={i}>
               <td style={{fontWeight:700,color:"#ffffff",fontSize:11}}>{r.mes}</td>
-              <td>{inp(r.cfT,e=>setField(i,"cfT",e.target.value),"#00cc55")}</td>
-              <td>{inp(r.dfT,e=>setField(i,"dfT",e.target.value),"#ff6666")}</td>
+              <td>{inp(r.cfT,e=>setField(i,"cfT",e.target.value),()=>saveField(i,"cfT",r.cfT),"#00cc55")}</td>
+              <td>{inp(r.dfT,e=>setField(i,"dfT",e.target.value),()=>saveField(i,"dfT",r.dfT),"#ff6666")}</td>
               <td style={{minWidth:110}}>
                 <div style={{fontWeight:700,color:r.netoT>=0?colT:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasT?(r.netoT>=0?"+":"")+fmtM(Math.abs(r.netoT)):"—"}</div>
                 <div style={{color:r.acNetoT>=0?colT:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasT?"▸ "+(r.acNetoT>=0?"+":"")+fmtM(Math.abs(r.acNetoT)):""}</div>
               </td>
-              <td>{inp(r.cfP,e=>setField(i,"cfP",e.target.value),"#00cc55")}</td>
-              <td>{inp(r.dfP,e=>setField(i,"dfP",e.target.value),"#ff6666")}</td>
+              <td>{inp(r.cfP,e=>setField(i,"cfP",e.target.value),()=>saveField(i,"cfP",r.cfP),"#00cc55")}</td>
+              <td>{inp(r.dfP,e=>setField(i,"dfP",e.target.value),()=>saveField(i,"dfP",r.dfP),"#ff6666")}</td>
               <td style={{minWidth:110}}>
                 <div style={{fontWeight:700,color:r.netoP>=0?colP:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasP?(r.netoP>=0?"+":"")+fmtM(Math.abs(r.netoP)):"—"}</div>
                 <div style={{color:r.acNetoP>=0?colP:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasP?"▸ "+(r.acNetoP>=0?"+":"")+fmtM(Math.abs(r.acNetoP)):""}</div>
@@ -4042,7 +4114,7 @@ function IvaManualTab() {
             </tr>
           ))}
           <tr style={{background:"#040c18",borderTop:"2px solid #192a38"}}>
-            <td style={{fontWeight:900,color:"#ffffff",fontSize:11}}>TOTAL {anio}</td>
+            <td style={{fontWeight:900,color:"#ffffff",fontSize:11}}>TOTAL {anioSel}</td>
             <td style={{fontWeight:800,color:"#00cc55",textAlign:"right",fontSize:11}}>{fmtM(totCfT)}</td>
             <td style={{fontWeight:800,color:"#ff6666",textAlign:"right",fontSize:11}}>{fmtM(totDfT)}</td>
             <td style={{fontWeight:900,color:totNetoT>=0?colT:"#ff4444",textAlign:"right",fontSize:12}}>{totNetoT>=0?"+":""}{fmtM(Math.abs(totNetoT))}</td>
@@ -4055,7 +4127,7 @@ function IvaManualTab() {
       </div>
     </Card>
     <div style={{marginTop:12,padding:"10px 14px",background:"#040c18",borderRadius:8,fontSize:10,color:"#ffffff",opacity:0.6}}>
-      💡 Ingresá los valores en pesos. CF = compras en blanco ÷ 1.21 × 0.21 · DF = ventas digitales ÷ 1.21 × 0.21. Neto = CF − DF. Acum. = acumulado progresivo del año.
+      💡 CF = compras en blanco ÷ 1.21 × 0.21 · DF = ventas digitales ÷ 1.21 × 0.21 · Neto = CF − DF · Los datos se guardan en la base y son visibles para todos los administradores.
     </div>
   </div>);
 }
