@@ -3970,15 +3970,111 @@ function Estadisticas({prods,sales,localeNames,stock}) {
 
 // ─── RENTABILIDAD ──────────────────────────────────────────────────────────
 
-function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel}) {
-  const TORRES_L=["CAMET","STORNI","ESTRADA"];
-  const fmtM2=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
-  let acCfT=0,acCfP=0,acDfT=0,acDfP=0;
-  const rows=ivaAnualData.map(d=>{
-    acCfT+=d.cfTorres;acCfP+=d.cfPena;acDfT+=d.dfTorres;acDfP+=d.dfPena;
-    return{...d,acCfT,acCfP,acDfT,acDfP,netoT:d.cfTorres-d.dfTorres,netoP:d.cfPena-d.dfPena,acNetoT:acCfT-acDfT,acNetoP:acCfP-acDfP};
+function IvaManualTab() {
+  const anio=new Date().getFullYear();
+  const mesesN=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  // rows: {mes, cfT, dfT, cfP, dfP}
+  const[rows,setRows]=useState(()=>mesesN.map(m=>({mes:m,cfT:"",dfT:"",cfP:"",dfP:""})));
+  const setField=(i,field,val)=>setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));
+  const parseN=(v)=>{const n=parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?0:n;};
+  let acNetoT=0,acNetoP=0;
+  const rowsCalc=rows.map(r=>{
+    const cfT=parseN(r.cfT),dfT=parseN(r.dfT),cfP=parseN(r.cfP),dfP=parseN(r.dfP);
+    const netoT=cfT-dfT,netoP=cfP-dfP;
+    acNetoT+=netoT;acNetoP+=netoP;
+    const hasT=r.cfT!==""||r.dfT!=="";
+    const hasP=r.cfP!==""||r.dfP!=="";
+    return{...r,cfT,dfT,cfP,dfP,netoT,netoP,acNetoT,acNetoP,hasT,hasP};
   });
-  const totalCfT=acCfT,totalCfP=acCfP,totalDfT=acDfT,totalDfP=acDfP;
+  const totCfT=rowsCalc.reduce((a,r)=>a+r.cfT,0);
+  const totDfT=rowsCalc.reduce((a,r)=>a+r.dfT,0);
+  const totCfP=rowsCalc.reduce((a,r)=>a+r.cfP,0);
+  const totDfP=rowsCalc.reduce((a,r)=>a+r.dfP,0);
+  const totNetoT=totCfT-totDfT,totNetoP=totCfP-totDfP;
+  const colT="#cc44ff",colP="#3388ff";
+  const inp=(val,onChange,col)=>(
+    <input type="text" value={val} onChange={onChange} placeholder="0"
+      style={{width:"100%",background:"#0a1a2e",border:"1px solid #192a38",borderRadius:5,color:col,padding:"4px 6px",fontSize:11,fontFamily:"inherit",textAlign:"right"}}/>
+  );
+  return(<div>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+      <span style={{fontSize:13,fontWeight:800,color:"#00d4ff"}}>📋 IVA Manual {anio}</span>
+      <span style={{fontSize:10,color:"#ffffff",opacity:0.6}}>Datos de DDJJ del contador · sesión temporal</span>
+    </div>
+    <Card sx={{overflow:"hidden"}}>
+      <div style={{padding:"8px 14px",borderBottom:"1px solid #192a38",display:"flex",gap:24}}>
+        <span style={{fontSize:9,fontWeight:800,color:colT,letterSpacing:1}}>🏢 TORRES — CAMET · STORNI · ESTRADA</span>
+        <span style={{fontSize:9,fontWeight:800,color:colP,letterSpacing:1}}>🏢 PEÑA LOZA — CATALUÑA · TEJEDOR · FERIA 180 · PEDRAZA</span>
+      </div>
+      <div style={{overflowX:"auto"}}>
+      <table style={{minWidth:900}}>
+        <thead>
+          <tr>
+            <th rowSpan={2} style={{width:95}}>Mes</th>
+            <th colSpan={3} style={{color:colT,borderBottom:"1px solid #192a38"}}>TORRES</th>
+            <th colSpan={3} style={{color:colP,borderBottom:"1px solid #192a38"}}>PEÑA LOZA</th>
+          </tr>
+          <tr>
+            <th style={{color:"#00cc55",fontSize:10}}>CF</th>
+            <th style={{color:"#ff6666",fontSize:10}}>DF</th>
+            <th style={{color:colT,fontSize:10}}>Neto / Acum.</th>
+            <th style={{color:"#00cc55",fontSize:10}}>CF</th>
+            <th style={{color:"#ff6666",fontSize:10}}>DF</th>
+            <th style={{color:colP,fontSize:10}}>Neto / Acum.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rowsCalc.map((r,i)=>(
+            <tr key={i}>
+              <td style={{fontWeight:700,color:"#ffffff",fontSize:11}}>{r.mes}</td>
+              <td>{inp(r.cfT,e=>setField(i,"cfT",e.target.value),"#00cc55")}</td>
+              <td>{inp(r.dfT,e=>setField(i,"dfT",e.target.value),"#ff6666")}</td>
+              <td style={{minWidth:110}}>
+                <div style={{fontWeight:700,color:r.netoT>=0?colT:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasT?(r.netoT>=0?"+":"")+fmtM(Math.abs(r.netoT)):"—"}</div>
+                <div style={{color:r.acNetoT>=0?colT:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasT?"▸ "+(r.acNetoT>=0?"+":"")+fmtM(Math.abs(r.acNetoT)):""}</div>
+              </td>
+              <td>{inp(r.cfP,e=>setField(i,"cfP",e.target.value),"#00cc55")}</td>
+              <td>{inp(r.dfP,e=>setField(i,"dfP",e.target.value),"#ff6666")}</td>
+              <td style={{minWidth:110}}>
+                <div style={{fontWeight:700,color:r.netoP>=0?colP:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasP?(r.netoP>=0?"+":"")+fmtM(Math.abs(r.netoP)):"—"}</div>
+                <div style={{color:r.acNetoP>=0?colP:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasP?"▸ "+(r.acNetoP>=0?"+":"")+fmtM(Math.abs(r.acNetoP)):""}</div>
+              </td>
+            </tr>
+          ))}
+          <tr style={{background:"#040c18",borderTop:"2px solid #192a38"}}>
+            <td style={{fontWeight:900,color:"#ffffff",fontSize:11}}>TOTAL {anio}</td>
+            <td style={{fontWeight:800,color:"#00cc55",textAlign:"right",fontSize:11}}>{fmtM(totCfT)}</td>
+            <td style={{fontWeight:800,color:"#ff6666",textAlign:"right",fontSize:11}}>{fmtM(totDfT)}</td>
+            <td style={{fontWeight:900,color:totNetoT>=0?colT:"#ff4444",textAlign:"right",fontSize:12}}>{totNetoT>=0?"+":""}{fmtM(Math.abs(totNetoT))}</td>
+            <td style={{fontWeight:800,color:"#00cc55",textAlign:"right",fontSize:11}}>{fmtM(totCfP)}</td>
+            <td style={{fontWeight:800,color:"#ff6666",textAlign:"right",fontSize:11}}>{fmtM(totDfP)}</td>
+            <td style={{fontWeight:900,color:totNetoP>=0?colP:"#ff4444",textAlign:"right",fontSize:12}}>{totNetoP>=0?"+":""}{fmtM(Math.abs(totNetoP))}</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </Card>
+    <div style={{marginTop:12,padding:"10px 14px",background:"#040c18",borderRadius:8,fontSize:10,color:"#ffffff",opacity:0.6}}>
+      💡 Ingresá los valores en pesos. CF = compras en blanco ÷ 1.21 × 0.21 · DF = ventas digitales ÷ 1.21 × 0.21. Neto = CF − DF. Acum. = acumulado progresivo del año.
+    </div>
+  </div>);
+}
+
+function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel,empresa}) {
+  // empresa: "torres" | "pena"
+  const isTorres=empresa==="torres";
+  const col=isTorres?"#cc44ff":"#3388ff";
+  const label=isTorres?"🏢 TORRES":"🏢 PEÑA LOZA";
+  const fmtM2=(ym)=>{const[y,m]=ym.split("-");const n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return`${n[parseInt(m)-1]} ${y}`;};
+  let acCf=0,acDf=0;
+  const rows=ivaAnualData.map(d=>{
+    const cf=isTorres?d.cfTorres:d.cfPena;
+    const df=isTorres?d.dfTorres:d.dfPena;
+    acCf+=cf;acDf+=df;
+    const neto=cf-df;const acNeto=acCf-acDf;
+    return{...d,cf,df,neto,acCf,acDf,acNeto};
+  });
+  const totalCf=acCf,totalDf=acDf,totalNeto=totalCf-totalDf;
   return(<div>
     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14}}>
       <span style={{fontSize:12,color:"#ffffff"}}>Año:</span>
@@ -3987,54 +4083,42 @@ function IvaAnualTab({ivaAnualData,loadingAnual,anioSel,setAnioSel}) {
       ))}
       {loadingAnual&&<span style={{fontSize:11,color:"#ffffff"}}>Cargando...</span>}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-      {[["🏢 TORRES",totalCfT,totalDfT,"#cc44ff"],["🏢 PEÑA LOZA",totalCfP,totalDfP,"#3388ff"]].map(([label,cf,df,col])=>{
-        const neto=cf-df;
-        return(<Card key={String(label)} sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`}}>
-          <div style={{fontSize:11,fontWeight:800,color:col,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col}}>{fmtM(cf)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtM(df)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:neto>=0?col:"#ff4444"}}>{neto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(neto))}</span></div>
-        </Card>);
-      })}
-    </div>
+    <Card sx={{padding:16,background:"#040c18",border:`1px solid ${col}33`,marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:800,color:col,marginBottom:10}}>{label} · Acumulado {anioSel}</div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>CF Total</span><span style={{fontWeight:700,color:col}}>{fmtM(totalCf)}</span></div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:11,color:"#ffffff"}}>DF Total</span><span style={{fontWeight:700,color:"#ff6666"}}>{fmtM(totalDf)}</span></div>
+      <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #192a38"}}><span style={{fontSize:12,fontWeight:800,color:"#ffffff"}}>Posición</span><span style={{fontSize:14,fontWeight:900,color:totalNeto>=0?col:"#ff4444"}}>{totalNeto>=0?"▲ Saldo a favor":"▼ A pagar"} {fmtM(Math.abs(totalNeto))}</span></div>
+    </Card>
     <Card sx={{overflow:"hidden"}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid #192a38",display:"flex",gap:20}}>
-        <span style={{fontSize:9,fontWeight:700,color:"#cc44ff",letterSpacing:1}}>🏢 TORRES</span>
-        <span style={{fontSize:9,fontWeight:700,color:"#3388ff",letterSpacing:1}}>🏢 PEÑA LOZA</span>
+        <span style={{fontSize:9,fontWeight:700,color:col,letterSpacing:1}}>{label}</span>
         <span style={{fontSize:9,color:"#ffffff",marginLeft:"auto"}}>CF = Crédito Fiscal · DF = Débito Fiscal</span>
       </div>
       <div style={{overflowX:"auto"}}>
-      <table style={{minWidth:800}}>
+      <table style={{minWidth:520}}>
         <thead><tr>
           <th>Mes</th>
-          <th style={{color:"#cc44ff"}}>CF Torres</th><th style={{color:"#ff6666"}}>DF Torres</th><th style={{color:"#cc44ff"}}>Pos. Torres</th><th style={{color:"#cc44ff"}}>Acum. Torres</th>
-          <th style={{color:"#3388ff"}}>CF Peña Loza</th><th style={{color:"#ff6666"}}>DF Peña Loza</th><th style={{color:"#3388ff"}}>Pos. Peña Loza</th><th style={{color:"#3388ff"}}>Acum. Peña Loza</th>
+          <th style={{color:col}}>CF</th>
+          <th style={{color:"#ff6666"}}>DF</th>
+          <th style={{color:col}}>Posición</th>
+          <th style={{color:col}}>Acumulado</th>
         </tr></thead>
         <tbody>
           {rows.map((r,i)=>(
             <tr key={i}>
               <td style={{fontWeight:700,color:"#ffffff"}}>{fmtM2(r.ym)}</td>
-              <td style={{color:"#cc44ff"}}>{fmtM(r.cfTorres)}</td>
-              <td style={{color:"#ff6666"}}>{fmtM(r.dfTorres)}</td>
-              <td style={{fontWeight:700,color:r.netoT>=0?"#cc44ff":"#ff4444"}}>{r.netoT>=0?"+":""}{fmtM(Math.abs(r.netoT))}</td>
-              <td style={{fontWeight:700,color:r.acNetoT>=0?"#cc44ff":"#ff4444"}}>{r.acNetoT>=0?"+":""}{fmtM(Math.abs(r.acNetoT))}</td>
-              <td style={{color:"#3388ff"}}>{fmtM(r.cfPena)}</td>
-              <td style={{color:"#ff6666"}}>{fmtM(r.dfPena)}</td>
-              <td style={{fontWeight:700,color:r.netoP>=0?"#3388ff":"#ff4444"}}>{r.netoP>=0?"+":""}{fmtM(Math.abs(r.netoP))}</td>
-              <td style={{fontWeight:700,color:r.acNetoP>=0?"#3388ff":"#ff4444"}}>{r.acNetoP>=0?"+":""}{fmtM(Math.abs(r.acNetoP))}</td>
+              <td style={{color:col}}>{fmtM(r.cf)}</td>
+              <td style={{color:"#ff6666"}}>{fmtM(r.df)}</td>
+              <td style={{fontWeight:700,color:r.neto>=0?col:"#ff4444"}}>{r.neto>=0?"+":""}{fmtM(Math.abs(r.neto))}</td>
+              <td style={{fontWeight:700,color:r.acNeto>=0?col:"#ff4444"}}>{r.acNeto>=0?"+":""}{fmtM(Math.abs(r.acNeto))}</td>
             </tr>
           ))}
-          {rows.length===0&&!loadingAnual&&<tr><td colSpan={9} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin datos para {anioSel}</td></tr>}
+          {rows.length===0&&!loadingAnual&&<tr><td colSpan={5} style={{textAlign:"center",padding:20,color:"#ffffff"}}>Sin datos para {anioSel}</td></tr>}
           {rows.length>0&&<tr style={{background:"#040c18",borderTop:"2px solid #192a38"}}>
             <td style={{fontWeight:900,color:"#ffffff"}}>TOTAL {anioSel}</td>
-            <td style={{fontWeight:800,color:"#cc44ff"}}>{fmtM(totalCfT)}</td>
-            <td style={{fontWeight:800,color:"#ff6666"}}>{fmtM(totalDfT)}</td>
-            <td style={{fontWeight:900,color:totalCfT-totalDfT>=0?"#cc44ff":"#ff4444"}}>{totalCfT-totalDfT>=0?"+":""}{fmtM(Math.abs(totalCfT-totalDfT))}</td>
-            <td></td>
-            <td style={{fontWeight:800,color:"#3388ff"}}>{fmtM(totalCfP)}</td>
-            <td style={{fontWeight:800,color:"#ff6666"}}>{fmtM(totalDfP)}</td>
-            <td style={{fontWeight:900,color:totalCfP-totalDfP>=0?"#3388ff":"#ff4444"}}>{totalCfP-totalDfP>=0?"+":""}{fmtM(Math.abs(totalCfP-totalDfP))}</td>
+            <td style={{fontWeight:800,color:col}}>{fmtM(totalCf)}</td>
+            <td style={{fontWeight:800,color:"#ff6666"}}>{fmtM(totalDf)}</td>
+            <td style={{fontWeight:900,color:totalNeto>=0?col:"#ff4444"}}>{totalNeto>=0?"+":""}{fmtM(Math.abs(totalNeto))}</td>
             <td></td>
           </tr>}
         </tbody>
@@ -4086,7 +4170,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
   const TORRES_LANUAL=["CAMET","STORNI","ESTRADA"];
   const isTorresLAnual=(loc)=>TORRES_LANUAL.includes((loc||"").toUpperCase());
   useEffect(()=>{
-    if(activeTab!=="ivaanual") return;
+    if(activeTab!=="ivaanual-torres"&&activeTab!=="ivaanual-pena") return;
     const load=async()=>{
       setLoadingAnual(true);
       const desde=`${anioSel}-01-01`;
@@ -4242,7 +4326,7 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
       </div>
 
       <div style={{display:"flex",gap:8,marginBottom:14}}>
-        {[["global","🌐 Global"],["local","📍 Por Local"],["alertas","⚠ Alertas"],["ivaanual","📅 IVA Anual"]].map(([k,label])=>(
+        {[["global","🌐 Global"],["local","📍 Por Local"],["alertas","⚠ Alertas"],["ivaanual-torres","📅 IVA Torres"],["ivaanual-pena","📅 IVA Peña Loza"],["ivamanual","📋 IVA Manual"]].map(([k,label])=>(
           <button key={k} onClick={()=>setActiveTab(k)} style={{padding:"8px 16px",borderRadius:7,border:`1px solid ${activeTab===k?"#00d4ff":"#192a38"}`,background:activeTab===k?"#021520":"transparent",color:activeTab===k?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:activeTab===k?700:400}}>{label}</button>
         ))}
       </div>
@@ -4470,8 +4554,12 @@ function Rentabilidad({prods,sales,stock,localeNames,stockMgt}) {
         </div>
       </div>}
 
-      {/* ── IVA ANUAL ── */}
-      {activeTab==="ivaanual"&&<IvaAnualTab ivaAnualData={ivaAnualData} loadingAnual={loadingAnual} anioSel={anioSel} setAnioSel={setAnioSel}/>}
+      {/* ── IVA ANUAL TORRES ── */}
+      {activeTab==="ivaanual-torres"&&<IvaAnualTab ivaAnualData={ivaAnualData} loadingAnual={loadingAnual} anioSel={anioSel} setAnioSel={setAnioSel} empresa="torres"/>}
+      {/* ── IVA ANUAL PEÑA LOZA ── */}
+      {activeTab==="ivaanual-pena"&&<IvaAnualTab ivaAnualData={ivaAnualData} loadingAnual={loadingAnual} anioSel={anioSel} setAnioSel={setAnioSel} empresa="pena"/>}
+      {/* ── IVA MANUAL ── */}
+      {activeTab==="ivamanual"&&<IvaManualTab/>}
     </div>
   );
 }
