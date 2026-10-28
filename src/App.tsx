@@ -4004,25 +4004,31 @@ function IvaManualTab() {
   useEffect(()=>{loadAnio(anioSel);},[anioSel]);
 
   const parseN=(v)=>{const n=parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?0:n;};
+  const[dirty,setDirty]=useState(false);
+  const[saveOk,setSaveOk]=useState(false);
 
-  // Guarda fila al salir del input (onBlur)
-  const saveField=async(i,field,val)=>{
-    const r=rows[i];
-    const empresa=field.endsWith("T")?"torres":"pena";
-    const esCf=field.startsWith("cf");
-    const cfVal=esCf?parseN(val):parseN(field.endsWith("T")?r.cfT:r.cfP);
-    const dfVal=!esCf?parseN(val):parseN(field.endsWith("T")?r.dfT:r.dfP);
-    setSaving(true);
-    await sb.from("gp_iva_manual").upsert([{
-      id:`${anioSel}-${String(r.idx).padStart(2,"0")}-${empresa}`,
-      anio:anioSel,mes_num:r.idx,empresa,cf:cfVal,df:dfVal,
-      updated_at:new Date().toISOString()
-    }],{onConflict:"id"});
-    setSaving(false);
+  const setField=(i,field,val)=>{setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));setDirty(true);setSaveOk(false);};
+
+  // Guarda todos los meses del año de una vez
+  const guardarTodo=async(currentRows)=>{
+    setSaving(true);setSaveOk(false);
+    const payload=[];
+    currentRows.forEach(r=>{
+      ["torres","pena"].forEach(emp=>{
+        const cf=emp==="torres"?parseN(r.cfT):parseN(r.cfP);
+        const df=emp==="torres"?parseN(r.dfT):parseN(r.dfP);
+        payload.push({
+          id:`${anioSel}-${String(r.idx).padStart(2,"0")}-${emp}`,
+          anio:anioSel,mes_num:r.idx,empresa:emp,cf,df,
+          updated_at:new Date().toISOString()
+        });
+      });
+    });
+    await sb.from("gp_iva_manual").upsert(payload,{onConflict:"id"});
+    setSaving(false);setDirty(false);setSaveOk(true);
+    setTimeout(()=>setSaveOk(false),3000);
     await loadAniosDisp();
   };
-
-  const setField=(i,field,val)=>setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));
 
   const eliminarAnio=async()=>{
     setSaving(true);
@@ -4049,9 +4055,8 @@ function IvaManualTab() {
   const totDfP=rowsCalc.reduce((a,r)=>a+r.dfP,0);
   const totNetoT=totCfT-totDfT,totNetoP=totCfP-totDfP;
   const colT="#cc44ff",colP="#3388ff";
-  const inp=(val,onChg,onBlur,col)=>(
-    <input type="text" value={val}
-      onChange={onChg} onBlur={onBlur} placeholder="0"
+  const inp=(val,onChg,col)=>(
+    <input type="text" value={val} onChange={onChg} placeholder="0"
       style={{width:"100%",background:"#0a1a2e",border:"1px solid #192a38",borderRadius:5,color:col,padding:"4px 6px",fontSize:11,fontFamily:"inherit",textAlign:"right"}}/>
   );
   return(<div>
@@ -4060,7 +4065,9 @@ function IvaManualTab() {
       {aniosDisp.map(a=>(
         <button key={a} onClick={()=>setAnioSel(a)} style={{padding:"4px 13px",borderRadius:6,border:`1px solid ${anioSel===a?"#00d4ff":"#192a38"}`,background:anioSel===a?"#021520":"transparent",color:anioSel===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:anioSel===a?800:400}}>{a}</button>
       ))}
-      {saving&&<span style={{fontSize:10,color:"#00cc55"}}>💾 Guardando...</span>}
+      <button onClick={()=>guardarTodo(rows)} disabled={saving||loading} style={{padding:"6px 18px",borderRadius:7,border:`2px solid ${dirty?"#00cc55":"#192a38"}`,background:dirty?"#00cc5522":"transparent",color:dirty?"#00cc55":"#ffffff",cursor:dirty?"pointer":"default",fontFamily:"inherit",fontSize:12,fontWeight:800}}>
+        {saving?"💾 Guardando...":saveOk?"✅ Guardado":dirty?"💾 Guardar":"💾 Guardar"}
+      </button>
       {loading&&<span style={{fontSize:10,color:"#ffffff",opacity:0.6}}>Cargando...</span>}
       <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
         {confirmDel
@@ -4099,14 +4106,14 @@ function IvaManualTab() {
           {rowsCalc.map((r,i)=>(
             <tr key={i}>
               <td style={{fontWeight:700,color:"#ffffff",fontSize:11}}>{r.mes}</td>
-              <td>{inp(r.cfT,e=>setField(i,"cfT",e.target.value),()=>saveField(i,"cfT",r.cfT),"#00cc55")}</td>
-              <td>{inp(r.dfT,e=>setField(i,"dfT",e.target.value),()=>saveField(i,"dfT",r.dfT),"#ff6666")}</td>
+              <td>{inp(r.cfT,e=>setField(i,"cfT",e.target.value),"#00cc55")}</td>
+              <td>{inp(r.dfT,e=>setField(i,"dfT",e.target.value),"#ff6666")}</td>
               <td style={{minWidth:110}}>
                 <div style={{fontWeight:700,color:r.netoT>=0?colT:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasT?(r.netoT>=0?"+":"")+fmtM(Math.abs(r.netoT)):"—"}</div>
                 <div style={{color:r.acNetoT>=0?colT:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasT?"▸ "+(r.acNetoT>=0?"+":"")+fmtM(Math.abs(r.acNetoT)):""}</div>
               </td>
-              <td>{inp(r.cfP,e=>setField(i,"cfP",e.target.value),()=>saveField(i,"cfP",r.cfP),"#00cc55")}</td>
-              <td>{inp(r.dfP,e=>setField(i,"dfP",e.target.value),()=>saveField(i,"dfP",r.dfP),"#ff6666")}</td>
+              <td>{inp(r.cfP,e=>setField(i,"cfP",e.target.value),"#00cc55")}</td>
+              <td>{inp(r.dfP,e=>setField(i,"dfP",e.target.value),"#ff6666")}</td>
               <td style={{minWidth:110}}>
                 <div style={{fontWeight:700,color:r.netoP>=0?colP:"#ff4444",fontSize:11,textAlign:"right"}}>{r.hasP?(r.netoP>=0?"+":"")+fmtM(Math.abs(r.netoP)):"—"}</div>
                 <div style={{color:r.acNetoP>=0?colP:"#ff4444",fontSize:9,textAlign:"right",opacity:0.8}}>{r.hasP?"▸ "+(r.acNetoP>=0?"+":"")+fmtM(Math.abs(r.acNetoP)):""}</div>
