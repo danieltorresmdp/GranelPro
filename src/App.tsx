@@ -4006,12 +4006,13 @@ function IvaManualTab() {
   const parseN=(v)=>{const n=parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?0:n;};
   const[dirty,setDirty]=useState(false);
   const[saveOk,setSaveOk]=useState(false);
+  const[saveErr,setSaveErr]=useState("");
 
-  const setField=(i,field,val)=>{setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));setDirty(true);setSaveOk(false);};
+  const setField=(i,field,val)=>{setRows(prev=>prev.map((r,ri)=>ri===i?{...r,[field]:val}:r));setDirty(true);setSaveOk(false);setSaveErr("");};
 
   // Guarda todos los meses del año de una vez
   const guardarTodo=async(currentRows)=>{
-    setSaving(true);setSaveOk(false);
+    setSaving(true);setSaveOk(false);setSaveErr("");
     const payload=[];
     currentRows.forEach(r=>{
       ["torres","pena"].forEach(emp=>{
@@ -4024,10 +4025,15 @@ function IvaManualTab() {
         });
       });
     });
-    await sb.from("gp_iva_manual").upsert(payload,{onConflict:"id"});
-    setSaving(false);setDirty(false);setSaveOk(true);
-    setTimeout(()=>setSaveOk(false),3000);
-    await loadAniosDisp();
+    const{error}=await sb.from("gp_iva_manual").upsert(payload,{onConflict:"id"});
+    setSaving(false);
+    if(error){
+      setSaveErr(`Error: ${error.message||error.code||"desconocido"} — ¿Existe la tabla gp_iva_manual?`);
+    } else {
+      setDirty(false);setSaveOk(true);
+      setTimeout(()=>setSaveOk(false),4000);
+      await loadAniosDisp();
+    }
   };
 
   const eliminarAnio=async()=>{
@@ -4065,9 +4071,10 @@ function IvaManualTab() {
       {aniosDisp.map(a=>(
         <button key={a} onClick={()=>setAnioSel(a)} style={{padding:"4px 13px",borderRadius:6,border:`1px solid ${anioSel===a?"#00d4ff":"#192a38"}`,background:anioSel===a?"#021520":"transparent",color:anioSel===a?"#00d4ff":"#ffffff",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:anioSel===a?800:400}}>{a}</button>
       ))}
-      <button onClick={()=>guardarTodo(rows)} disabled={saving||loading} style={{padding:"6px 18px",borderRadius:7,border:`2px solid ${dirty?"#00cc55":"#192a38"}`,background:dirty?"#00cc5522":"transparent",color:dirty?"#00cc55":"#ffffff",cursor:dirty?"pointer":"default",fontFamily:"inherit",fontSize:12,fontWeight:800}}>
-        {saving?"💾 Guardando...":saveOk?"✅ Guardado":dirty?"💾 Guardar":"💾 Guardar"}
+      <button onClick={()=>guardarTodo(rows)} disabled={saving||loading} style={{padding:"6px 18px",borderRadius:7,border:`2px solid ${dirty?"#00cc55":"#192a38"}`,background:dirty?"#00cc5522":"transparent",color:dirty?"#00cc55":"#aaaaaa",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:800}}>
+        {saving?"💾 Guardando...":saveOk?"✅ Guardado":"💾 Guardar"}
       </button>
+      {saveErr&&<span style={{fontSize:10,color:"#ff4444",maxWidth:400}}>{saveErr}</span>}
       {loading&&<span style={{fontSize:10,color:"#ffffff",opacity:0.6}}>Cargando...</span>}
       <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
         {confirmDel
@@ -4083,7 +4090,7 @@ function IvaManualTab() {
       <div style={{padding:"8px 14px",borderBottom:"1px solid #192a38",display:"flex",gap:24}}>
         <span style={{fontSize:9,fontWeight:800,color:colT,letterSpacing:1}}>🏢 TORRES — CAMET · STORNI · ESTRADA</span>
         <span style={{fontSize:9,fontWeight:800,color:colP,letterSpacing:1}}>🏢 PEÑA LOZA — CATALUÑA · TEJEDOR · FERIA 180 · PEDRAZA</span>
-        <span style={{fontSize:9,color:"#ffffff",marginLeft:"auto",opacity:0.5}}>Los datos se guardan al salir de cada campo</span>
+        <span style={{fontSize:9,color:"#ffffff",marginLeft:"auto",opacity:0.5}}>Presioná 💾 Guardar para persistir los datos</span>
       </div>
       <div style={{overflowX:"auto"}}>
       <table style={{minWidth:900}}>
