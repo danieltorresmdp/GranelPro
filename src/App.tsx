@@ -1255,6 +1255,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const[cajaTotal,setCajaTotal]=useState("");
   const[fondo,setFondo]=useState("");
   const[retiro,setRetiro]=useState("");
+  const[paywayLote,setPaywayLote]=useState("");
   const[otros,setOtros]=useState([{desc:"",monto:""}]);
   const[verMas,setVerMas]=useState(20);
 
@@ -1292,7 +1293,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
   const totalOtros=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
 
   const imprimirCierre=(data)=>{
-    const{turno,cajaTotal,fondo,retiro,otros,local,nombre,fecha}=data;
+    const{turno,cajaTotal,fondo,retiro,paywayLote,otros,local,nombre,fecha}=data;
     const totalOtrosP=otros.reduce((a,b)=>a+(parseFloat(b.monto)||0),0);
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre de Caja</title>
     <style>body{font-family:Arial,sans-serif;padding:20px;max-width:380px;margin:0 auto;color:#000;font-size:13px}h1{text-align:center;font-size:16px;margin-bottom:2px}.sub{text-align:center;color:#555;font-size:10px;margin-bottom:16px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}.label{color:#555;font-size:12px}.value{font-weight:700;font-size:13px}.otros{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:8px;margin:8px 0}.otros-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}.no-print{text-align:center;margin-bottom:12px}.firma{border-top:1px solid #000;margin-top:40px;padding-top:6px;text-align:center;font-size:10px;color:#555}@media print{.no-print{display:none}}</style></head><body>
@@ -1304,6 +1305,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     <div class="row"><span class="label">Vendedor</span><span class="value">${nombre}</span></div>
     <div class="row"><span class="label">Caja total (efectivo físico)</span><span class="value">$${(parseFloat(cajaTotal)||0).toLocaleString("es-AR")}</span></div>
     ${totalOtrosP>0?`<div class="otros"><div style="font-weight:700;margin-bottom:4px;font-size:11px">OTROS GASTOS</div>${otros.filter(o=>o.desc||o.monto).map(o=>`<div class="otros-row"><span>${o.desc||"—"}</span><span>$${(parseFloat(o.monto)||0).toLocaleString("es-AR")}</span></div>`).join("")}<div class="otros-row" style="font-weight:700;border-top:1px solid #ccc;margin-top:4px;padding-top:4px"><span>Total otros</span><span>$${totalOtrosP.toLocaleString("es-AR")}</span></div></div>`:""}
+    ${(parseFloat(paywayLote)||0)>0?`<div class="row"><span class="label">Cierre de lote Payway</span><span class="value" style="color:#0055cc">$${(parseFloat(paywayLote)||0).toLocaleString("es-AR")}</span></div>`:""}
     <div class="row"><span class="label">Fondo (queda en caja)</span><span class="value" style="color:#006600">$${(parseFloat(fondo)||0).toLocaleString("es-AR")}</span></div>
     <div class="row"><span class="label">Retiro</span><span class="value" style="color:#cc0000">$${(parseFloat(retiro)||0).toLocaleString("es-AR")}</span></div>
     <div class="firma">Firma y aclaración: ___________________</div>
@@ -1324,12 +1326,12 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
         total_ef:totalEf,total_dig:totalDig,total_all:totalAll,
         opening_amount:parseFloat(fondo)||0,
         retiro_efectivo:parseFloat(retiro)||0,
-        notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [Otros: ${otrosStr||"—"}]`,
+        notes:`[Turno: ${turno}] [CajaTotal: ${cajaTotal}] [PaywayLote: ${paywayLote||"0"}] [Otros: ${otrosStr||"—"}]`,
         sales_count:unclosed.length,local_name:isAdmin?localCierre:(session.local||"")
       }]);
       notify(`Caja cerrada · Turno ${turno} · ${fmtM(totalAll)}`);
-      imprimirCierre({turno,cajaTotal,fondo,retiro,otros,local:session.local||"",nombre:session.name,fecha:new Date().toLocaleString("es-AR")});
-      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setOtros([{desc:"",monto:""}]);setLocalCierre("");loadAll();
+      imprimirCierre({turno,cajaTotal,fondo,retiro,paywayLote,otros,local:session.local||"",nombre:session.name,fecha:new Date().toLocaleString("es-AR")});
+      setClosing(false);setTurno("");setCajaTotal("");setFondo("");setRetiro("");setPaywayLote("");setOtros([{desc:"",monto:""}]);setLocalCierre("");loadAll();
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
@@ -1407,6 +1409,7 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             <th style={{color:"#ff9900"}}>Retiro</th>
             <th>Por</th>
             <th style={{color:"#3388ff"}}>Digital</th>
+            <th style={{color:"#3388ff"}}>Payway</th>
             <th>Total</th>
             <th>V.</th>
             <th></th>
@@ -1432,12 +1435,13 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
               <td style={{color:d.retiro_efectivo>0?"#ff9900":"#2a3d50",fontSize:10}}>{d.retiro_efectivo>0?fmtM(d.retiro_efectivo):"—"}</td>
               <td style={{color:"#ffffff",fontSize:10}}>{d.closedByName}</td>
               <td style={{color:"#3388ff",fontWeight:700}}>{fmtM(d.totalDig||0)}</td>
+              <td style={{color:"#3388ff",fontSize:10}}>{(()=>{const v=parseFloat((d.notes?.match(/\[PaywayLote: ([^\]]+)\]/)?.[1]||"0").trim())||0;return v>0?fmtM(v):"—";})()}</td>
               <td style={{fontWeight:700,color:"#00cc55"}}>{fmtM(d.totalAll||0)}</td>
               <td style={{fontSize:10}}>{d.salesCount}</td>
               <td><Btn v="r" sx={{padding:"2px 5px",fontSize:8}} onClick={()=>setConfirmDel(d)}><Ic n="del" s={10}/></Btn></td>
             </tr>);
           })}
-          {filteredCaja.length===0&&<tr><td colSpan={12} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados</td></tr>}
+          {filteredCaja.length===0&&<tr><td colSpan={13} style={{textAlign:"center",color:"#ffffff",padding:20}}>Sin resultados</td></tr>}
           </tbody>
         </table>
         </div>
@@ -1497,6 +1501,11 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
             <Inp type="number" step="1" min="0" placeholder="0" value={retiro} onChange={(e)=>setRetiro(e.target.value)}/>
             <div style={{fontSize:11,fontWeight:700,color:"#00cc55",marginTop:2,minHeight:16}}>{retiro&&Number(retiro)>0?`$ ${Math.round(Number(retiro)).toLocaleString("es-AR")}`:"Se retira"}</div>
           </div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <Lbl t="Cierre de lote Payway ($)"/>
+          <Inp type="number" step="1" min="0" placeholder="0" value={paywayLote} onChange={(e)=>setPaywayLote(e.target.value)}/>
+          <div style={{fontSize:11,fontWeight:700,color:"#3388ff",marginTop:2,minHeight:16}}>{paywayLote&&Number(paywayLote)>0?`$ ${Math.round(Number(paywayLote)).toLocaleString("es-AR")}`:"Importe del resumen Payway"}</div>
         </div>
         <div style={{marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
