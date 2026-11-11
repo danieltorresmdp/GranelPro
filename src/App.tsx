@@ -195,6 +195,7 @@ const[view,setView]=useState("dash");
   const[persistCliQ,setPersistCliQ]=useState("");
   const[persistPay,setPersistPay]=useState("");
   const isAdmin=session?.role==="admin";
+  const isVisor=session?.role==="visor";
 
   const notify=(msg,t="ok")=>{setToast({msg,t});setTimeout(()=>setToast(null),3400);};
 
@@ -323,7 +324,7 @@ const[view,setView]=useState("dash");
     return()=>{sb.removeChannel(ch);};
   },[session,loadFirst,loadAll]);
 
-  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");setView(u.role==="admin"?"dash":"sale");try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
+  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");setView(u.role==="admin"?"dash":"sale");if(u.role==="vendedor"&&u.local){(async()=>{const hoy=new Date().toISOString().slice(0,10);const loc=locales.find(l=>l.name===u.local);if(loc?.auditoria_desde){await sb.rpc("vencer_tareas_anteriores",{p_local_name:u.local,p_fecha:hoy});await sb.rpc("generar_tareas_dia",{p_local_name:u.local,p_fecha:hoy,p_turno_unico:loc.turno_unico||false,p_cantidad:loc.conteos_por_dia||10});}})();}try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
   const handleLogout=()=>{setSession(null);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
 
   const localeNames=locales.length>0?locales.map((l)=>l.name):["Centro","Norte","Sur"];
@@ -343,7 +344,9 @@ const[view,setView]=useState("dash");
     {v:"history",icon:"hist", label:"Ventas"},
     {v:"clients",icon:"users",label:"Clientes"},
     {v:"caja",   icon:"cash", label:"Cierre Caja"},
+    ...(!isAdmin&&session?.role==="vendedor"?[{v:"conteo",icon:"stk",label:"Conteo"}]:[]),
     ...(isAdmin?[
+      {v:"auditoria", icon:"shld", label:"Auditoría"},
       {v:"prods",     icon:"box",  label:"Productos"},
       {v:"stockmgt",  icon:"stk",  label:"Stock x Local"},
       {v:"traslados",  icon:"trend",label:"Traslados"},
@@ -457,6 +460,8 @@ const[view,setView]=useState("dash");
             {view==="history" &&<History sales={sales} clients={clients} users={users} isAdmin={isAdmin} notify={notify} loadAll={loadAll} session={session}/>}
             {view==="clients" &&<Clients clients={clients} sales={sales} notify={notify} isAdmin={isAdmin} loadAll={loadAll}/>}
             {view==="caja"    &&<CashClose sales={sales} caja={caja} notify={notify} session={session} loadAll={loadAll} isAdmin={isAdmin} locales={locales} users={users}/>}
+            {session?.role==="vendedor"&&view==="conteo"&&<ConteoVendedor session={session} locales={locales} prods={prods} notify={notify}/>}
+            {isAdmin&&view==="auditoria"&&<Auditoria prods={prods} locales={locales} localeNames={localeNames} notify={notify} loadAll={loadAll} users={users} sales={sales}/>}
             {isAdmin&&view==="prods"    &&<Products prods={prods} notify={notify} loadAll={loadAll}/>}
             {isAdmin&&view==="stockmgt" &&<StockMgt prods={prods} notify={notify} localeNames={localeNames} stockMgt={stockMgt} setStockMgt={setStockMgt} session={session}/>}
             {isAdmin&&view==="traslados" &&<Traslados prods={prods} localeNames={localeNames} notify={notify} session={session} loadAll={loadAll} stockMgt={stockMgt}/>}
@@ -1317,6 +1322,17 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     if(!turno){notify("Seleccioná el turno antes de cerrar","err");return;}
     if(isAdmin&&!localCierre){notify("Seleccioná el local a cerrar","err");return;}
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
+    if(session?.role==="vendedor"&&session?.local){
+      const hoy=new Date().toISOString().slice(0,10);
+      const hora=new Date().getHours();
+      const loc=locales.find(l=>l.name===session.local);
+      if(loc?.auditoria_desde){
+        const corte=loc.corte_turno_hora||13;
+        const turnoActual=loc.turno_unico?"unico":(hora<corte?"manana":"tarde");
+        const{data:pendientes}=await sb.from("gp_conteo_tareas").select("id").eq("local_name",session.local).eq("fecha",hoy).eq("turno",turnoActual).eq("estado","pendiente");
+        if(pendientes&&pendientes.length>0){notify(`Tenés ${pendientes.length} conteo${pendientes.length>1?"s":""} pendiente${pendientes.length>1?"s":""}. Completalos antes de cerrar.`,"err");return;}
+      }
+    }
     setSaving(true);
     const otrosStr=otros.filter(o=>o.desc||o.monto).map(o=>`${o.desc}: $${o.monto}`).join(" | ");
     try{
@@ -2043,7 +2059,7 @@ function UserMgmt({users,notify,session,loadAll,localeNames}) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(255px,1fr))",gap:12}}>
         {users.map((u)=>(<Card key={u.id} sx={{padding:17}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:34,height:34,borderRadius:"50%",background:u.role==="admin"?"#110310":"#021210",border:`2px solid ${u.role==="admin"?"#cc44ff33":"#00883333"}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n={u.role==="admin"?"shld":"usr"} s={14} c={u.role==="admin"?"#cc44ff":"#00cc55"}/></div><div><div style={{fontSize:13,fontWeight:800,color:"#ffffff"}}>{u.name}</div><div style={{fontSize:9,color:"#ffffff",fontFamily:"monospace"}}>@{u.username}{u.local&&<span style={{marginLeft:5,color:"#00d4ff"}}>· 📍{u.local}</span>}</div></div></div><Chip t={u.role}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:8,fontWeight:700,background:u.active?"#021408":"#130900",color:u.active?"#00cc55":"#ff9900",padding:"3px 9px",borderRadius:10,letterSpacing:1}}>{u.active?"ACTIVO":"INACTIVO"}</span>{u.id!==session.id&&(<div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(u)}><Ic n="edit" s={11}/></Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9,color:u.active?"#ff5555":"#00cc55"}} onClick={()=>toggle(u)}>{u.active?"Off":"On"}</Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>del(u.id)}><Ic n="del" s={11}/></Btn></div>)}{u.id===session.id&&<span style={{fontSize:9,color:"#ffffff"}}>← vos</span>}</div></Card>))}
       </div>
-      {modal&&form&&(<Modal close={()=>setModal(false)} w={420}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Usuario</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Username"/><Inp value={form.username} onChange={(e)=>setForm((f)=>({...f,username:e.target.value}))}/></div><div><Lbl t="Contraseña"/><Inp value={form.password} onChange={(e)=>setForm((f)=>({...f,password:e.target.value}))}/></div><div><Lbl t="Rol"/><Sel value={form.role} onChange={(e)=>setForm((f)=>({...f,role:e.target.value}))}><option value="vendedor">Vendedor</option><option value="admin">Admin</option></Sel></div><div><Lbl t="Local"/><Sel value={form.local||""} onChange={(e)=>setForm((f)=>({...f,local:e.target.value}))}>{LOCALES_OPT.map(l=><option key={l} value={l}>{l||"— Sin local —"}</option>)}</Sel></div><div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e)=>setForm((f)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#ffffff"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:14,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)} w={420}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Usuario</h2><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}><div style={{gridColumn:"1/-1"}}><Lbl t="Nombre"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))}/></div><div><Lbl t="Username"/><Inp value={form.username} onChange={(e)=>setForm((f)=>({...f,username:e.target.value}))}/></div><div><Lbl t="Contraseña"/><Inp value={form.password} onChange={(e)=>setForm((f)=>({...f,password:e.target.value}))}/></div><div><Lbl t="Rol"/><Sel value={form.role} onChange={(e)=>setForm((f)=>({...f,role:e.target.value}))}><option value="vendedor">Vendedor</option><option value="admin">Admin</option><option value="visor">Visor</option></Sel></div><div><Lbl t="Local"/><Sel value={form.local||""} onChange={(e)=>setForm((f)=>({...f,local:e.target.value}))}>{LOCALES_OPT.map(l=><option key={l} value={l}>{l||"— Sin local —"}</option>)}</Sel></div><div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={form.active!==false} onChange={(e)=>setForm((f)=>({...f,active:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:12,color:"#ffffff"}}>Activo</span></div></div><div style={{display:"flex",gap:9,marginTop:14,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
     </div>
   );
 }
@@ -4668,17 +4684,23 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
   const[localMinCuota,setLocalMinCuota]=useState({...cuotasConfig?.minLocal});
   useEffect(()=>{setLocalInteres({...cuotasConfig?.interes});setLocalMinCuota({...cuotasConfig?.minLocal});},[JSON.stringify(cuotasConfig)]);
 
-  const openNew=()=>{setForm({name:""});setModal(true);};
-  const openEdit=(l)=>{setForm({...l});setModal(true);};
+  const openNew=()=>{setForm({name:"",turno_unico:false,conteos_por_dia:10,tolerancia_kg:0.3,corte_turno_hora:13});setModal(true);};
+  const openEdit=(l)=>{setForm({...l,turno_unico:l.turno_unico||false,conteos_por_dia:l.conteos_por_dia||10,tolerancia_kg:l.tolerancia_kg||0.3,corte_turno_hora:l.corte_turno_hora||13});setModal(true);};
   const save=async()=>{
     if(!form.name.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
     try{
-      if(form.id) await sb.from("gp_locales").update({name:form.name.trim()}).eq("id",form.id);
-      else await sb.from("gp_locales").insert([{name:form.name.trim()}]);
+      const payload={name:form.name.trim(),turno_unico:form.turno_unico||false,conteos_por_dia:parseInt(form.conteos_por_dia)||10,tolerancia_kg:parseFloat(form.tolerancia_kg)||0.3,corte_turno_hora:parseInt(form.corte_turno_hora)||13};
+      if(form.id) await sb.from("gp_locales").update(payload).eq("id",form.id);
+      else await sb.from("gp_locales").insert([payload]);
       notify(form.id?"Local actualizado":"Local creado");loadAll();setModal(false);
     }catch(e){notify("Error","err");}
     setSaving(false);
+  };
+  const toggleAuditoria=async(l)=>{
+    const val=l.auditoria_desde?null:new Date().toISOString();
+    await sb.from("gp_locales").update({auditoria_desde:val}).eq("id",l.id);
+    notify(val?"Auditoría activada":"Auditoría desactivada");loadAll();
   };
   const del=async(id)=>{await sb.from("gp_locales").delete().eq("id",id);notify("Local eliminado");setConfirmDel(null);loadAll();};
 
@@ -4697,7 +4719,7 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
     <div className="fade">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div><h1 style={{fontSize:18,fontWeight:800,margin:0}}>Locales</h1><p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>PUNTOS DE VENTA</p></div><Btn v="g" onClick={openNew}><Ic n="plus" s={13}/>Nuevo Local</Btn></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:20}}>
-        {locales.map((l)=>(<Card key={l.id} sx={{padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{l.name}</div></div><div style={{display:"flex",gap:5}}><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></Card>))}
+        {locales.map((l)=>(<Card key={l.id} sx={{padding:16}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>📍</div><div><div style={{fontSize:14,fontWeight:800,color:"#ffffff"}}>{l.name}</div><div style={{fontSize:9,color:l.auditoria_desde?"#00cc55":"#4a6070",marginTop:2}}>{l.auditoria_desde?`🛡️ Auditoría activa desde ${new Date(l.auditoria_desde).toLocaleDateString("es-AR")}`:"⚪ Sin auditoría"}</div></div></div><div style={{display:"flex",gap:5,alignItems:"center"}}><Btn v={l.auditoria_desde?"r":"g"} sx={{padding:"3px 8px",fontSize:9}} onClick={()=>toggleAuditoria(l)}>{l.auditoria_desde?"Desactivar":"Activar"}</Btn><Btn v="gh" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>openEdit(l)}><Ic n="edit" s={11}/></Btn><Btn v="r" sx={{padding:"3px 6px",fontSize:9}} onClick={()=>setConfirmDel(l)}><Ic n="del" s={11}/></Btn></div></div></Card>))}
         {locales.length===0&&<div style={{color:"#ffffff",fontSize:12,padding:20}}>No hay locales.</div>}
       </div>
       <Card sx={{padding:20,marginBottom:14}}>
@@ -4739,7 +4761,7 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
           <Btn v="pu" onClick={saveCuotas} disabled={savingCuotas}>{savingCuotas?"Guardando...":"💾 Guardar Configuración"}</Btn>
         </div>
       </Card>
-      {modal&&form&&(<Modal close={()=>setModal(false)} w={360}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
+      {modal&&form&&(<Modal close={()=>setModal(false)} w={400}><div style={{padding:22}}><h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:800}}>{form.id?"Editar":"Nuevo"} Local</h2><Lbl t="Nombre del Local"/><Inp value={form.name} onChange={(e)=>setForm((f)=>({...f,name:e.target.value}))} placeholder="ej: Sucursal Centro"/><div style={{marginTop:14,padding:12,background:"#0a1a0a",borderRadius:8,border:"1px solid #00882233"}}><div style={{fontSize:11,fontWeight:800,color:"#00cc55",marginBottom:10}}>🛡️ Configuración Auditoría</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><div><Lbl t="Conteos por día"/><Inp type="number" min="1" max="30" value={form.conteos_por_dia} onChange={(e)=>setForm((f)=>({...f,conteos_por_dia:e.target.value}))}/></div><div><Lbl t="Tolerancia (kg)"/><Inp type="number" min="0" step="0.1" value={form.tolerancia_kg} onChange={(e)=>setForm((f)=>({...f,tolerancia_kg:e.target.value}))}/></div><div><Lbl t="Corte de turno (hora)"/><Inp type="number" min="0" max="23" value={form.corte_turno_hora} onChange={(e)=>setForm((f)=>({...f,corte_turno_hora:e.target.value}))}/></div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:16}}><input type="checkbox" checked={form.turno_unico||false} onChange={(e)=>setForm((f)=>({...f,turno_unico:e.target.checked}))} style={{accentColor:"#00cc55"}}/><span style={{fontSize:11,color:"#ffffff"}}>Turno único (corrido)</span></div></div></div><div style={{display:"flex",gap:9,marginTop:16,justifyContent:"flex-end"}}><Btn v="gh" onClick={()=>setModal(false)}>Cancelar</Btn><Btn v="g" onClick={save} disabled={saving}>{saving?"Guardando...":"Guardar"}</Btn></div></div></Modal>)}
       {confirmDel&&(<Modal close={()=>setConfirmDel(null)} w={360}><div style={{padding:24,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><h2 style={{margin:"0 0 8px",fontSize:16,fontWeight:800}}>¿Eliminar local?</h2><p style={{color:"#ffffff",fontSize:13,marginBottom:20}}><strong>{confirmDel.name}</strong></p><div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn v="gh" onClick={()=>setConfirmDel(null)}>Cancelar</Btn><Btn v="r" onClick={()=>del(confirmDel.id)}><Ic n="del" s={13}/>Eliminar</Btn></div></div></Modal>)}
     </div>
   );
@@ -4909,6 +4931,237 @@ function Reportes({sales,users,localeNames}) {
           <tbody>{byUser.map((u,i)=>(<tr key={i}><td style={{fontWeight:700,color:"#ffffff"}}>{u.name}</td><td style={{color:"#00d4ff",fontSize:11}}>{u.local}</td><td>{u.count}</td><td style={{color:"#00cc55",fontWeight:700}}>{fmtM(u.total)}</td></tr>))}</tbody>
         </table>
       </Card>}
+    </div>
+  );
+}
+
+// ============================================================
+// CONTEO VENDEDOR
+// ============================================================
+function ConteoVendedor({session,locales,prods,notify}) {
+  const hoy=new Date().toISOString().slice(0,10);
+  const hora=new Date().getHours();
+  const loc=locales.find(l=>l.name===session?.local);
+  const corte=loc?.corte_turno_hora||13;
+  const turnoActual=loc?.turno_unico?"unico":(hora<corte?"manana":"tarde");
+  const turnoLabel=turnoActual==="unico"?"corrido":turnoActual==="manana"?"mañana":"tarde";
+
+  const[tareas,setTareas]=useState([]);
+  const[valores,setValores]=useState({});
+  const[saving,setSaving]=useState(null);
+  const[loading,setLoading]=useState(true);
+
+  const cargar=useCallback(async()=>{
+    if(!session?.local||!loc?.auditoria_desde){setLoading(false);return;}
+    setLoading(true);
+    const{data}=await sb.from("gp_conteo_tareas")
+      .select("*").eq("local_name",session.local)
+      .eq("fecha",hoy).eq("turno",turnoActual).eq("estado","pendiente");
+    setTareas(data||[]);
+    setLoading(false);
+  },[session?.local,turnoActual,hoy]);
+
+  useEffect(()=>{cargar();},[cargar]);
+
+  const getProd=(pid)=>prods.find(p=>p.id===pid)||{name:"Producto #"+pid,unit:"u"};
+
+  const registrar=async(t)=>{
+    const val=valores[t.id];
+    if(val===undefined||val===""){notify("Ingresá la cantidad","err");return;}
+    const kg=parseFloat(String(val).replace(",","."));
+    if(isNaN(kg)||kg<0){notify("Valor inválido","err");return;}
+    setSaving(t.id);
+    const{data,error}=await sb.rpc("registrar_conteo",{
+      p_tarea_id:t.id,p_product_id:t.product_id,
+      p_local_name:session.local,p_usuario:session.name||session.username,
+      p_kg_contados:kg
+    });
+    setSaving(null);
+    if(error||!data?.ok){notify("Error al registrar","err");return;}
+    notify("Conteo registrado ✓");
+    setTareas(prev=>prev.filter(x=>x.id!==t.id));
+  };
+
+  if(!loc?.auditoria_desde) return(
+    <div className="fade" style={{padding:32,textAlign:"center",color:"#4a6070"}}>
+      <div style={{fontSize:32,marginBottom:12}}>📋</div>
+      <div style={{fontSize:14,fontWeight:700}}>Sin conteos asignados</div>
+      <div style={{fontSize:11,marginTop:6}}>El módulo de auditoría no está activo para este local.</div>
+    </div>
+  );
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Conteo de Stock</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>TURNO {turnoLabel.toUpperCase()} · {session?.local?.toUpperCase()}</p>
+      </div>
+      {loading?<div style={{color:"#ffffff",padding:20,textAlign:"center"}}>Cargando...</div>:
+       tareas.length===0?
+        <Card sx={{padding:24,textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:8}}>✅</div>
+          <div style={{fontSize:14,fontWeight:700,color:"#00cc55"}}>Todos los conteos completados</div>
+          <div style={{fontSize:11,color:"#ffffff",marginTop:4}}>Podés cerrar caja normalmente.</div>
+        </Card>:
+        <div style={{display:"grid",gap:10}}>
+          <div style={{fontSize:11,color:"#ffffff",marginBottom:4}}>
+            {tareas.length} producto{tareas.length>1?"s":""} para contar este turno
+          </div>
+          {tareas.map(t=>{
+            const p=getProd(t.product_id);
+            const isKg=p.unit==="kg";
+            return(
+              <Card key={t.id} sx={{padding:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#ffffff"}}>{p.name}</div>
+                    <div style={{fontSize:10,color:"#4a6070",marginTop:2}}>
+                      {isKg?"Ingresá los kg totales (bolsas cerradas + bolsa abierta)":"Ingresá la cantidad de unidades"}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                    <Inp
+                      type="number" min="0" step={isKg?"0.1":"1"}
+                      placeholder={isKg?"0.0 kg":"0 u"}
+                      value={valores[t.id]||""}
+                      onChange={(e)=>setValores(prev=>({...prev,[t.id]:e.target.value}))}
+                      sx={{width:90,textAlign:"right"}}
+                    />
+                    <Btn v="g" sx={{padding:"6px 12px",fontSize:11}} onClick={()=>registrar(t)} disabled={saving===t.id}>
+                      {saving===t.id?"...":"✓"}
+                    </Btn>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+}
+
+// ============================================================
+// AUDITORÍA ADMIN
+// ============================================================
+function Auditoria({prods,locales,localeNames,notify,loadAll,users,sales}) {
+  const[tab,setTab]=useState("pendientes");
+  const[localF,setLocalF]=useState("Todos");
+  const[conteos,setConteos]=useState([]);
+  const[tareas,setTareas]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[nota,setNota]=useState({});
+
+  const getProd=(pid)=>prods.find(p=>p.id===pid)||{name:"#"+pid,unit:"u"};
+  const fmtKg=(n)=>n==null?"—":`${Number(n)>0?"+":""}${Number(n).toFixed(2)} kg`;
+  const fmtM=(n)=>`$${Math.round(Number(n)||0).toLocaleString("es-AR")}`;
+
+  const cargar=useCallback(async()=>{
+    setLoading(true);
+    const q1=sb.from("gp_conteos").select("*").in("estado",["pendiente_revision","en_disputa"]).order("fecha_hora",{ascending:false}).limit(200);
+    const q2=sb.from("gp_conteo_tareas").select("*").eq("estado","vencida").order("fecha",{ascending:false}).limit(100);
+    const[r1,r2]=await Promise.all([q1,q2]);
+    setConteos(r1.data||[]);
+    setTareas(r2.data||[]);
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{cargar();},[cargar]);
+
+  const aprobar=async(c,ajustar)=>{
+    const upd={estado:ajustar?"ajustado":"aprobado_sin_ajuste",revisado_por:"admin",revisado_en:new Date().toISOString(),nota:nota[c.id]||null};
+    await sb.from("gp_conteos").update(upd).eq("id",c.id);
+    if(ajustar&&c.diferencia!==0){
+      const p=getProd(c.product_id);
+      const{data:stkRow}=await sb.from("gp_stock").select("*").eq("product_id",c.product_id).eq("local_name",c.local_name).single();
+      if(stkRow){
+        const nuevo=Number(stkRow.stk)+Number(c.diferencia);
+        await sb.from("gp_stock").update({stk:nuevo}).eq("id",stkRow.id);
+        await sb.from("gp_stock_mov").insert([{id:Date.now(),product_id:c.product_id,local_name:c.local_name,tipo:"ajuste_conteo",cantidad:Number(c.diferencia),stock_antes:Number(stkRow.stk),stock_despues:nuevo,usuario:"admin (aprobó conteo #"+c.id+")",fecha:new Date().toISOString()}]);
+      }
+    }
+    notify(ajustar?"Ajuste aplicado":"Aprobado sin ajuste");
+    cargar();loadAll();
+  };
+
+  const tabs=[["pendientes","⏳ Pendientes"],["vencidas","⚠️ Vencidas"]];
+  const cfilt=localF==="Todos"?conteos:conteos.filter(c=>c.local_name===localF);
+  const tfilt=localF==="Todos"?tareas:tareas.filter(t=>t.local_name===localF);
+
+  return(
+    <div className="fade">
+      <div style={{marginBottom:16}}>
+        <h1 style={{fontSize:18,fontWeight:800,margin:0}}>Auditoría</h1>
+        <p style={{color:"#ffffff",fontSize:9,margin:"3px 0 0",letterSpacing:2.5}}>CONTROL ANTIFRAUDE</p>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        {tabs.map(([k,label])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{background:tab===k?"#0b1825":"transparent",border:`1px solid ${tab===k?"#00d4ff":"#192a38"}`,color:tab===k?"#00d4ff":"#ffffff",borderRadius:7,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>
+            {label}
+          </button>
+        ))}
+        <Sel value={localF} onChange={(e)=>setLocalF(e.target.value)} sx={{width:140,marginLeft:"auto"}}>
+          <option value="Todos">Todos los locales</option>
+          {localeNames.map(l=><option key={l}>{l}</option>)}
+        </Sel>
+      </div>
+
+      {loading&&<div style={{color:"#ffffff",padding:20,textAlign:"center"}}>Cargando...</div>}
+
+      {!loading&&tab==="pendientes"&&(
+        cfilt.length===0
+          ?<Card sx={{padding:24,textAlign:"center"}}><div style={{fontSize:14,color:"#00cc55",fontWeight:700}}>✅ Sin conteos pendientes</div></Card>
+          :<div style={{display:"grid",gap:10}}>
+            {cfilt.map(c=>{
+              const p=getProd(c.product_id);
+              const diff=Number(c.diferencia);
+              const diffColor=diff===0?"#00cc55":diff<0?"#ff4444":"#ff9900";
+              return(
+                <Card key={c.id} sx={{padding:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:180}}>
+                      <div style={{fontSize:13,fontWeight:800,color:"#ffffff"}}>{p.name}</div>
+                      <div style={{fontSize:10,color:"#4a6070",marginTop:2}}>
+                        {c.local_name} · {new Date(c.fecha_hora).toLocaleString("es-AR")} · {c.usuario}
+                      </div>
+                      <div style={{marginTop:6,display:"flex",gap:12}}>
+                        <span style={{fontSize:12,fontWeight:700,color:diffColor}}>{fmtKg(c.diferencia)}</span>
+                        {Number(c.diferencia_pesos)!==0&&<span style={{fontSize:11,color:diffColor}}>{fmtM(c.diferencia_pesos)}</span>}
+                        <span style={{fontSize:10,color:"#4a6070",fontStyle:"italic"}}>{c.estado==="en_disputa"?"⚠️ En disputa":""}</span>
+                      </div>
+                      <Inp placeholder="Nota (opcional)" value={nota[c.id]||""} onChange={(e)=>setNota(prev=>({...prev,[c.id]:e.target.value}))} sx={{marginTop:8,fontSize:11}}/>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0,marginTop:4}}>
+                      <Btn v="gh" sx={{fontSize:10,padding:"5px 10px"}} onClick={()=>aprobar(c,false)}>Sin ajuste</Btn>
+                      {diff!==0&&<Btn v="g" sx={{fontSize:10,padding:"5px 10px"}} onClick={()=>aprobar(c,true)}>Ajustar stock</Btn>}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+      )}
+
+      {!loading&&tab==="vencidas"&&(
+        tfilt.length===0
+          ?<Card sx={{padding:24,textAlign:"center"}}><div style={{fontSize:14,color:"#00cc55",fontWeight:700}}>✅ Sin tareas vencidas</div></Card>
+          :<div style={{display:"grid",gap:8}}>
+            {tfilt.map(t=>{
+              const p=getProd(t.product_id);
+              return(
+                <Card key={t.id} sx={{padding:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#ff9900"}}>{p.name}</div>
+                      <div style={{fontSize:10,color:"#4a6070"}}>{t.local_name} · {t.fecha} · turno {t.turno}</div>
+                    </div>
+                    <span style={{fontSize:10,color:"#ff4444",fontWeight:700}}>NO CONTADO</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+      )}
     </div>
   );
 }
