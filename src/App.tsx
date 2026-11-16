@@ -515,8 +515,8 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
       </div>
       {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
         <Stat label="Ventas Hoy" value={`${fmtM(hoy)}`} sub={`${st.length} operaciones`} color="#00cc55" icon="trend"/>
-        <Stat label="Stock Bajo" value={critical.filter((p)=>!p.isNeg).length} sub="todos los locales" color="#ff9900" icon="warn"/>
-        <Stat label="Stock Negativo" value={critical.filter((p)=>p.isNeg).length} sub="por debajo de 0" color={critical.filter((p)=>p.isNeg).length>0?"#ff4444":"#00cc55"} icon="warn"/>
+        <Stat label="Venta Efectivo" value={fmtM(st.filter((s)=>s.pay==="efectivo").reduce((a,b)=>a+b.total,0))} sub={`${st.filter((s)=>s.pay==="efectivo").length} operaciones`} color="#00cc55" icon="money"/>
+        <Stat label="Venta Digital" value={fmtM(st.filter((s)=>["debito","credito","QR"].includes(s.pay)).reduce((a,b)=>a+b.total,0))} sub={`${st.filter((s)=>["debito","credito","QR"].includes(s.pay)).length} operaciones`} color="#3388ff" icon="card"/>
       </div>}
       {isAdmin&&(()=>{
         // Cierres con diferencia negativa — últimos 7 días
