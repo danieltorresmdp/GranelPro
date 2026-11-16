@@ -11,8 +11,8 @@ const POINTS_DENOM = 500;
 const MAX_DISC_PCT = 0.30;
 const PAY_OPTS     = ["efectivo","debito","credito","QR"];
 const CATEGORIES   = ["Perro","Gato","Accesorios","Granja","Golosinas"];
-const todayStr     = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"})).toISOString().split("T")[0];
-const nowAR        = () => new Date(new Date().toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
+const todayStr     = () => { const ar=new Date(Date.now()-3*60*60*1000); return ar.toISOString().split("T")[0]; };
+const nowAR        = () => new Date(Date.now()-3*60*60*1000);
 const currentYmAR  = () => nowAR().toISOString().slice(0,7);
 
 const CAT_STYLE = {
@@ -324,7 +324,7 @@ const[view,setView]=useState("dash");
     return()=>{sb.removeChannel(ch);};
   },[session,loadFirst,loadAll]);
 
-  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");setView(u.role==="admin"?"dash":"sale");if(u.role==="vendedor"&&u.local){(async()=>{const hoy=new Date().toISOString().slice(0,10);const loc=locales.find(l=>l.name===u.local);if(loc?.auditoria_desde){await sb.rpc("vencer_tareas_anteriores",{p_local_name:u.local,p_fecha:hoy});await sb.rpc("generar_tareas_dia",{p_local_name:u.local,p_fecha:hoy,p_turno_unico:loc.turno_unico||false,p_cantidad:loc.conteos_por_dia||10});}})();}try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
+  const handleLogin=(u)=>{const withTime={...u,loginAt:new Date().toISOString()};setSession(withTime);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");setView(u.role==="admin"?"dash":"sale");if(u.role==="vendedor"&&u.local){(async()=>{const hoy=todayStr();const loc=locales.find(l=>l.name===u.local);if(loc?.auditoria_desde){await sb.rpc("vencer_tareas_anteriores",{p_local_name:u.local,p_fecha:hoy});await sb.rpc("generar_tareas_dia",{p_local_name:u.local,p_fecha:hoy,p_turno_unico:loc.turno_unico||false,p_cantidad:loc.conteos_por_dia||10});}})();}try{sessionStorage.setItem("gp_sess",JSON.stringify(withTime));}catch{}};
   const handleLogout=()=>{setSession(null);setPersistCart([]);setPersistCid("");setPersistCliQ("");setPersistPay("");try{sessionStorage.removeItem("gp_sess");}catch{};setView("dash");};
 
   const localeNames=locales.length>0?locales.map((l)=>l.name):["Centro","Norte","Sur"];
@@ -1323,8 +1323,8 @@ function CashClose({sales,caja,notify,session,loadAll,isAdmin,locales,users}) {
     if(isAdmin&&!localCierre){notify("Seleccioná el local a cerrar","err");return;}
     if(!unclosed.length){notify("No hay ventas sin cerrar","err");return;}
     if(session?.role==="vendedor"&&session?.local){
-      const hoy=new Date().toISOString().slice(0,10);
-      const hora=new Date().getHours();
+      const hoy=todayStr();
+      const hora=nowAR().getHours();
       const loc=locales.find(l=>l.name===session.local);
       if(loc?.auditoria_desde){
         const corte=loc.corte_turno_hora||13;
@@ -4939,8 +4939,8 @@ function Reportes({sales,users,localeNames}) {
 // CONTEO VENDEDOR
 // ============================================================
 function ConteoVendedor({session,locales,prods,notify}) {
-  const hoy=new Date().toISOString().slice(0,10);
-  const hora=new Date().getHours();
+  const hoy=todayStr();
+  const hora=nowAR().getHours();
   const loc=locales.find(l=>l.name===session?.local);
   const corte=loc?.corte_turno_hora||13;
   const turnoActual=loc?.turno_unico?"unico":(hora<corte?"manana":"tarde");
