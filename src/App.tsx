@@ -519,47 +519,63 @@ function Dashboard({prods,clients,sales,users,session,isAdmin,setView,stock,loca
         <Stat label="Venta Digital" value={fmtM(st.filter((s)=>["debito","credito","QR"].includes(s.pay)).reduce((a,b)=>a+b.total,0))} sub={`${st.filter((s)=>["debito","credito","QR"].includes(s.pay)).length} operaciones`} color="#3388ff" icon="card"/>
       </div>}
       {isAdmin&&(()=>{
-        // Cierres con diferencia negativa — últimos 7 días
+        // Alertas de cierre — diferencia negativa en efectivo O en Payway vs Digital — últimos 7 días
         const hace7=new Date();hace7.setDate(hace7.getDate()-7);
         const cierresNeg=[...caja].filter(d=>{
           try{
             const cajaTotalDec=parseFloat((d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0").trim())||0;
-            if(cajaTotalDec<=0) return false;
             const fechaCierre=new Date(d.closedAt);
             if(fechaCierre<hace7) return false;
-            // Fondo recibido = openingAmount del cierre inmediatamente anterior del mismo local
             const prev=[...caja].filter(c=>c.localName===d.localName&&c.id<d.id).sort((a,b)=>b.id-a.id)[0];
             const fondoRec=prev?.openingAmount||0;
             const esperado=d.totalEf+fondoRec;
-            return(cajaTotalDec-esperado)<-500; // negativo significativo
+            const difEf=cajaTotalDec>0?(cajaTotalDec-esperado):0;
+            const paywayDec=parseFloat((d.notes?.match(/\[PaywayLote: ([^\]]+)\]/)?.[1]||"0").trim())||0;
+            const difPay=paywayDec>0?(paywayDec-d.totalDig):0;
+            return difEf<-500||difPay<-500;
           }catch{return false;}
         }).sort((a,b)=>b.id-a.id).slice(0,30);
         return(
           <Card sx={{overflow:"hidden",marginBottom:14}}>
             <div style={{padding:"11px 16px",borderBottom:"1px solid #192a38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ff4444",textTransform:"uppercase"}}>🔴 Cierres con Diferencia Negativa · Últimos 7 días</span>
-              <span style={{fontSize:10,color:"#ffffff"}}>{cierresNeg.length} cierres</span>
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:2.5,color:"#ff4444",textTransform:"uppercase"}}>🔴 Alertas de Cierre · Últimos 7 días</span>
+              <span style={{fontSize:10,color:"#ffffff"}}>{cierresNeg.length} alertas</span>
             </div>
             {cierresNeg.length===0
-              ?<div style={{padding:16,color:"#00cc55",textAlign:"center",fontSize:12}}>✓ Sin cierres negativos en los últimos 7 días</div>
-              :<table>
-                <thead><tr><th>Fecha</th><th>Local</th><th>Turno</th><th>Ef. Ventas</th><th>Declarado</th><th style={{color:"#ff4444"}}>Diferencia</th></tr></thead>
+              ?<div style={{padding:16,color:"#00cc55",textAlign:"center",fontSize:12}}>✓ Sin alertas en los últimos 7 días</div>
+              :<table style={{fontSize:10}}>
+                <thead><tr>
+                  <th style={{minWidth:72}}>Local/Turno</th>
+                  <th style={{minWidth:68}}>Fecha</th>
+                  <th style={{minWidth:62,color:"#00cc55"}}>Ef.Ventas</th>
+                  <th style={{minWidth:62}}>Declarado</th>
+                  <th style={{minWidth:62,color:"#ff4444"}}>Dif.Ef</th>
+                  <th style={{minWidth:62,color:"#3388ff"}}>Digital</th>
+                  <th style={{minWidth:62,color:"#3388ff"}}>Payway</th>
+                </tr></thead>
                 <tbody>{cierresNeg.map((d,i)=>{
                   const cajaTotalDec=parseFloat((d.notes?.match(/\[CajaTotal: ([^\]]+)\]/)?.[1]||"0").trim())||0;
                   const turnoNote=d.notes?.match(/\[Turno: ([^\]]+)\]/)?.[1]||"—";
+                  const paywayDec=parseFloat((d.notes?.match(/\[PaywayLote: ([^\]]+)\]/)?.[1]||"0").trim())||0;
                   const prev=[...caja].filter(c=>c.localName===d.localName&&c.id<d.id).sort((a,b)=>b.id-a.id)[0];
                   const fondoRec=prev?.openingAmount||0;
                   const esperado=d.totalEf+fondoRec;
-                  const dif=cajaTotalDec-esperado;
-                  const fechaAR=new Date(d.closedAt).toLocaleDateString("es-AR");
+                  const difEf=cajaTotalDec>0?cajaTotalDec-esperado:null;
+                  const difPay=paywayDec>0?paywayDec-d.totalDig:null;
+                  const fechaCorta=new Date(d.closedAt).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"});
                   const horaAR=new Date(d.closedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",hour12:false});
+                  const esMañana=turnoNote==="Mañana";
                   return(<tr key={i}>
-                    <td style={{fontSize:10}}>{fechaAR} <span style={{color:"#00d4ff"}}>{horaAR}</span></td>
-                    <td style={{color:"#00d4ff",fontWeight:700,fontSize:11}}>{d.localName}</td>
-                    <td style={{fontSize:10,color:turnoNote==="Mañana"?"#ff9900":"#cc44ff"}}>{turnoNote}</td>
-                    <td style={{color:"#00cc55",fontSize:11}}>{fmtM(d.totalEf)}</td>
-                    <td style={{color:"#ffffff",fontSize:11}}>{fmtM(cajaTotalDec)}</td>
-                    <td style={{color:"#ff4444",fontWeight:800,fontSize:12}}>{fmtM(dif)}</td>
+                    <td style={{lineHeight:1.3}}>
+                      <div style={{color:"#00d4ff",fontWeight:700,fontSize:11}}>{d.localName}</div>
+                      <div style={{fontSize:9,color:esMañana?"#ff9900":"#cc44ff",fontWeight:600}}>{esMañana?"🌅 M":"🌙 T"}</div>
+                    </td>
+                    <td>{fechaCorta}<br/><span style={{color:"#00d4ff",fontSize:9}}>{horaAR}</span></td>
+                    <td style={{color:"#00cc55"}}>{fmtM(d.totalEf)}</td>
+                    <td style={{color:"#ffffff"}}>{cajaTotalDec>0?fmtM(cajaTotalDec):"—"}</td>
+                    <td style={{color:difEf!==null&&difEf<-500?"#ff4444":"#ffffff",fontWeight:difEf!==null&&difEf<-500?800:400}}>{difEf!==null?fmtM(difEf):"—"}</td>
+                    <td style={{color:"#3388ff"}}>{fmtM(d.totalDig)}</td>
+                    <td style={{color:difPay!==null&&difPay<-500?"#ff4444":"#3388ff",fontWeight:difPay!==null&&difPay<-500?800:400}}>{paywayDec>0?fmtM(paywayDec):"—"}</td>
                   </tr>);
                 })}</tbody>
               </table>}
