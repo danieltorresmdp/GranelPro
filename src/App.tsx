@@ -5100,6 +5100,12 @@ function Auditoria({prods,locales,localeNames,notify,loadAll,users,sales}) {
     cargar();loadAll();
   };
 
+  const descartar=async(c)=>{
+    await sb.from("gp_conteos").update({estado:"descartado",revisado_por:"admin",revisado_en:new Date().toISOString(),nota:nota[c.id]||null}).eq("id",c.id);
+    notify("Conteo descartado");
+    cargar();loadAll();
+  };
+
   const tabs=[["pendientes","⏳ Pendientes"],["vencidas","⚠️ Vencidas"]];
   const cfilt=localF==="Todos"?conteos:conteos.filter(c=>c.local_name===localF);
   const tfilt=localF==="Todos"?tareas:tareas.filter(t=>t.local_name===localF);
@@ -5148,6 +5154,7 @@ function Auditoria({prods,locales,localeNames,notify,loadAll,users,sales}) {
                       <Inp placeholder="Nota (opcional)" value={nota[c.id]||""} onChange={(e)=>setNota(prev=>({...prev,[c.id]:e.target.value}))} sx={{marginTop:8,fontSize:11}}/>
                     </div>
                     <div style={{display:"flex",gap:6,flexShrink:0,marginTop:4}}>
+                      <Btn v="gh" sx={{fontSize:10,padding:"5px 10px"}} onClick={()=>descartar(c)}>🗑 Descartar</Btn>
                       <Btn v="gh" sx={{fontSize:10,padding:"5px 10px"}} onClick={()=>aprobar(c,false)}>Sin ajuste</Btn>
                       {diff!==0&&<Btn v="g" sx={{fontSize:10,padding:"5px 10px"}} onClick={()=>aprobar(c,true)}>Ajustar stock</Btn>}
                     </div>
