@@ -2588,8 +2588,10 @@ function Empleados({notify}) {
     if(!form.nombre.trim()){notify("Nombre requerido","err");return;}
     setSaving(true);
     try{
-      if(form.id) await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}).eq("id",form.id);
-      else await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}]);
+      let err;
+      if(form.id){const r=await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}).eq("id",form.id);err=r.error;}
+      else{const r=await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}]);err=r.error;}
+      if(err){notify("Error al guardar: "+err.message,"err");setSaving(false);return;}
       notify("Guardado");load();setModal(false);
     }catch(e){notify("Error","err");}
     setSaving(false);
