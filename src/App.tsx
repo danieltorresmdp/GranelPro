@@ -2581,7 +2581,7 @@ function Empleados({notify}) {
 
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setForm({nombre:"",dni:"",direccion:"",celular:"",fecha_ingreso:todayStr(),cargo:"",sueldo_base:0,activo:true,notas:"",local:""});setModal(true);};
+  const openNew=()=>{setForm({nombre:"",dni:"",direccion:"",celular:"",fecha_ingreso:todayStr(),cargo:"",sueldo_base:0,activo:true,notas:""});setModal(true);};
   const openEdit=(e)=>{setForm({...e});setModal(true);};
 
   const save=async()=>{
@@ -2589,8 +2589,8 @@ function Empleados({notify}) {
     setSaving(true);
     try{
       let err;
-      if(form.id){const r=await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}).eq("id",form.id);err=r.error;}
-      else{const r=await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas,local:form.local}]);err=r.error;}
+      if(form.id){const r=await sb.from("gp_empleados").update({nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas}).eq("id",form.id);err=r.error;}
+      else{const r=await sb.from("gp_empleados").insert([{nombre:form.nombre,dni:form.dni,direccion:form.direccion,celular:form.celular,fecha_ingreso:form.fecha_ingreso,cargo:form.cargo,sueldo_base:Number(form.sueldo_base)||0,activo:form.activo,notas:form.notas}]);err=r.error;}
       if(err){notify("Error al guardar: "+err.message,"err");setSaving(false);return;}
       notify("Guardado");load();setModal(false);
     }catch(e){notify("Error","err");}
@@ -2796,7 +2796,7 @@ function Empleados({notify}) {
               if(!f.nombre?.trim()){notify("Nombre requerido","err");return;}
               setSaving(true);
               try{
-                await sb.from("gp_empleados").update({nombre:f.nombre,dni:f.dni,direccion:f.direccion,celular:f.celular,fecha_ingreso:f.fecha_ingreso,cargo:f.cargo,sueldo_base:Number(f.sueldo_base)||0,activo:f.activo,notas:f.notas,local:f.local}).eq("id",detEmp.id);
+                await sb.from("gp_empleados").update({nombre:f.nombre,dni:f.dni,direccion:f.direccion,celular:f.celular,fecha_ingreso:f.fecha_ingreso,cargo:f.cargo,sueldo_base:Number(f.sueldo_base)||0,activo:f.activo,notas:f.notas}).eq("id",detEmp.id);
                 const{data}=await sb.from("gp_empleados").select("*").eq("id",detEmp.id).single();
                 if(data){setDetEmp(data);setForm(null);}
                 notify("Guardado");load();
