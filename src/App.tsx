@@ -4713,7 +4713,7 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
       if(form.id){const r=await sb.from("gp_locales").update(payload).eq("id",form.id);err=r.error;}
       else{const r=await sb.from("gp_locales").insert([payload]);err=r.error;}
       if(err){notify("Error al guardar: "+err.message,"err");setSaving(false);return;}
-      notify(form.id?"Local actualizado":"Local creado");loadAll();setModal(false);
+      notify(form.id?"Local actualizado":"Local creado");await loadAll();setModal(false);
     }catch(e){notify("Error","err");}
     setSaving(false);
   };
