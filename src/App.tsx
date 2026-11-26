@@ -4709,8 +4709,10 @@ function LocalMgt({locales,notify,loadAll,cuotasConfig,setCuotasConfig}) {
     setSaving(true);
     try{
       const payload={name:form.name.trim(),turno_unico:form.turno_unico||false,conteos_por_dia:parseInt(form.conteos_por_dia)||10,tolerancia_kg:parseFloat(form.tolerancia_kg)||0.3,corte_turno_hora:parseInt(form.corte_turno_hora)||13};
-      if(form.id) await sb.from("gp_locales").update(payload).eq("id",form.id);
-      else await sb.from("gp_locales").insert([payload]);
+      let err;
+      if(form.id){const r=await sb.from("gp_locales").update(payload).eq("id",form.id);err=r.error;}
+      else{const r=await sb.from("gp_locales").insert([payload]);err=r.error;}
+      if(err){notify("Error al guardar: "+err.message,"err");setSaving(false);return;}
       notify(form.id?"Local actualizado":"Local creado");loadAll();setModal(false);
     }catch(e){notify("Error","err");}
     setSaving(false);
