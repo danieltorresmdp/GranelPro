@@ -137,7 +137,7 @@ const mapStock  = (r) => r?({id:r.id,productId:r.product_id,localName:r.local_na
 const mapClient = (r) => r?({id:r.id,name:r.name,dni:r.dni||"",phone:r.phone||"",email:r.email||"",addr:r.addr||"",pay:r.pay||"efectivo",pts:Number(r.pts)||0,active:r.active}):null;
 const mapSale   = (r) => r?({id:r.id,date:r.date,cid:r.cid,items:r.items||[],sub:Number(r.sub)||0,disc:Number(r.disc)||0,total:Number(r.total)||0,pay:r.pay,ptsE:r.pts_e||0,ptsS:r.pts_s||0,uid:r.uid,localName:r.local_name||""}):null;
 const mapCaja   = (r) => r?({id:r.id,closedAt:r.closed_at,closedBy:r.closed_by,closedByName:r.closed_by_name||"",saleIds:r.sale_ids||[],byPay:r.by_pay||{},totalEf:Number(r.total_ef)||0,totalDig:Number(r.total_dig)||0,totalAll:Number(r.total_all)||0,openingAmount:Number(r.opening_amount)||0,retiro_efectivo:Number(r.retiro_efectivo)||0,notes:r.notes||"",salesCount:r.sales_count||0,localName:r.local_name||""}):null;
-const mapLocale = (r) => r?({id:r.id,name:r.name}):null;
+const mapLocale = (r) => r?({id:r.id,name:r.name,auditoria_desde:r.auditoria_desde||null,turno_unico:r.turno_unico||false,conteos_por_dia:r.conteos_por_dia||10,tolerancia_kg:r.tolerancia_kg||0.3,corte_turno_hora:r.corte_turno_hora||13}):null;
 
 const Login = ({onLogin}) => {
   const[un,setUn]=useState("");const[pw,setPw]=useState("");const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
